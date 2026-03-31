@@ -6,51 +6,68 @@ from PyQt6.QtGui import QColor, QPalette, QIcon
 
 from styles import COLORS, GLOBAL_STYLE
 from screens.home_screen import HomeScreen
+from screens.nor_objective_screen import NORObjectiveScreen
 from screens.nor_screen import NORScreen
 from screens.openfield_screen import OpenFieldScreen
 from screens.esquiva_screen import EsquivaScreen
 from screens.eletrof_screen import EletrofScreen
 
 
-class OuroScan(QMainWindow):
+class MindTrace(QMainWindow):
     """
-    Orquestrador principal.
+    Orquestrador principal do MindTrace.
     Gerencia o QStackedWidget e a navegação entre telas.
 
     Índices do stack:
         0 — Home
-        1 — Reconhecimento de Objetos (NOR)
-        2 — Campo Aberto / Habituação
-        3 — Esquiva Inibitória
-        4 — Registro Eletrofisiológico
+        1 — Seleção de Objetivo NOR
+        2 — Sessão NOR (com planilha)
+        3 — Campo Aberto / Habituação
+        4 — Esquiva Inibitória
+        5 — Registro Eletrofisiológico
     """
+
+    IDX_HOME          = 0
+    IDX_NOR_OBJETIVO  = 1
+    IDX_NOR           = 2
+    IDX_OPENFIELD     = 3
+    IDX_ESQUIVA       = 4
+    IDX_ELETROF       = 5
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("OuroScan")
-        self.resize(980, 660)
-        self.setMinimumSize(820, 560)
+        self.setWindowTitle("MindTrace")
+        self.resize(980, 700)
+        self.setMinimumSize(820, 580)
         self.setStyleSheet(GLOBAL_STYLE)
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
 
-        go_home = lambda: self.stack.setCurrentIndex(0)
+        go_home      = lambda: self.stack.setCurrentIndex(self.IDX_HOME)
+        go_objetivos = lambda: self.stack.setCurrentIndex(self.IDX_NOR_OBJETIVO)
 
-        pages = [
-            HomeScreen(navigate_to=self.stack.setCurrentIndex),
-            NORScreen(go_home=go_home),
-            OpenFieldScreen(go_home=go_home),
-            EsquivaScreen(go_home=go_home),
-            EletrofScreen(go_home=go_home),
+        self._nor_screen = NORScreen(go_objectives=go_objetivos)
+
+        def go_nor(fase: str):
+            self._nor_screen.configure(fase)
+            self.stack.setCurrentIndex(self.IDX_NOR)
+
+        paginas = [
+            HomeScreen(navigate_to=self.stack.setCurrentIndex),          # 0
+            NORObjectiveScreen(go_home=go_home, go_nor=go_nor),          # 1
+            self._nor_screen,                                             # 2
+            OpenFieldScreen(go_home=go_home),                            # 3
+            EsquivaScreen(go_home=go_home),                              # 4
+            EletrofScreen(go_home=go_home),                              # 5
         ]
-        for page in pages:
-            self.stack.addWidget(page)
+        for pagina in paginas:
+            self.stack.addWidget(pagina)
 
-        self.stack.setCurrentIndex(0)
+        self.stack.setCurrentIndex(self.IDX_HOME)
 
 
-def _apply_palette(app: QApplication) -> None:
+def _aplicar_paleta(app: QApplication) -> None:
     app.setStyle("Fusion")
     p = QPalette()
     p.setColor(QPalette.ColorRole.Window,          QColor(COLORS["bg"]))
@@ -69,13 +86,12 @@ def _apply_palette(app: QApplication) -> None:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    _apply_palette(app)
+    _aplicar_paleta(app)
 
-    # Ícone da janela (memorylab.ico na raiz do projeto)
     icon_path = Path(__file__).parent / "memorylab.ico"
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
-    window = OuroScan()
+    window = MindTrace()
     window.show()
     sys.exit(app.exec())

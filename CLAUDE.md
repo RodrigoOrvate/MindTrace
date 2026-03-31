@@ -1,4 +1,4 @@
-# OuroScan - Guidelines de Desenvolvimento
+# MindTrace - Guidelines de Desenvolvimento
 
 ## 🛠 Arquitetura do Projeto
 - **main.py**: Orquestrador principal (QStackedWidget e navegação).
@@ -9,7 +9,7 @@
 
 ## 📁 Estrutura de Pastas de Saída (Data Management)
 O sistema deve seguir o padrão:
-`OuroScan_Results/ <Aparato> / <Sessao_Animal_Data> /`
+`MindTrace_Results/ <Aparato> / <Sessao_Animal_Data> /`
 Arquivos gerados: `metadata.csv`, `tracking_data.csv`, `video_output.mp4`.
 
 ## 🎨 Padrões Visuais

@@ -5,7 +5,9 @@
       "Bash(python -m py_compile main.py)",
       "Bash(python -m py_compile main.py styles.py components/buttons.py components/cards.py data/manager.py screens/home_screen.py screens/nor_screen.py screens/openfield_screen.py screens/esquiva_screen.py screens/eletrof_screen.py)",
       "Bash(python -m py_compile components/cards.py screens/home_screen.py)",
-      "Bash(python -m py_compile components/cards.py)"
+      "Bash(python -m py_compile components/cards.py)",
+      "Bash(python -c \"import sys; sys.exit\\(0\\)\")",
+      "Bash(python -c \":*)"
     ]
   }
 }

@@ -6,10 +6,10 @@ from components.cards import ExperimentCard
 
 
 class HomeScreen(QWidget):
-    IDX_NOR       = 1
-    IDX_OPENFIELD = 2
-    IDX_ESQUIVA   = 3
-    IDX_ELETROF   = 4
+    IDX_NOR       = 1   # NORObjectiveScreen
+    IDX_OPENFIELD = 3
+    IDX_ESQUIVA   = 4
+    IDX_ELETROF   = 5
 
     def __init__(self, navigate_to):
         super().__init__()
@@ -22,7 +22,7 @@ class HomeScreen(QWidget):
         root.setSpacing(0)
 
         # ── Header ──────────────────────────────────────────────────────
-        title = QLabel("OuroScan")
+        title = QLabel("MindTrace")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
             f"color: {COLORS['text']}; font-size: 30px; font-weight: bold; "

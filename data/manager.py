@@ -1,10 +1,10 @@
 """
 data/manager.py
 ---------------
-Handles directory creation and metadata persistence for OuroScan sessions.
+Handles directory creation and metadata persistence for MindTrace sessions.
 
 Output structure:
-    OuroScan_Data/
+    MindTrace_Data/
         <Aparato>/
             <ID_Animal>_<Fase>_<YYYYMMDD_HHMMSS>/
                 metadata.csv
@@ -52,7 +52,7 @@ def create_session_dir(aparato_key: str, animal_id: str, fase: str) -> Path:
     safe_fase = _sanitise(fase)       or "Sessao"
 
     session_name = f"{safe_id}_{safe_fase}_{timestamp}"
-    session_path = Path("OuroScan_Data") / aparato_folder / session_name
+    session_path = Path("MindTrace_Data") / aparato_folder / session_name
     session_path.mkdir(parents=True, exist_ok=True)
     return session_path
 
