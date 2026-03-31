@@ -1,3 +1,4 @@
+# styles.py
 COLORS = {
     "bg":            "#0f0f1a",
     "card":          "#1a1a2e",
