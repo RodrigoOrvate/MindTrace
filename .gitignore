@@ -1,0 +1,31 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# ── Qt / C++ build ───────────────────────────────────────
+qt/build/
+build/
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# ── Dados gerados pelo MindTrace ─────────────────────────
+MindTrace_Data/
+
+# ── IDE e SO ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.user
+Thumbs.db
+desktop.ini
+
+# ── Logs de debug ────────────────────────────────────────
+*.log
