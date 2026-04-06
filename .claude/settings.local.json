@@ -7,7 +7,16 @@
       "Bash(python -m py_compile components/cards.py screens/home_screen.py)",
       "Bash(python -m py_compile components/cards.py)",
       "Bash(python -c \"import sys; sys.exit\\(0\\)\")",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(del \"c:\\\\MindTrace - Copia\\\\qt\\\\Project.toml\")",
+      "Bash(del \"c:\\\\MindTrace - Copia\\\\qt\\\\Manifest.toml\")",
+      "Bash(exist \"c:\\\\MindTrace - Copia\\\\qt\\\\Project.toml\" del /f \"c:\\\\MindTrace - Copia\\\\qt\\\\Project.toml\")",
+      "Bash(cmd /c \"del /f \\\\\"c:\\\\\\\\MindTrace - Copia\\\\\\\\qt\\\\\\\\Project.toml\\\\\" 2>nul & del /f \\\\\"c:\\\\\\\\MindTrace - Copia\\\\\\\\qt\\\\\\\\Manifest.toml\\\\\" 2>nul & echo done\")",
+      "Bash(dir \"C:\\\\MindTrace - Copia\\\\qt\\\\onnxruntime-win-x64-1.16.3\" /s /b)",
+      "Bash(dir \"C:\\\\MindTrace - Copia\\\\qt\\\\onnxruntime-win-x64-1.16.3\\\\lib\" /b)",
+      "Bash(where opencv_world*)",
+      "Bash(dir \"C:\\\\opencv\" /b)",
+      "Bash(dir \"C:\\\\\" /b 2>nul | findstr -i opencv; dir \"C:\\\\Program Files\" /b 2>nul | findstr -i opencv)"
     ]
   }
 }

@@ -60,9 +60,9 @@ Item {
 
         // A sua biblioteca exata da UFRN
         var pxSizes = {
-            "A": 52, "B": 52, "C": 57, "G": 66,
-            "F": 47, "J": 47, "N": 52, "D": 49,
-            "R": 42, "E": 60, "P": 57, "I": 73
+            "A": 42, "B": 42, "C": 47, "G": 56,
+            "F": 37, "J": 37, "N": 42, "D": 39,
+            "R": 32, "E": 50, "P": 47, "I": 63
         };
 
         var px = pxSizes[letter];
@@ -137,11 +137,13 @@ Item {
     // ── Player de vídeo offline ──────────────────────────────────────────────
     MediaPlayer {
         id: videoPlayer
-        loops: MediaPlayer.Infinite
-        // Dispara play quando o media está pronto (onSourceChanged é cedo demais)
+        autoPlay: false 
         onStatusChanged: {
-            if (status === MediaPlayer.Loaded || status === MediaPlayer.Buffered)
-                play()
+            // Quando o vídeo carrega, pulamos para o frame 10 (segurança contra tela preta)
+            if (status === MediaPlayer.Loaded) {
+                seek(1000) // Pula para 1 segundo (aprox. frame 30) ou use um valor menor
+                pause()
+            }
         }
     }
 
@@ -344,21 +346,26 @@ Item {
                                 border.color: "#ab3d4c"; border.width: 2
                                 clip: true
 
-                                // ── Vídeo: ShaderEffectSource recorta o quadrante certo ──
-                                // masterVideoOut vive no canto direito-inferior; ShaderEffectSource
-                                // captura sua textura no scene graph (não afetado por hardware overlay).
                                 ShaderEffectSource {
                                     anchors.fill: parent
                                     visible: root.videoPath !== ""
-                                    sourceItem: masterVideoOut
+                                    sourceItem: framePreview // Usando o id correto que configuramos
+
                                     // Recorta o quadrante 2×2 correspondente ao campo
-                                    // (coordenadas em px no espaço do masterVideoOut)
                                     sourceRect: {
-                                        var w = masterVideoOut.width
-                                        var h = masterVideoOut.height
-                                        if (campoCell.campoIndex === 0) return Qt.rect(0,   0,   w/2, h/2)
-                                        if (campoCell.campoIndex === 1) return Qt.rect(w/2, 0,   w/2, h/2)
-                                        return Qt.rect(0,   h/2, w/2, h/2)
+                                        if (!framePreview || framePreview.width === 0) return Qt.rect(0,0,0,0)
+
+                                        // Puxa as coordenadas EXATAS do vídeo, ignorando faixas pretas
+                                        var cr = framePreview.contentRect
+                                        var cw = cr.width / 2
+                                        var ch = cr.height / 2
+                                        var cx = cr.x
+                                        var cy = cr.y
+
+                                        // Divide o quadrado do vídeo igual por igual
+                                        if (campoCell.campoIndex === 0) return Qt.rect(cx,      cy,      cw, ch) // Topo-Esq (Campo 1)
+                                        if (campoCell.campoIndex === 1) return Qt.rect(cx + cw, cy,      cw, ch) // Topo-Dir (Campo 2)
+                                        return Qt.rect(cx,      cy + ch, cw, ch) // Baixo-Esq (Campo 3)
                                     }
                                     opacity: 0.9
                                 }
@@ -654,11 +661,12 @@ Item {
 
                     // VideoOutput mestre — ocupa a maior parte da célula
                     VideoOutput {
-                        id: masterVideoOut
-                        Layout.fillWidth: true; Layout.fillHeight: true
+                        id: framePreview
+                        anchors.fill: parent
                         source: videoPlayer
-                        fillMode: VideoOutput.Stretch
+                        fillMode: VideoOutput.PreserveAspectFit
                         visible: root.videoPath !== ""
+                        opacity: 0.5 // Deixa o fundo suave para desenhar as zonas por cima
                     }
 
                     // Status do player

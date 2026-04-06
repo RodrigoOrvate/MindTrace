@@ -16,7 +16,7 @@
     <file>qml/SessionResultDialog.qml</file>
     <file>qml/LiveRecording.qml</file>
     <file>qml/qtquickcontrols2.conf</file>
-    <file alias="arenas.json">arenas.json</file>
-    <file alias="arena_config_referencia.json">arena_config_referencia.json</file>
+    <file alias="arenas.json">data/arenas.json</file>
+    <file alias="arena_config_referencia.json">data/arena_config_referencia.json</file>
 </qresource>
 </RCC>

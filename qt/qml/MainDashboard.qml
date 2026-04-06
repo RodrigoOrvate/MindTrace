@@ -401,7 +401,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 Arena", "📊 Dados", "🎬 Gravação"]
+                                    model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
 
                                     delegate: Item {
                                         width: tabLabel.implicitWidth + 28; height: parent.height
@@ -445,8 +445,9 @@ Item {
 
                             // Tab 0: Arena
                             ArenaSetup {
+                                id: tabArenaSetup 
                                 experimentPath: workArea.selectedPath
-                                context:        root.context
+                                context: root.context
 
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
@@ -460,117 +461,31 @@ Item {
                                 }
                             }
 
-                            // Tab 1: Dados
+                            // Tab 1: Gravação
+                            LiveRecording {
+                                id: liveRecordingTab
+                                videoPath: tabArenaSetup.videoPath
+
+                                pair1: workArea.pair1
+                                pair2: workArea.pair2
+                                pair3: workArea.pair3
+
+                                sessionType: workArea.sessionType
+                                onSessionTypeChanged: workArea.sessionType = sessionType
+
+                                zones:       tabArenaSetup.zones
+                                arenaPoints: tabArenaSetup.arenaPoints
+                                floorPoints: tabArenaSetup.floorPoints
+
+                                // Timer de 300 s zerou → abre o diálogo de resultado
+                                onSessionEnded: resultDialog.open()
+                            }
+
+                            // Tab 2: Dados
                             Item {
                                 ColumnLayout {
                                     anchors { fill: parent; margins: 24 }
                                     spacing: 12
-
-                                    // ── Painel de Sessão ─────────────────────────────────────
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 76; radius: 10
-                                        color: "#12122a"; border.color: "#2d2d4a"; border.width: 1
-
-                                        ColumnLayout {
-                                            anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 10; bottomMargin: 10 }
-                                            spacing: 8
-
-                                            // Seletor de tipo de sessão + timer
-                                            RowLayout {
-                                                spacing: 6
-
-                                                Text {
-                                                    text: "SESSÃO"
-                                                    color: "#8888aa"; font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
-                                                }
-
-                                                Repeater {
-                                                    model: ["Treino", "Reativação", "Teste D2", "Teste D3"]
-                                                    delegate: Rectangle {
-                                                        id: sessBtn
-                                                        property bool isSel: workArea.sessionType === modelData
-                                                        
-                                                        height: 22
-                                                        radius: 5
-                                                        // Aumentei o padding para +16 para dar uma área de clique mais confortável
-                                                        implicitWidth: stLbl.implicitWidth + 16 
-                                                        
-                                                        // Fundo transparente se não estiver selecionado/hover
-                                                        color: isSel ? "#ab3d4c" : (stMa.containsMouse ? "#25253e" : "transparent")
-                                                        
-                                                        // Borda mais clara para não sumir no Windows 7
-                                                        border.color: isSel ? "#7a2030" : (stMa.containsMouse ? "#4a4a6c" : "#3a3a5c")
-                                                        border.width: isSel ? 2 : 1
-                                                        
-                                                        Text {
-                                                            id: stLbl
-                                                            anchors.centerIn: parent
-                                                            text: modelData
-                                                            color: sessBtn.isSel ? "#ffffff" : (stMa.containsMouse ? "#e8e8f0" : "#8888aa")
-                                                            font.pixelSize: 10
-                                                            // SEMPRE negrito. Assim a largura do botão nunca muda e ele não "foge" do mouse!
-                                                            font.weight: Font.Bold
-                                                        }
-                                                        
-                                                        MouseArea {
-                                                            id: stMa
-                                                            anchors.fill: parent
-                                                            hoverEnabled: true
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            onClicked: workArea.sessionType = modelData
-                                                        }
-                                                    }
-                                                }
-
-                                                Item { Layout.fillWidth: true }
-
-                                                // Botão Iniciar Experimento → navega para aba Gravação
-                                                Rectangle {
-                                                    height: 24; radius: 5
-                                                    implicitWidth: iniciarLbl.implicitWidth + 20
-                                                    color: iniciarMa.containsMouse ? "#8a2e3b" : "#ab3d4c"
-                                                    Behavior on color { ColorAnimation { duration: 120 } }
-                                                    Text {
-                                                        id: iniciarLbl; anchors.centerIn: parent
-                                                        text: "▶ Iniciar Experimento"
-                                                        color: "#e8e8f0"; font.pixelSize: 11; font.weight: Font.Bold
-                                                    }
-                                                    MouseArea {
-                                                        id: iniciarMa; anchors.fill: parent
-                                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                        onClicked: innerTabs.currentIndex = 2
-                                                    }
-                                                }
-                                            }
-
-                                            // Pares por campo (readonly — definidos na criação)
-                                            RowLayout {
-                                                spacing: 16
-                                                Repeater {
-                                                    model: [
-                                                        { label: "Campo 1", pair: workArea.pair1 },
-                                                        { label: "Campo 2", pair: workArea.pair2 },
-                                                        { label: "Campo 3", pair: workArea.pair3 }
-                                                    ]
-                                                    delegate: RowLayout {
-                                                        spacing: 4
-                                                        Text { text: modelData.label; color: "#555577"; font.pixelSize: 9 }
-                                                        Rectangle {
-                                                            radius: 3; color: "#1f0d10"
-                                                            border.color: "#ab3d4c"; border.width: 1
-                                                            implicitWidth: cpTxt.implicitWidth + 10; implicitHeight: 16
-                                                            Text {
-                                                                id: cpTxt; anchors.centerIn: parent
-                                                                text: modelData.pair !== "" ? "Par " + modelData.pair : "—"
-                                                                color: "#ab3d4c"; font.pixelSize: 9
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
 
                                     RowLayout {
                                         spacing: 8
@@ -644,8 +559,7 @@ Item {
                                                 verticalAlignment: Text.AlignVCenter
                                                 clip: true; selectByMouse: true
                                                 onEditingFinished: {
-                                                    tableModel.setData(
-                                                        tableModel.index(row, column), text, Qt.EditRole)
+                                                    tableModel.setData(tableModel.index(row, column), text, Qt.EditRole)
                                                 }
                                             }
                                         }
@@ -657,9 +571,6 @@ Item {
                                     anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 }
                                 }
                             }
-
-                            // Tab 2: Gravação
-                            LiveRecording {}
                         }
                     }
                 }

@@ -3,8 +3,8 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.venv/
-venv/
+.venv_lab38/
+venv_lab38/
 
 # ── Qt / C++ build ───────────────────────────────────────
 qt/build/
@@ -19,6 +19,7 @@ build/
 
 # ── Dados gerados pelo MindTrace ─────────────────────────
 MindTrace_Data/
+TT 1-2-4.MPG
 
 # ── IDE e SO ─────────────────────────────────────────────
 .vscode/
@@ -29,3 +30,9 @@ desktop.ini
 
 # ── Logs de debug ────────────────────────────────────────
 *.log
+debug/
+
+# ── Outros ───────────────────────────────────────────────
+.claude/
+onnxruntime.zip
+onnxruntime-win-x64-1.16.3/
