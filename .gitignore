@@ -6,33 +6,40 @@ __pycache__/
 .venv_lab38/
 venv_lab38/
 
-# ── Qt / C++ build ───────────────────────────────────────
-qt/build/
+# ── Qt / C++ build artifacts ─────────────────────────────
 build/
 *.o
 *.obj
-*.exe
 *.pdb
 *.ilk
 *.exp
+
+# ── Binários (gerados no build ou ferramentas externas) ──
+*.exe
 *.lib
+*.dll
 
-# ── Dados gerados pelo MindTrace ─────────────────────────
+# ── ONNX Runtime SDK (baixado separadamente) ─────────────
+onnxruntime-win-x64-1.16.3/
+onnxruntime.zip
+
+# ── Dados locais do MindTrace ────────────────────────────
 MindTrace_Data/
-TT 1-2-4.MPG
+*.mpg
+*.mp4
+*.avi
+*.mkv
 
-# ── IDE e SO ─────────────────────────────────────────────
+# ── IDE e OS ─────────────────────────────────────────────
 .vscode/
 .idea/
 *.user
 Thumbs.db
 desktop.ini
 
-# ── Logs de debug ────────────────────────────────────────
-*.log
-debug/
+# ── Claude Code settings ─────────────────────────────────
+# Ignore local overrides but keep shared settings
+.claude/settings.local.json
 
-# ── Outros ───────────────────────────────────────────────
-.claude/
-onnxruntime.zip
-onnxruntime-win-x64-1.16.3/
+# ── Logs ─────────────────────────────────────────────────
+*.log
