@@ -1,4 +1,4 @@
-# MindTrace - Project Guide (Neuroscience Lab)
+# MindTrace - Project Guide (MemoryLab - UFRN)
 
 ## Current Status: Native ONNX Inference (C++) — tracking ao vivo
 
@@ -11,7 +11,7 @@ Sistema de tracking ao vivo que processa o vídeo frame a frame **nativamente em
 - **Arquitetura:** ResNet-50 via DeepLabCut — exportado para ONNX
 - **Bodyparts:** `nose` (canal 0) e `body` (canal 1)
 - **Arquivo ONNX:** `qt/Network-MemoryLab-v2.onnx`
-  - Input: `[1, 240, 360, 3]` — RGB uint8, **sem** subtracao de media (já embutida no grafo)
+  - Input: `[1, 240, 360, 3]` — RGB uint8, **sem** subtracao de media (já embutida no pipeline)
   - Output 0 (scoremap): `[1, 30, 46, 2]` — heatmaps nose+body
   - Output 1 (locref): `[1, 30, 46, 4]` — offsets sub-pixel (dx_nose, dy_nose, dx_body, dy_body)
   - **IMPORTANTE:** Nao subtrair `[123.68, 116.779, 103.939]` — modelo já normaliza internamente.
@@ -24,7 +24,7 @@ Sistema de tracking ao vivo que processa o vídeo frame a frame **nativamente em
 
 - **Câmera:** Intelbras DVR — mosaico 2×2 em arquivo único
 - **Resolução:** 720×480 @ ~29.97fps
-- **Layout:** 3 gaiolas ativas:
+- **Layout:** 3 campos ativos:
   - Campo 0: Topo-Esquerda `(0,0)`
   - Campo 1: Topo-Direita `(360,0)`
   - Campo 2: Baixo-Esquerda `(0,240)`
@@ -118,7 +118,7 @@ qt/
 ## 5. Build
 
 ```cmd
-cd "C:\MindTrace - Copia\qt"
+cd "C:\MindTrace\qt"
 scripts\build.bat
 ```
 
@@ -138,7 +138,7 @@ Isto: configura CMake (C++17, Qt 5.12 MSVC), compila, roda windeployqt, copia DL
 ## 6. Comandos de Debug
 
 ```bash
-cd "C:\MindTrace - Copia\qt"
+cd "C:\MindTrace\qt"
 
 # Teste rápido de confiança do modelo (Python isolado)
 venv_lab38\Scripts\activate
