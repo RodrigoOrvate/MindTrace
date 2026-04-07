@@ -13,10 +13,15 @@ Item {
     property string pair2: ""
     property string pair3: ""
     property string sessionType: "Treino"
+    property string analysisMode: "offline"  // "offline" ou "ao_vivo"
 
     property var zones
     property var arenaPoints
     property var floorPoints
+
+    // ── Controle de velocidade (análise offline) ────────────────────────────────
+    property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
+    property bool   isOffline: analysisMode === "offline"
 
     // ── Timers independentes por campo (cada campo conta 300s sozinho) ─────────
     property var timesRemaining: [300, 300, 300]
@@ -137,15 +142,19 @@ Item {
     }
 
     // ── Timer de sessão (1 s) — cada campo decrementa independentemente ────────
+    // No modo offline, o timer escala com playbackRate (1s real = 4s vídeo a 4x).
+    // No modo ao vivo, usa 1:1 (o vídeo é real-time).
     Timer {
         id: sessionMasterTimer
         interval: 1000; repeat: true; running: recordingRoot.isAnalyzing
         onTriggered: {
             var newTimes = recordingRoot.timesRemaining.slice()
+            var decrement = recordingRoot.isOffline ? Math.round(recordingRoot.playbackRate) : 1
             for (var i = 0; i < 3; i++) {
                 if (recordingRoot.timerStarted[i] && !recordingRoot.fieldFinished[i] && newTimes[i] > 0) {
-                    newTimes[i]--
+                    newTimes[i] -= decrement
                     if (newTimes[i] <= 0) {
+                        newTimes[i] = 0
                         var ff = recordingRoot.fieldFinished.slice()
                         ff[i] = true
                         recordingRoot.fieldFinished = ff
@@ -171,6 +180,22 @@ Item {
         onTriggered: {
             recordingRoot.accumulateExploration()
             recordingRoot._explorationTick++
+        }
+    }
+
+    // ── Timer de sincronização de posição (400 ms) ────────────────────────────
+    // O displayPlayer é o master. O headless C++ roda no máx 2x (cap de ONNX).
+    // A 4x display / 2x headless, o drift cresce 2s/s de vídeo real.
+    // O timer detecta drift > 800ms e resync o headless para a posição do display.
+    Timer {
+        id: positionSyncTimer
+        interval: 400; repeat: true
+        running: recordingRoot.isAnalyzing && recordingRoot.isOffline
+        onTriggered: {
+            if (recordingRoot.playbackRate <= 1) return
+            var drift = displayPlayer.position - dlc.position()
+            if (Math.abs(drift) > 800)
+                dlc.seekTo(displayPlayer.position)
         }
     }
 
@@ -202,6 +227,7 @@ Item {
         logView.positionViewAtEnd()
         // Start display player immediately (shows video regardless of probe/ONNX state)
         displayPlayer.source = videoPath
+        displayPlayer.playbackRate = 1.0
         displayPlayer.play()
         // Start C++ backend (ONNX load + QVideoProbe frame capture)
         dlc.startAnalysis(videoPath, "")
@@ -366,6 +392,54 @@ Item {
                         }
                     }
                     Item { Layout.fillWidth: true }
+
+                    // ── Velocidade (só aparece em modo offline) ──────────────
+                    Text {
+                        text: "\u23E9"; font.pixelSize: 13; color: "#8888aa"
+                        visible: recordingRoot.isOffline
+                    }
+                    Repeater {
+                        // x4 é o máximo prático: ONNX CPU ~60-120ms → lag ~300ms a x4.
+                        // x8+ inutilizável sem GPU DX12 (Windows 7 / K2000 = CPU only).
+                        model: [1, 2, 4]
+                        delegate: Rectangle {
+                            id: speedBtn
+                            property bool isSel: recordingRoot.playbackRate === modelData
+                            height: 28; radius: 6
+                            width: spdLbl.implicitWidth + 14
+                            visible: recordingRoot.isOffline
+                            color: isSel ? "#ab3d4c" : (spdMa.containsMouse ? "#25253e" : "transparent")
+                            border.color: isSel ? "#ff5566" : (spdMa.containsMouse ? "#4a4a6c" : "#3a3a5c")
+                            border.width: 1
+                            Text {
+                                id: spdLbl; anchors.centerIn: parent
+                                text: modelData + "x"
+                                color: speedBtn.isSel ? "#ffffff" : (spdMa.containsMouse ? "#e8e8f0" : "#8888aa")
+                                font.pixelSize: 11; font.weight: Font.Bold
+                            }
+                            MouseArea {
+                                id: spdMa; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                visible: recordingRoot.isOffline
+                                onClicked: {
+                                    var rate = modelData
+                                    var pos  = displayPlayer.position
+                                    recordingRoot.playbackRate = rate
+                                    // Stop-seek-play evita o frame preto do WMF
+                                    // ao mudar playbackRate enquanto o player está ativo
+                                    displayPlayer.stop()
+                                    displayPlayer.playbackRate = rate
+                                    displayPlayer.seek(pos)
+                                    displayPlayer.play()
+                                    // Headless capped a 2x: ONNX CPU recebe frames no máx 2x.
+                                    // O positionSyncTimer a cada 400ms compensa o drift restante.
+                                    var headlessRate = Math.min(rate, 2.0)
+                                    dlc.setPlaybackRate(headlessRate)
+                                    dlc.seekTo(pos)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 RowLayout {

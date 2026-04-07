@@ -3,6 +3,16 @@
 #include <algorithm>
 #include <thread>
 
+// DirectML execution provider — GPU acceleration via DirectX 12
+// The DirectML build of ONNX Runtime is self-contained with CPU fallback.
+#include "dml_provider_factory.h"
+
+static bool try_add_gpu_provider(Ort::SessionOptions& opts) {
+    // Device 0 = primary GPU adapter. Falls back to CPU if unavailable.
+    OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_DML(opts, 0);
+    return status == nullptr;
+}
+
 OnnxTracker::OnnxTracker(QObject* parent)
     : QThread(parent)
     , m_env(ORT_LOGGING_LEVEL_WARNING, "MindTrace")
@@ -41,8 +51,22 @@ bool OnnxTracker::createSession()
 {
     try {
         Ort::SessionOptions opts;
-        opts.SetIntraOpNumThreads(2);
-        opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+
+        // ── Try DirectML GPU first, fall back to CPU automatically ─────
+        // DirectML requires DirectX 12 (Windows 10+). On Windows 7 or GPUs
+        // without DX12 support (e.g. Kepler/K2000), this returns false and
+        // the session runs on CPU with full graph optimization.
+        bool gpuOk = try_add_gpu_provider(opts);
+        if (gpuOk) {
+            // GPU active — DML manages its own threads, don't over-parallelize
+            opts.SetIntraOpNumThreads(1);
+            emit infoMsg("Modo GPU: DirectML ativo (DirectX 12)");
+        } else {
+            // CPU fallback — enable all graph optimizations to compensate
+            opts.SetIntraOpNumThreads(2);
+            opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+            emit infoMsg("Modo CPU: DirectML indisponível (Windows 7 ou GPU sem DX12)");
+        }
 
         // Create one session per campo for parallel inference
         for (int i = 0; i < 3; i++) {
@@ -104,29 +128,26 @@ void OnnxTracker::processJob(const Job& job)
     // 3 active campos: top-left, top-right, bottom-left
     const int offsets[3][2] = {{0, 0}, {halfW, 0}, {0, halfH}};
 
-    // Prepare all crops first (main thread), then infer in parallel
-    struct CropJob { QImage crop; int campo, ox, oy; };
-    CropJob cropJobs[3];
-    int validCount = 0;
-    for (int i = 0; i < 3; i++) {
-        int ox = offsets[i][0];
-        int oy = offsets[i][1];
-        QImage crop = job.frame.copy(ox, oy, halfW, halfH);
-        if (crop.isNull()) continue;
-        if (crop.width() != MODEL_W || crop.height() != MODEL_H)
-            crop = crop.scaled(MODEL_W, MODEL_H,
-                               Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        crop = crop.convertToFormat(QImage::Format_RGB888);
-        cropJobs[validCount++] = {std::move(crop), i, ox, oy};
-    }
-
-    // Launch one thread per campo — each uses its own Ort::Session
+    // Each thread owns its crop, resize, convert, and infer — fully parallel
     std::vector<std::thread> threads;
-    threads.reserve(validCount);
-    for (int j = 0; j < validCount; j++) {
-        const auto& cj = cropJobs[j];
-        threads.emplace_back([this, &cj, scaleX, scaleY]() {
-            inferCrop(cj.crop, cj.campo, cj.ox, cj.oy, scaleX, scaleY);
+    threads.reserve(3);
+    for (int i = 0; i < 3; i++) {
+        const int ox = offsets[i][0];
+        const int oy = offsets[i][1];
+        threads.emplace_back([this, &job, i, ox, oy, halfW, halfH, scaleX, scaleY]() {
+            // Crop (cheap — pointer copy when bounds are valid)
+            QImage crop = job.frame.copy(ox, oy, halfW, halfH);
+            if (crop.isNull()) return;
+
+            // Resize only if needed — FastTransformation is ~3x faster than Smooth
+            if (crop.width() != MODEL_W || crop.height() != MODEL_H)
+                crop = crop.scaled(MODEL_W, MODEL_H,
+                                   Qt::IgnoreAspectRatio, Qt::FastTransformation);
+
+            // Convert to RGB (in-place when possible)
+            crop = crop.convertToFormat(QImage::Format_RGB888);
+
+            inferCrop(crop, i, ox, oy, scaleX, scaleY);
         });
     }
     for (auto& t : threads) t.join();

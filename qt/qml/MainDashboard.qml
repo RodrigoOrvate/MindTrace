@@ -313,6 +313,8 @@ Item {
                 property string pair2:       ""
                 property string pair3:       ""
                 property bool   includeDrug: true
+                property string analysisMode: "offline"
+                property string saveDirectory: ""
 
                 // ── Sessão de gravação ────────────────────────────────────
                 // Persistem entre rodadas (não pedem ao usuário novamente)
@@ -465,6 +467,7 @@ Item {
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath: tabArenaSetup.videoPath
+                                analysisMode: workArea.analysisMode
 
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
@@ -787,6 +790,8 @@ Item {
         sessionTypeLabel: workArea.sessionType
         dia:              workArea.sessionDia
         includeDrug:      workArea.includeDrug
+        analysisMode:     workArea.analysisMode
+        saveDirectory:    workArea.saveDirectory
     }
 
     Toast { id: successToast; successMode: true;  anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }

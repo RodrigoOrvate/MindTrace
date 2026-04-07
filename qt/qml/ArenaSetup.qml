@@ -20,8 +20,12 @@ Item {
     property string pair3: ""
     property string videoPath: ""
     property bool   devMode:   false
+    // Mode: "offline" (video already exists) or "ao_vivo" (camera, save when done)
+    property string analysisMode: ""
+    property string saveDirectory: ""
 
     signal pairsEdited(string p1, string p2, string p3)
+    signal analysisModeChangedExternally(string mode)
 
     // 6 zonas, 2 por campo: { x: xRatio, y: yRatio, r: radiusRatio }
     property var zones: [
@@ -152,9 +156,174 @@ Item {
         title: "Selecionar Vídeo de Análise"
         nameFilters: ["Vídeos (*.mp4 *.mpg *.mpeg *.avi *.mov)", "Todos os arquivos (*)"]
         onAccepted: {
-            videoPlayer.stop() // 1. Garante que o motor parou de ler o arquivo anterior
+            videoPlayer.stop()
             root.videoPath = fileUrl.toString()
-            videoPlayer.source = fileUrl.toString() // 2. Substitui o arquivo de forma segura
+            videoPlayer.source = fileUrl.toString()
+        }
+    }
+
+    // Popup: análise offline ou ao vivo?
+    Popup {
+        id: analysisModePrompt
+        width: 400; height: 220
+        anchors.centerIn: parent
+        modal: true; focus: true
+        closePolicy: Popup.CloseOnEscape
+
+        background: Rectangle {
+            radius: 14; color: "#1a1a2e"
+            border.color: "#ab3d4c"; border.width: 1
+        }
+
+        ColumnLayout {
+            anchors { fill: parent; margins: 24 }
+            spacing: 14
+
+            Text {
+                text: "Tipo de Análise"; color: "#e8e8f0"
+                font.pixelSize: 16; font.weight: Font.Bold
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: root.analysisMode === "" ? "Escolha o modo e carregue o vídeo:" : "Pronto para gravar!"
+                color: "#8888aa"; font.pixelSize: 13
+            }
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+
+                // Análise Offline
+                Rectangle {
+                    Layout.fillWidth: true; height: 80; radius: 8
+                    color: offBtnMa.offlineHover ? "#2a1f30" : "#16162e"
+                    border.color: "#ab3d4c"; border.width: 2
+
+                    property bool offlineHover: offBtnMa.containsMouse
+
+                    ColumnLayout {
+                        anchors.centerIn: parent; spacing: 4
+                        Text {
+                            text: "🎬  Análise Offline"; color: "#e8e8f0"
+                            font.pixelSize: 13; font.weight: Font.Bold
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                        Text {
+                            text: "Vídeo pré-gravado"; color: "#8888aa"
+                            font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                    MouseArea {
+                        id: offBtnMa; anchors.fill: parent
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.analysisMode = "offline"
+                            root.saveDirectory = ""
+                            analysisModePrompt.close()
+                            videoFileDialog.open()
+                        }
+                    }
+                }
+
+                // Análise Ao Vivo
+                Rectangle {
+                    Layout.fillWidth: true; height: 80; radius: 8
+                    color: liveBtnMa.liveHover ? "#162a22" : "#16162e"
+                    border.color: "#3a8a50"; border.width: 2
+
+                    property bool liveHover: liveBtnMa.containsMouse
+
+                    ColumnLayout {
+                        anchors.centerIn: parent; spacing: 4
+                        Text {
+                            text: "📹  Análise Ao Vivo"; color: "#e8e8f0"
+                            font.pixelSize: 13; font.weight: Font.Bold
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                        Text {
+                            text: "Câmera (salva o vídeo)"; color: "#8888aa"
+                            font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                    MouseArea {
+                        id: liveBtnMa; anchors.fill: parent
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.analysisMode = "ao_vivo"
+                            root.saveDirectory = ""
+                            analysisModePrompt.close()
+                            saveDirDialog.open()
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                Item { Layout.fillWidth: true }
+                GhostButton {
+                    text: "Cancelar"; onClicked: {
+                        root.videoPath = ""
+                        analysisModePrompt.close()
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: escolher diretório para salvar vídeo ao vivo
+    Popup {
+        id: saveDirDialog
+        anchors.centerIn: parent
+        width: 440; height: 180
+        modal: true; focus: true; closePolicy: Popup.CloseOnEscape
+        background: Rectangle {
+            radius: 14; color: "#1a1a2e"
+            border.color: "#ab3d4c"; border.width: 1
+        }
+        ColumnLayout {
+            anchors { fill: parent; margins: 20 }
+            spacing: 12
+            Text {
+                text: "Selecionar diretório"
+                color: "#e8e8f0"; font.pixelSize: 15; font.weight: Font.Bold
+            }
+            TextField {
+                id: savePathField
+                Layout.fillWidth: true
+                placeholderText: "Cole o caminho da pasta ou clique Pesquisar..."
+                color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
+                onTextChanged: root.saveDirectory = text
+                background: Rectangle {
+                    radius: 6; color: "#12122a"
+                    border.color: savePathField.activeFocus ? "#ab3d4c" : "#3a3a5c"
+                    border.width: 1
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                GhostButton { text: "Cancelar"; onClicked: saveDirDialog.close() }
+                Button {
+                    text: "Confirmar"
+                    enabled: savePathField.text.trim().length > 0
+                    onClicked: {
+                        root.saveDirectory = savePathField.text.trim()
+                        saveDirDialog.close()
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
+                    }
+                    contentItem: Text {
+                        text: parent.text; color: "#e8e8f0"
+                        font.pixelSize: 13; font.weight: Font.Bold
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    }
+                    leftPadding: 18; rightPadding: 18; topPadding: 9; bottomPadding: 9
+                }
+            }
         }
     }
 
@@ -232,7 +401,7 @@ Item {
             Button {
                 id: videoBtnRect
                 text: root.videoPath !== "" ? "🎬 Vídeo ✓" : "🎬 Carregar Vídeo"
-                onClicked: videoFileDialog.open()
+                onClicked: analysisModePrompt.open()
                 
                 background: Rectangle {
                     radius: 6

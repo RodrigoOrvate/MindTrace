@@ -160,9 +160,20 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
         return false;
     }
 
-    writeMetadata(folderPath, trimmedName, animalCount, columns);
-    // pair1/pair2/pair3/includeDrug usam defaults — criação simples pela sidebar
-    writeCsv(folderPath, columns, animalCount);
+    // Normalize columns: ensure they match the expected NOR schema
+    QStringList norms = columns;
+    if (columns.size() >= 5) {
+        norms[0] = QStringLiteral("Diretório do Vídeo");
+        norms[1] = QStringLiteral("Animal");
+        norms[2] = QStringLiteral("Campo");
+        norms[3] = QStringLiteral("Dia");
+        norms[4] = QStringLiteral("Par de Objetos");
+        if (norms.size() > 5)
+            norms[5] = QStringLiteral("Droga");
+    }
+
+    writeMetadata(folderPath, trimmedName, animalCount, norms);
+    writeCsv(folderPath, norms, animalCount);
 
     scanAndUpdateModel();
     emit experimentCreated(trimmedName, folderPath);

@@ -8,11 +8,13 @@ venv_lab38/
 
 # ── Qt / C++ build artifacts ─────────────────────────────
 build/
+debug/
 *.o
 *.obj
 *.pdb
 *.ilk
 *.exp
+*.rar
 
 # ── Binários (gerados no build ou ferramentas externas) ──
 *.exe
@@ -22,6 +24,7 @@ build/
 # ── ONNX Runtime SDK (baixado separadamente) ─────────────
 onnxruntime-win-x64-1.16.3/
 onnxruntime.zip
+directml_x64/
 
 # ── Dados locais do MindTrace ────────────────────────────
 MindTrace_Data/

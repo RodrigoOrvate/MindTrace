@@ -33,7 +33,12 @@ add_executable(MindTrace WIN32
     "${QRC_SOURCES}"
 )
 
-target_include_directories(MindTrace PRIVATE "${ONNX_DIR}/include")
+# ONNX Runtime headers — two include dirs so dml_provider_factory.h
+# in src/ can find onnxruntime_c_api.h from the bundle
+target_include_directories(MindTrace PRIVATE
+    "${ONNX_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
 
 target_link_libraries(MindTrace PRIVATE
     Qt5::Core
@@ -42,4 +47,7 @@ target_link_libraries(MindTrace PRIVATE
     Qt5::QuickControls2
     Qt5::Multimedia
     "${ONNX_DIR}/lib/onnxruntime.lib"
+    # d3d12.lib removido: nosso executável não chama DirectX 12 diretamente.
+    # O provider DirectML é carregado dentro de onnxruntime.dll em tempo de execução.
+    # Linkar d3d12.lib causava falha de carregamento no Windows 7 (d3d12.dll inexistente).
 )

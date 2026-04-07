@@ -38,6 +38,7 @@ signals:
     void trackResult(int campo, float x, float y, float p);
     void bodyResult (int campo, float x, float y, float p);
     void errorMsg(QString msg);
+    void infoMsg(QString msg);  // GPU/CPU mode report, general status
 
 protected:
     void run() override;

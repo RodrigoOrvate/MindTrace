@@ -42,6 +42,10 @@ DlcController::DlcController(QObject* parent)
             [this](QString msg) { emit errorOccurred(msg); },
             Qt::QueuedConnection);
 
+    connect(m_tracker, &OnnxTracker::infoMsg, this,
+            [this](QString msg) { emit infoReceived(msg); },
+            Qt::QueuedConnection);
+
     // ── Media player status ───────────────────────────────────────────────────
     connect(m_player, &QMediaPlayer::mediaStatusChanged,
             this, &DlcController::onMediaStatusChanged);
@@ -99,12 +103,28 @@ void DlcController::startAnalysis(const QString& videoPath, const QString& model
     if (!m_tracker->isRunning())
         m_tracker->start();
 
-    // Start headless playback (FrameCaptureSurface delivers frames to tracker;
-    // the visible video is handled by the QML displayPlayer).
+    // Start headless playback at natural frame rate (frame-by-frame delivery
+    // to tracker via FrameCaptureSurface)
     m_player->setMedia(QUrl::fromLocalFile(cleanVideo));
+    m_player->setPlaybackRate(1.0);
     m_player->play();
 
     setAnalyzing(true);
+}
+
+void DlcController::setPlaybackRate(double rate)
+{
+    m_player->setPlaybackRate(rate);
+}
+
+qint64 DlcController::position() const
+{
+    return m_player->position();
+}
+
+void DlcController::seekTo(qint64 ms)
+{
+    m_player->setPosition(ms);
 }
 
 void DlcController::stopAnalysis()

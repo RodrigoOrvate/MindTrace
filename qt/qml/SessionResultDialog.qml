@@ -19,11 +19,17 @@ Popup {
     property string sessionTypeLabel: "Treino"
     property string dia:              "1"
     property bool   includeDrug:      true
+    property string analysisMode:     "offline"  // "offline" ou "ao_vivo"
+    property string saveDirectory:    ""
 
     // ── Validação ─────────────────────────────────────────────────────────
-    property bool allFilled: animal1Field.text.trim().length > 0
+    property bool animalsOk: animal1Field.text.trim().length > 0
                           && animal2Field.text.trim().length > 0
                           && animal3Field.text.trim().length > 0
+    property bool dirOk:     root.analysisMode === "offline"
+                          || videoPathField.text.trim().length > 0
+                          || (root.saveDirectory !== "" && root.analysisMode === "ao_vivo")
+    property bool allFilled: animalsOk && dirOk
 
     // ── Geometria ─────────────────────────────────────────────────────────
     anchors.centerIn: parent
@@ -44,6 +50,12 @@ Popup {
         droga1Field.text    = ""
         droga2Field.text    = ""
         droga3Field.text    = ""
+        // Ao vivo: pre-fill save directory
+        if (root.analysisMode === "ao_vivo") {
+            videoPathField.placeholderText = root.saveDirectory
+        } else {
+            videoPathField.placeholderText = "Diretório do vídeo (opcional)"
+        }
         animal1Field.forceActiveFocus()
     }
 
@@ -85,14 +97,19 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
 
-        // ── Vídeo (compartilhado — mosaico 2×2 é um único arquivo) ──────
+        // ── Vídeo ──
+        // Offline: vídeo já conhecido na Arena, campo oculto
+        // Ao vivo: precisa definir onde salvar o vídeo
         RowLayout {
+            visible: root.analysisMode === "ao_vivo"
             Layout.fillWidth: true; spacing: 8
             Text { text: "📁"; font.pixelSize: 14; color: "#8888aa" }
             TextField {
                 id: videoPathField
                 Layout.fillWidth: true
-                placeholderText: "Diretório do vídeo (opcional)"
+                placeholderText: root.saveDirectory !== ""
+                                 ? root.saveDirectory
+                                 : "Diretório de salvamento"
                 color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
                 leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                 background: Rectangle {
@@ -269,7 +286,9 @@ Popup {
                 text: "✓ Inserir Dados"
                 enabled: root.allFilled
                 onClicked: {
-                    var v = videoPathField.text.trim()
+                    // For offline, no video path needed; for live use typed dir or saved dir
+                    var v = root.analysisMode === "offline" ? ""
+                          : (videoPathField.text.trim() || root.saveDirectory.replace("file:///", ""))
                     var rows = []
 
                     var r1 = [v, animal1Field.text.trim(), "1", root.dia, root.pair1]

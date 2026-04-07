@@ -102,6 +102,7 @@ for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll) do (
         echo [OK] ONNX DLL copiada: %%D
     )
 )
+echo [DIRETO] onnxruntime.dll = build DirectML com fallback para CPU
 
 :: Copia modelo ONNX para build\
 for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml) do (

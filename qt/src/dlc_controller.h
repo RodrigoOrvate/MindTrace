@@ -71,6 +71,9 @@ public:
     Q_INVOKABLE QString defaultModelDir() const;
     Q_INVOKABLE void startAnalysis(const QString& videoPath, const QString& modelDir);
     Q_INVOKABLE void stopAnalysis();
+    Q_INVOKABLE void setPlaybackRate(double rate);
+    Q_INVOKABLE qint64 position() const;
+    Q_INVOKABLE void seekTo(qint64 ms);
 
 signals:
     void analyzingChanged();

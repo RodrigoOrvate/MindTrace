@@ -1,4 +1,4 @@
-# MindTrace - Project Guide (Neuroscience Lab)
+# MindTrace - Project Guide (MemoryLab - UFRN)
 
 ## Current Status: Native ONNX Inference (C++) — tracking ao vivo
 
@@ -8,10 +8,10 @@ Sistema de tracking ao vivo que processa o vídeo frame a frame **nativamente em
 
 ## 1. Modelo Neural
 
-- **Arquitetura:** ResNet-50 via DeepLabCut — exportado para ONNX
+- **Arquitetura:** ResNet-50 via DeepLabCut — exportado para ONNX (MobileNetV2 1.0 em treinamento)
 - **Bodyparts:** `nose` (canal 0) e `body` (canal 1)
 - **Arquivo ONNX:** `qt/Network-MemoryLab-v2.onnx`
-  - Input: `[1, 240, 360, 3]` — RGB uint8, **sem** subtracao de media (já embutida no grafo)
+  - Input: `[1, 240, 360, 3]` — RGB uint8, **sem** subtracao de media (já embutida no pipeline)
   - Output 0 (scoremap): `[1, 30, 46, 2]` — heatmaps nose+body
   - Output 1 (locref): `[1, 30, 46, 4]` — offsets sub-pixel (dx_nose, dy_nose, dx_body, dy_body)
   - **IMPORTANTE:** Nao subtrair `[123.68, 116.779, 103.939]` — modelo já normaliza internamente.
@@ -24,7 +24,7 @@ Sistema de tracking ao vivo que processa o vídeo frame a frame **nativamente em
 
 - **Câmera:** Intelbras DVR — mosaico 2×2 em arquivo único
 - **Resolução:** 720×480 @ ~29.97fps
-- **Layout:** 3 gaiolas ativas:
+- **Layout:** 3 campos ativos:
   - Campo 0: Topo-Esquerda `(0,0)`
   - Campo 1: Topo-Direita `(360,0)`
   - Campo 2: Baixo-Esquerda `(0,240)`
@@ -53,6 +53,7 @@ trackReceived(campo, x, y, p)        — nose — coordenadas em pixels do mosai
 bodyReceived(campo, x, y, p)         — body — coordenadas em pixels do mosaico
 dimsReceived(width, height)          — resolucao do vídeo
 fpsReceived(fps)                     — FPS extraído do metadata
+infoReceived(msg)                    — status (ex: "Modo CPU: DirectML indisponível")
 errorOccurred(msg)                   — erro fatal
 analyzingChanged()                   — estado de análise
 ```
@@ -105,6 +106,8 @@ qt/
 - Canvas overlay: linha skeleton body→nose + ponto vermelho (nose) + laranja (body)
 - Timer de sessão 300s independente por campo, inicia na 1ª detecção com `p > 0.5`
 - Zona de exploração com bout counting + índice de discriminação
+- Velocidade offline: **1x / 2x / 4x** (x8/x16 removidos — ONNX CPU não acompanha)
+- Sincronização display↔headless: headless capped a 2x + `positionSyncTimer` a 400ms
 
 ### `build.bat`
 - Limpa `build/` automaticamente
@@ -118,7 +121,7 @@ qt/
 ## 5. Build
 
 ```cmd
-cd "C:\MindTrace - Copia\qt"
+cd "C:\MindTrace\qt"
 scripts\build.bat
 ```
 
@@ -131,14 +134,14 @@ Isto: configura CMake (C++17, Qt 5.12 MSVC), compila, roda windeployqt, copia DL
 | Qt | 5.12.12 LTS | MSVC 2017 64-bit (compatível Win7) |
 | CMake | 3.12+ | NMake Makefiles generator |
 | MSVC | 14.2+ (VS 2019+) | ONNX Runtime C++ API exige `constexpr` (VS 14.1 falha) |
-| ONNX Runtime | 1.16.3 | CPU Execution Provider, bundled |
+| ONNX Runtime | 1.16.3 | CPU + DirectML (DX12, fallback automático para CPU), bundled |
 
 ---
 
 ## 6. Comandos de Debug
 
 ```bash
-cd "C:\MindTrace - Copia\qt"
+cd "C:\MindTrace\qt"
 
 # Teste rápido de confiança do modelo (Python isolado)
 venv_lab38\Scripts\activate
@@ -170,3 +173,5 @@ python debug_prediction.py --video "TT 1-2-4.MPG" --model Network-MemoryLab-v2.o
 | `GetInputName` não é membro de `Ort::Session` | **Resolvido** — usa `GetInputNameAllocated` (API 1.16+) |
 | Lento com subprocesso Python + PyInstaller | **Resolvido** — ONNX nativo C++, sem subprocesso |
 | Tracking sem sincronia espaciotemporal | **Resolvido** — frame capture nativo + displayPlayer separado |
+| Dessincronização em velocidade alta (x4+) | **Resolvido** — headless capped a 2x + `positionSyncTimer` 400ms + stop-seek-play na troca de velocidade |
+| Crash no Windows 7 ao iniciar (DirectML) | **Resolvido** — `d3d12.lib` removido do link; DX12 é carregado internamente pelo `onnxruntime.dll` |
