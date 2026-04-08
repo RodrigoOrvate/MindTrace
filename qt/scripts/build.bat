@@ -101,7 +101,7 @@ set EXE=build\MindTrace.exe
 
 :: ── Copia ONNX Runtime DLLs (motor nativo C++) ───────────────
 echo.
-set ONNX_LIB=onnxruntime-win-x64-1.24.4\lib
+set ONNX_LIB=directml_x64
 for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
     if exist "%ONNX_LIB%\%%D" (
         copy /y "%ONNX_LIB%\%%D" "build\" >nul

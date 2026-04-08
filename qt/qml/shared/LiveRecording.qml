@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../core"
 import QtMultimedia
 import MindTrace.Tracking 1.0
 
@@ -12,7 +13,6 @@ Item {
     property string pair1: ""
     property string pair2: ""
     property string pair3: ""
-    property string sessionType: "Treino"
     property string analysisMode: "offline"  // "offline" ou "ao_vivo"
 
     property var zones
@@ -227,12 +227,14 @@ Item {
         logModel.clear()
         logModel.append({ msg: "⏳ Carregando motor ONNX nativo...", isErr: false })
         logView.positionViewAtEnd()
-        // Start display player immediately (shows video regardless of probe/ONNX state)
+        // Start display player immediately
+        var pr = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
         displayPlayer.source = videoPath
-        displayPlayer.playbackRate = 1.0
+        displayPlayer.playbackRate = pr
         displayPlayer.play()
         // Start C++ backend (ONNX load + QVideoProbe frame capture)
         dlc.startAnalysis(videoPath, "")
+        if (pr !== 1.0) dlc.setPlaybackRate(Math.min(pr, 2.0))
         isAnalyzing = true
     }
 
@@ -370,29 +372,7 @@ Item {
 
                 RowLayout {
                     spacing: 16
-                    Text { text: "⚠️ SESSÃO"; color: "#ffcc00"; font.pixelSize: 13; font.weight: Font.Bold }
-                    Repeater {
-                        model: ["Treino", "Reativação", "Teste D2", "Teste D3"]
-                        delegate: Rectangle {
-                            id: sessBtn
-                            property bool isSel: recordingRoot.sessionType === modelData
-                            height: 36; radius: 8
-                            implicitWidth: stLbl.implicitWidth + 30
-                            color: isSel ? "#ab3d4c" : (stMa.containsMouse ? "#25253e" : "transparent")
-                            border.color: isSel ? "#ff5566" : (stMa.containsMouse ? "#4a4a6c" : "#3a3a5c")
-                            border.width: isSel ? 2 : 1
-                            Text {
-                                id: stLbl; anchors.centerIn: parent; text: modelData
-                                color: sessBtn.isSel ? "#ffffff" : (stMa.containsMouse ? "#e8e8f0" : "#8888aa")
-                                font.pixelSize: 14; font.weight: Font.Bold
-                            }
-                            MouseArea {
-                                id: stMa; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: recordingRoot.sessionType = modelData
-                            }
-                        }
-                    }
+                    
                     Item { Layout.fillWidth: true }
 
                     // ── Velocidade (só aparece em modo offline) ──────────────
@@ -401,9 +381,8 @@ Item {
                         visible: recordingRoot.isOffline
                     }
                     Repeater {
-                        // x4 é o máximo prático: ONNX CPU ~60-120ms → lag ~300ms a x4.
-                        // x8+ inutilizável sem GPU DX12 (Windows 7 / K2000 = CPU only).
-                        model: [1, 2, 4]
+                        // Limite fixado em 2x prescrevendo qualidade e evitando gargalo visual de sync do tracking/video
+                        model: [1, 2]
                         delegate: Rectangle {
                             id: speedBtn
                             property bool isSel: recordingRoot.playbackRate === modelData

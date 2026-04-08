@@ -11,35 +11,35 @@ set(CMAKE_PREFIX_PATH "C:/Qt/6.11.0/msvc2022_64")
 find_package(Qt6 6.11 REQUIRED COMPONENTS Core Widgets Quick QuickControls2 Multimedia)
 
 # ONNX Runtime C++ SDK (bundled in repo)
-# Use onnxruntime-win-x64-gpu-1.24.4 for NVIDIA CUDA support.
-# Use onnxruntime-win-x64-1.24.4 for AMD/Intel (DirectML) support.
-# Runtime provider priority: CUDA → DirectML → CPU (handled in onnx_tracker.cpp).
-set(ONNX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime-win-x64-1.24.4")
+# Use directml_x64 for AMD/Intel/NVIDIA DirectML support
+set(ONNX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/directml_x64")
 
 qt6_add_resources(QRC_SOURCES resources.qrc)
 
 add_executable(MindTrace WIN32
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExperimentManager.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExperimentManager.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExperimentTableModel.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ExperimentTableModel.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ArenaModel.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ArenaModel.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ArenaConfigModel.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ArenaConfigModel.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/dlc_controller.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/dlc_controller.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/onnx_tracker.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/onnx_tracker.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/manager/ExperimentManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/manager/ExperimentManager.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ExperimentTableModel.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ExperimentTableModel.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaModel.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaModel.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaConfigModel.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaConfigModel.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dlc_controller.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dlc_controller.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/onnx_tracker.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/onnx_tracker.h"
     "${QRC_SOURCES}"
 )
 
-# ONNX Runtime headers — two include dirs so dml_provider_factory.h
-# in src/ can find onnxruntime_c_api.h from the bundle
+# ONNX Runtime headers
 target_include_directories(MindTrace PRIVATE
-    "${ONNX_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${ONNX_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/manager"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/models"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking"
 )
 
 target_link_libraries(MindTrace PRIVATE
@@ -48,8 +48,7 @@ target_link_libraries(MindTrace PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
-    "${ONNX_DIR}/lib/onnxruntime.lib"
-    "${ONNX_DIR}/lib/onnxruntime_providers_shared.lib"
+    "${ONNX_DIR}/onnxruntime.lib"
     dxgi
     d3d12
 )

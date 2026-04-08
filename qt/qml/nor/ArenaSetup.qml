@@ -6,6 +6,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../core"
 import QtMultimedia
 import QtQuick.Dialogs
 import MindTrace.Backend 1.0

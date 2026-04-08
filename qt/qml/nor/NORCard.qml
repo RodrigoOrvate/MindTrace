@@ -1,6 +1,7 @@
 // qml/NORCard.qml
 import QtQuick
 import QtQuick.Layouts
+import "../core"
 import QtQuick.Effects
 
 Item {

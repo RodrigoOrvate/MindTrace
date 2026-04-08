@@ -4,6 +4,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../core"
+import "../shared"
 import MindTrace.Backend 1.0
 
 Item {
@@ -313,6 +315,7 @@ Item {
                 property string pair2:       ""
                 property string pair3:       ""
                 property bool   includeDrug: true
+                property bool   hasReactivation: false
                 property string analysisMode: "offline"
                 property string saveDirectory: ""
 
@@ -346,6 +349,7 @@ Item {
                     pair2       = meta.pair2 || ""
                     pair3       = meta.pair3 || ""
                     includeDrug = meta.includeDrug !== false
+                    hasReactivation = meta.hasReactivation === true
 
                     // Carrega configuração da arena (extrai context/expName do path)
                     var parts = path.replace(/\\/g, "/").split("/")
@@ -406,27 +410,35 @@ Item {
                                     model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
 
                                     delegate: Item {
+                                        id: tabItem
                                         width: tabLabel.implicitWidth + 28; height: parent.height
                                         property bool isActive: innerTabs.currentIndex === index
+                                        property bool isHovered: tabMouseArea.containsMouse
+
+                                        scale: tabMouseArea.pressed ? 0.95 : (isHovered ? 1.05 : 1.0)
+                                        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
 
                                         Rectangle {
                                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                            height: 2
-                                            color: parent.isActive ? "#ab3d4c" : "transparent"
+                                            height: parent.isActive ? 2 : (parent.isHovered ? 1 : 0)
+                                            color: parent.isActive ? "#ab3d4c" : (parent.isHovered ? "#8a2e3b" : "transparent")
                                             Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on height { NumberAnimation { duration: 150 } }
                                         }
 
                                         Text {
                                             id: tabLabel; anchors.centerIn: parent
                                             text: modelData
-                                            color: parent.isActive ? "#e8e8f0" : "#8888aa"
+                                            color: tabItem.isActive ? "#ffffff" : (tabItem.isHovered ? "#d0d0e0" : "#8888aa")
                                             font.pixelSize: 12
-                                            font.weight: parent.isActive ? Font.Bold : Font.Normal
+                                            font.weight: tabItem.isActive ? Font.Bold : Font.Normal
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                         }
 
                                         MouseArea {
+                                            id: tabMouseArea
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            hoverEnabled: true
                                             onClicked: innerTabs.currentIndex = index
                                         }
                                     }
@@ -472,9 +484,6 @@ Item {
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
                                 pair3: workArea.pair3
-
-                                sessionType: workArea.sessionType
-                                onSessionTypeChanged: workArea.sessionType = sessionType
 
                                 zones:       tabArenaSetup.zones
                                 arenaPoints: tabArenaSetup.arenaPoints
@@ -787,11 +796,11 @@ Item {
         pair1:            workArea.pair1
         pair2:            workArea.pair2
         pair3:            workArea.pair3
-        sessionTypeLabel: workArea.sessionType
-        dia:              workArea.sessionDia
+        hasReactivation:  workArea.hasReactivation
         includeDrug:      workArea.includeDrug
         analysisMode:     workArea.analysisMode
         saveDirectory:    workArea.saveDirectory
+        videoPath:        liveRecordingTab.videoPath
     }
 
     Toast { id: successToast; successMode: true;  anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }

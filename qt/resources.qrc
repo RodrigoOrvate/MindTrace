@@ -1,21 +1,24 @@
 <!DOCTYPE RCC><RCC version="1.0">
 <qresource prefix="/">
-    <file>qml/main.qml</file>
-    <file>qml/LandingScreen.qml</file>
-    <file>qml/LandingCard.qml</file>
-    <file>qml/HomeScreen.qml</file>
-    <file>qml/NORCard.qml</file>
-    <file>qml/GhostButton.qml</file>
-    <file>qml/Toast.qml</file>
-    <file>qml/SelectionCard.qml</file>
-    <file>qml/ArenaSelection.qml</file>
-    <file>qml/NORSetupScreen.qml</file>
-    <file>qml/CampoSelector.qml</file>
-    <file>qml/ArenaSetup.qml</file>
-    <file>qml/MainDashboard.qml</file>
-    <file>qml/SessionResultDialog.qml</file>
-    <file>qml/LiveRecording.qml</file>
-    <file>qml/qtquickcontrols2.conf</file>
+    <file>qml/core/main.qml</file>
+    <file>qml/core/LandingScreen.qml</file>
+    <file>qml/core/LandingCard.qml</file>
+    <file>qml/core/HomeScreen.qml</file>
+    <file>qml/core/SelectionCard.qml</file>
+    <file>qml/core/GhostButton.qml</file>
+    <file>qml/core/Toast.qml</file>
+    <file>qml/core/qtquickcontrols2.conf</file>
+
+    <file>qml/shared/LiveRecording.qml</file>
+    <file>qml/shared/SessionResultDialog.qml</file>
+
+    <file>qml/nor/NORCard.qml</file>
+    <file>qml/nor/ArenaSelection.qml</file>
+    <file>qml/nor/NORSetupScreen.qml</file>
+    <file>qml/nor/CampoSelector.qml</file>
+    <file>qml/nor/ArenaSetup.qml</file>
+    <file>qml/nor/NORDashboard.qml</file>
+
     <file alias="arenas.json">data/arenas.json</file>
     <file alias="arena_config_referencia.json">data/arena_config_referencia.json</file>
 </qresource>

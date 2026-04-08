@@ -5,6 +5,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../core"
+import QtQuick.Dialogs
 import MindTrace.Backend 1.0
 
 Item {
@@ -13,14 +15,15 @@ Item {
     property string context: ""
     property string arenaId: ""
 
-    // name, cols, par por campo, flag droga
-    signal experimentReady(string name, var cols, string pair1, string pair2, string pair3, bool includeDrug)
+    // name, cols, par por campo, flag droga, hasReativação, savePath
+    signal experimentReady(string name, var cols, string pair1, string pair2, string pair3, bool includeDrug, bool hasReactivation, string savePath)
     signal backRequested()
 
     // Par selecionado por campo — string de 2 letras (ex.: "AB", "AA") ou "" se não definido.
     property string campo1Id: camposMulti.pair1
     property string campo2Id: camposMulti.pair2
     property string campo3Id: camposMulti.pair3
+    property string selectedPath: ""
 
     property bool allPairsSelected: campo1Id.length === 2
                                   && campo2Id.length === 2
@@ -30,7 +33,15 @@ Item {
         var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos"]
         if (drugCheck.checked) cols.push("Droga")
         root.experimentReady(nameField.text.trim(), cols,
-                             campo1Id, campo2Id, campo3Id, drugCheck.checked)
+                             campo1Id, campo2Id, campo3Id, drugCheck.checked, reactivationCheck.checked, root.selectedPath)
+    }
+
+    FolderDialog {
+        id: folderDialog
+        title: "Escolha a Pasta Raiz do Experimento"
+        onAccepted: {
+            root.selectedPath = folderDialog.selectedFolder.toString()
+        }
     }
 
     Rectangle { anchors.fill: parent; color: "#0f0f1a" }
@@ -72,23 +83,52 @@ Item {
             Layout.fillWidth: true
             spacing: 24
 
-            // Nome
-            ColumnLayout {
-                Layout.fillWidth: true; spacing: 8
-                Text {
-                    text: "NOME DO EXPERIMENTO"
-                    color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+            RowLayout {
+                Layout.fillWidth: true; spacing: 16
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Text {
+                        text: "NOME DO EXPERIMENTO"
+                        color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                    }
+                    TextField {
+                        id: nameField
+                        Layout.fillWidth: true
+                        placeholderText: "Ex.: Controle_Grupo_A"
+                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 14
+                        leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
+                        background: Rectangle {
+                            radius: 8; color: "#12122a"
+                            border.color: nameField.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                        }
+                    }
                 }
-                TextField {
-                    id: nameField
-                    Layout.fillWidth: true
-                    placeholderText: "Ex.: Controle_Grupo_A"
-                    color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 14
-                    leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
-                    background: Rectangle {
-                        radius: 8; color: "#12122a"
-                        border.color: nameField.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Text {
+                        text: "DIRETÓRIO RAIZ (Opcional)"
+                        color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 6
+                        TextField {
+                            id: dirField
+                            Layout.fillWidth: true
+                            readOnly: true
+                            text: root.selectedPath.replace("file:///", "")
+                            placeholderText: "Padrão: Documentos/MindTrace_Data"
+                            color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 14
+                            leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
+                            background: Rectangle {
+                                radius: 8; color: "#12122a"
+                                border.color: "#3a3a5c"; border.width: 1
+                            }
+                        }
+                        GhostButton {
+                            text: "Procurar..."
+                            onClicked: folderDialog.open()
+                        }
                     }
                 }
             }
@@ -119,39 +159,81 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
 
-            // Checkbox Droga
+            // Checkboxes
             RowLayout {
-                spacing: 12
+                spacing: 30
 
-                Rectangle {
-                    id: drugCheck
-                    width: 20; height: 20; radius: 5
-                    property bool checked: true
-                    color:        checked ? "#ab3d4c" : "#12122a"
-                    border.color: checked ? "#ab3d4c" : "#3a3a5c"; border.width: 1.5
-                    Behavior on color        { ColorAnimation { duration: 150 } }
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                // Droga
+                RowLayout {
+                    spacing: 12
 
-                    Text {
-                        anchors.centerIn: parent; text: "✓"
-                        color: "#e8e8f0"; font.pixelSize: 11; font.weight: Font.Bold
-                        visible: drugCheck.checked
+                    Rectangle {
+                        id: drugCheck
+                        width: 20; height: 20; radius: 5
+                        property bool checked: true
+                        color:        checked ? "#ab3d4c" : "#12122a"
+                        border.color: checked ? "#ab3d4c" : "#3a3a5c"; border.width: 1.5
+                        Behavior on color        { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                        Text {
+                            anchors.centerIn: parent; text: "✓"
+                            color: "#e8e8f0"; font.pixelSize: 11; font.weight: Font.Bold
+                            visible: drugCheck.checked
+                        }
+                        MouseArea {
+                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: drugCheck.checked = !drugCheck.checked
+                        }
                     }
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                        onClicked: drugCheck.checked = !drugCheck.checked
+
+                    ColumnLayout {
+                        spacing: 2
+                        Text {
+                            text: "Incluir coluna \"Droga\""
+                            color: "#e8e8f0"; font.pixelSize: 13; font.weight: Font.Bold
+                        }
+                        Text {
+                            text: "Para tratamentos farmacológicos."
+                            color: "#555577"; font.pixelSize: 11
+                        }
                     }
                 }
 
-                ColumnLayout {
-                    spacing: 2
-                    Text {
-                        text: "Incluir coluna \"Droga\""
-                        color: "#e8e8f0"; font.pixelSize: 13; font.weight: Font.Bold
+                // Reativação
+                RowLayout {
+                    spacing: 12
+
+                    Rectangle {
+                        id: reactivationCheck
+                        width: 20; height: 20; radius: 5
+                        property bool checked: false
+                        color:        checked ? "#ab3d4c" : "#12122a"
+                        border.color: checked ? "#ab3d4c" : "#3a3a5c"; border.width: 1.5
+                        Behavior on color        { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                        Text {
+                            anchors.centerIn: parent; text: "✓"
+                            color: "#e8e8f0"; font.pixelSize: 11; font.weight: Font.Bold
+                            visible: reactivationCheck.checked
+                        }
+                        MouseArea {
+                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                            onClicked: reactivationCheck.checked = !reactivationCheck.checked
+                        }
                     }
-                    Text {
-                        text: "Desmarque se o experimento não utilizar tratamento farmacológico."
-                        color: "#555577"; font.pixelSize: 11
+
+                    ColumnLayout {
+                        spacing: 2
+                        Text {
+                            text: "Dia de Reativação"
+                            color: "#e8e8f0"; font.pixelSize: 13; font.weight: Font.Bold
+                        }
+                        Text {
+                            text: "O experimento contém fase RA."
+                            color: "#555577"; font.pixelSize: 11
+                        }
                     }
                 }
             }

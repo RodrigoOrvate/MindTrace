@@ -56,7 +56,28 @@ static bool try_add_cuda_provider(Ort::SessionOptions& opts) {
 // is no longer linked by onnxruntime.lib in v1.24+.
 static bool try_add_dml_provider(Ort::SessionOptions& opts) {
     try {
+        // DirectML requer obrigatoriamente que estas opções sejam configuradas
+        opts.DisableMemPattern();
+        opts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+
+        // Opcionalmente, tentar via API específica em builds mais recentes primeiro
+        const OrtApi& api = Ort::GetApi();
+        const OrtDmlApi* dml_api = nullptr;
+        OrtStatus* status = api.GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&dml_api));
+        if (status == nullptr && dml_api != nullptr) {
+            OrtStatus* dml_status = dml_api->SessionOptionsAppendExecutionProvider_DML(opts, 0); // device_id = 0
+            if (dml_status == nullptr) {
+                return true;
+            } else {
+                api.ReleaseStatus(dml_status);
+            }
+        } else if (status != nullptr) {
+            api.ReleaseStatus(status);
+        }
+
+        // Fallback genérico caso a API de provedor falhe
         std::unordered_map<std::string, std::string> dml_options;
+        dml_options["device_id"] = "0";
         opts.AppendExecutionProvider("DML", dml_options);
         return true;
     } catch (const Ort::Exception&) {

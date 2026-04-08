@@ -10,6 +10,8 @@
 import QtQuick
 import QtQuick.Controls
 import MindTrace.Backend 1.0
+import "../nor"
+import "../shared"
 
 ApplicationWindow {
     id: root
@@ -116,7 +118,7 @@ ApplicationWindow {
             context: root.currentContext
             arenaId: root.currentArenaId
 
-            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug) {
+            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath) {
                 ExperimentManager.loadContext(root.pendingContext)
                 root.pendingPair1       = pair1
                 root.pendingPair2       = pair2
@@ -124,8 +126,8 @@ ApplicationWindow {
                 root.pendingIncludeDrug = includeDrug
                 root.awaitingCreation   = true
                 
-                // Cria o experimento com os dados e salva em Documentos
-                ExperimentManager.createExperimentFull(name, cols, pair1, pair2, pair3, includeDrug)
+                // Cria o experimento com os dados e salva no diretorio customizado se houver
+                ExperimentManager.createExperimentFull(name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath)
             }
             onBackRequested: stack.pop()
         }
@@ -133,7 +135,7 @@ ApplicationWindow {
 
     Component {
         id: dashboardComponent
-        MainDashboard {
+        NORDashboard {
             onBackRequested: stack.pop()
         }
     }

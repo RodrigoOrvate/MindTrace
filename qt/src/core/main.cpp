@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
             }
         });
 
-    const QUrl url(QStringLiteral("qrc:/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qml/core/main.qml"));
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated,
         &app, [url, &qmlErrors](QObject *obj, const QUrl &objUrl) {

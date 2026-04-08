@@ -81,15 +81,16 @@ public:
     Q_INVOKABLE bool    insertSessionResult(const QString &experimentName,
                                             const QVariantList &rows);
 
-    // Criação completa com pares por campo — usada pelo fluxo de setup.
     Q_INVOKABLE bool    createExperimentFull(const QString &name,
                                              const QStringList &columns,
                                              const QString &pair1,
                                              const QString &pair2,
                                              const QString &pair3,
-                                             bool includeDrug);
+                                             bool includeDrug,
+                                             bool hasReactivation,
+                                             const QString &savePath);
 
-    // Lê metadata.json e retorna pair1/pair2/pair3/includeDrug para o dashboard.
+    // Lê metadata.json e retorna pair1/pair2/pair3/includeDrug/hasReactivation para o dashboard.
     Q_INVOKABLE QVariantMap readMetadata(const QString &name) const;
 
     // Persiste apenas os pares no metadata.json existente (chamado após edição na tab Arena).
@@ -97,6 +98,9 @@ public:
                                  const QString &pair1,
                                  const QString &pair2,
                                  const QString &pair3);
+
+    // Altera a flag de reativação após o experimento ter sido criado
+    Q_INVOKABLE void setExperimentReactivation(const QString &experimentName, bool hasReactivation);
 
     // Lê metadata.json a partir do path completo da pasta do experimento.
     Q_INVOKABLE QVariantMap readMetadataFromPath(const QString &folderPath) const;
@@ -129,7 +133,8 @@ private:
                           const QString &pair1 = QString(),
                           const QString &pair2 = QString(),
                           const QString &pair3 = QString(),
-                          bool           includeDrug = true) const;
+                          bool           includeDrug = true,
+                          bool           hasReactivation = false) const;
     void    writeCsv(const QString &folderPath,
                      const QStringList &columns,
                      int animalCount) const;
