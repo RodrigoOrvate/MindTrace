@@ -31,19 +31,21 @@ QMediaPlayer (headless)
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/onnx_tracker.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
-| `src/dlc_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta OnnxTracker, emite sinais para QML |
-| `src/ExperimentManager.cpp/h` | Gestão de experimentos (CRUD, I/O JSON/CSV) |
-| `src/ExperimentTableModel.cpp/h` | Modelo de tabela para CSVs (lazy-loading) |
-| `src/ArenaModel.cpp/h` | Engine de persistência das zonas e polígonos |
-| `src/ArenaConfigModel.cpp/h` | Modelo de configuração da arena |
+| `src/tracking/onnx_tracker.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
+| `src/tracking/dlc_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta OnnxTracker, emite sinais para QML |
+| `src/manager/ExperimentManager.cpp/h` | Gestão de experimentos (CRUD, I/O JSON/CSV, `registry.json`) |
+| `src/models/ExperimentTableModel.cpp/h` | Modelo de tabela para CSVs (lazy-loading) |
+| `src/models/ArenaModel.cpp/h` | Engine de persistência das zonas e polígonos |
+| `src/models/ArenaConfigModel.cpp/h` | Modelo de configuração da arena |
+| `src/core/main.cpp` | Ponto de entrada e registro de tipos QML |
 
 ## QML
 
-| Arquivo | Responsabilidade |
+| Pasta / Arquivo | Responsabilidade |
 |---|---|
-| `qml/LiveRecording.qml` | Tela de análise — Canvas overlay (skeleton body→nose + pontos), timer 300s por campo, zona de exploração, velocidade 1x/2x/4x (modo offline) |
-| `qml/ArenaSetup.qml` | Configuração da arena — zonas arrastáveis (Shift+drag), polígonos 3D (Ctrl/Alt+drag), seleção de modo offline/ao vivo |
+| `qml/core/` | Navegação base (`main.qml`, `LandingScreen.qml`), componentes reutilizáveis (`GhostButton.qml`, `Toast.qml`) |
+| `qml/shared/` | Funcionalidades comuns como `LiveRecording.qml` (Análise) e `SessionResultDialog.qml` (Dados pós-sessão) |
+| `qml/nor/` | Fluxo do Reconhecimento de Objetos: `NORDashboard.qml` (Antigo `MainDashboard`), `ArenaSetup.qml`, `NORSetupScreen.qml` |
 
 ## Modelo ONNX
 
@@ -133,14 +135,30 @@ Mudança de velocidade usa **stop → setRate → seek → play** no `displayPla
   - Campo 2: `(0, 240)` — Baixo-Esquerda
 - **Crop:** cada campo = 360×240 → resize para 360×240 do modelo
 
+## Gestão de Experimentos e Fluxo
+
+### Sistema de Registro e Caminhos Customizados
+O `ExperimentManager` utiliza um arquivo `registry.json` na raiz da pasta de dados para rastrear experimentos salvos em diretórios personalizados (fora da pasta padrão "Documentos").
+- `createExperimentFull`: Permite especificar um `savePath`.
+- `loadAllContexts`: Mescla a pasta padrão com os caminhos registrados no `registry.json`.
+
+### Códigos de Sessão e Metadados de Reativação
+O sistema utiliza metadados (`hasReactivation`) para determinar o fluxo de sessões no popup de finalização (`SessionResultDialog.qml`):
+- **TR** (Treino): Dia 1.
+- **RA** (Reativação): Dia 2 (Habilita dinamicamente o metadado se necessário).
+- **TT** (Teste): Dia 2 ou 3 (Auto-detectado com base em `hasReactivation`).
+
+### Compatibilidade Excel
+Todos os CSVs são gravados com **UTF-8 BOM** (`\xEF\xBB\xBF`) garantindo visualização perfeita de acentos ("í", "ó") no Microsoft Excel.
+
 ## Modos de Análise
 
-| Modo | Input | Timer | Velocidade | Salva vídeo |
-|------|-------|-------|-----------|-------------|
-| **Offline** | Vídeo pré-gravado | Escala com speed | 1x, 2x, 4x | Não |
-| **Ao vivo** | Câmera | 1:1 real-time | Fixo 1x | Sim (diretório configurável) |
+| Modo | Input | Timer | Velocidade | Salva vídeo | Autofill Path |
+|------|-------|-------|-----------|-------------|---------------|
+| **Offline** | Vídeo pré-gravado | Escala com speed | 1x, 2x, 4x | Não | Sim (Automático) |
+| **Ao vivo** | Câmera | 1:1 real-time | Fixo 1x | Sim | N/A |
 
-Seleção via popup em `ArenaSetup.qml:166-272` ao clicar "Carregar Vídeo".
+Seleção via popup em `ArenaSetup.qml` ao clicar "Carregar Vídeo".
 
 ## Build
 
@@ -190,3 +208,6 @@ seekTo(ms)              — salta headless para posição (usado pelo positionSy
 | QAbstractVideoSurface removido (Qt 6) | Substituído por `QVideoSink` + `videoFrameChanged` + `frame.toImage()` |
 | Dessincronização em velocidade alta | Dois players independentes acumulam drift — resolvido com headless capped a 2x + `positionSyncTimer` (400ms) + stop-seek-play na troca de velocidade |
 | Suporte Windows 7 removido | Requer Windows 10/11 (DirectX 12 nativo). Qt 6.11.0 + ONNX Runtime 1.24.4 |
+| Caracteres especiais no Excel | Injeção de UTF-8 BOM (\xEF\xBB\xBF) na escrita dos CSVs |
+| Armazenamento rígido | Implementado registry.json para permitir salvar experimentos em diretórios customizados |
+| Complexidade de diretórios | Organização de QML e SRC em subpastas core/shared/nor/models para escalabilidade |

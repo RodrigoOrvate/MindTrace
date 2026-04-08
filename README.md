@@ -142,32 +142,26 @@ analyzingChanged()                  — bool isAnalyzing
 ```
 qt/
 ├── src/
-│   ├── main.cpp
-│   ├── ExperimentManager.cpp/.h
-│   ├── ExperimentTableModel.cpp/.h
-│   ├── ArenaModel.cpp/.h
-│   ├── ArenaConfigModel.cpp/.h
-│   ├── dlc_controller.cpp/.h       — QVideoSink + QMediaPlayer headless → OnnxTracker
-│   └── onnx_tracker.cpp/.h         — QThread de inferência ONNX (DXGI + CUDA/DML/CPU)
-├── onnxruntime-win-x64-1.24.4/     — ONNX Runtime C++ SDK (bundled)
-│   ├── include/
-│   └── lib/
-├── qml/                            — todos os arquivos QML (Qt 6, version-less imports)
-├── data/                           — arenas.json, arena_config_referencia.json
-├── scripts/
-│   └── build.bat                   — build completo (CMake + windeployqt + DLLs)
+│   ├── core/           — main.cpp
+│   ├── manager/        — ExperimentManager.cpp/.h (CRUD, Registry)
+│   ├── models/         — TableModels, ArenaModel, ConfigModels
+│   └── tracking/       — DlcController, OnnxTracker
+├── qml/
+│   ├── core/           — Navegação e componentes base (main.qml, GhostButton)
+│   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
+│   └── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
+├── data/               — arenas.json, arena_config_referencia.json
+├── scripts/            — build.bat
 ├── CMakeLists.txt
 └── resources.qrc
 ```
 
----
+## 9. Novas Funcionalidades (Workflow Moderno)
 
-## 9. Modos de Análise
-
-| Modo | Input | Timer | Velocidade |
-|---|---|---|---|
-| Offline | Vídeo pré-gravado | Escala com speed | 1×, 2×, 4× |
-| Ao vivo | Câmera | 1:1 real-time | Fixo 1× |
+- **Registry System:** Salve experimentos em qualquer HD/Partição; o MindTrace gerencia o atalho no `registry.json`.
+- **Session Codes:** Use `TR` (Treino), `RA` (Reativação) e `TT` (Teste). O sistema calcula o dia e valida a configuração automaticamente.
+- **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
+- **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
 
 ---
 
