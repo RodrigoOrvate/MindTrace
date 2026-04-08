@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 // Header-only C++ wrapper around the ONNX Runtime C API.
-// Located in onnxruntime-win-x64-1.16.3/include/ (or copied to src/).
-// Requires MSVC 14.2+ (VS 2019+) for constexpr BFloat16_t support.
+// Located in onnxruntime-win-x64-1.24.4/include/ (or onnxruntime-win-x64-gpu-1.24.4 for CUDA).
+// Requires MSVC 14.4+ (VS 2022). Windows 10+ required.
 #include "onnxruntime_cxx_api.h"
 
 // Runs ONNX inference on video frames in a dedicated thread.

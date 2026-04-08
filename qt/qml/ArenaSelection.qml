@@ -1,9 +1,9 @@
 // qml/ArenaSelection.qml
 // Passo 2 do fluxo NOR: seleção do contexto da arena quadrada (60×60 cm).
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Item {
     id: root

@@ -1,9 +1,9 @@
 // qml/LandingCard.qml
 // Card gigante da tela inicial (Criar / Procurar).
 
-import QtQuick 2.12
-import QtQuick.Layouts 1.3
-import QtGraphicalEffects 1.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Effects
 
 Item {
     id: cardRoot
@@ -19,17 +19,17 @@ Item {
     height: 340
 
     layer.enabled: true
-    layer.effect: DropShadow {
-        horizontalOffset: 0
-        verticalOffset:   hoverArea.containsMouse ? 14 : 6
-        radius:           hoverArea.containsMouse ? 40 : 16
-        samples: 33
-        color:   hoverArea.containsMouse ? Qt.rgba(
-                     cardRoot.accentColor.r,
-                     cardRoot.accentColor.g,
-                     cardRoot.accentColor.b, 0.45) : "#60000000"
-        Behavior on radius        { NumberAnimation { duration: 220 } }
-        Behavior on verticalOffset { NumberAnimation { duration: 220 } }
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowHorizontalOffset: 0
+        shadowVerticalOffset:   hoverArea.containsMouse ? 14 : 6
+        shadowBlur:             hoverArea.containsMouse ? 0.9 : 0.5
+        shadowColor:            hoverArea.containsMouse ? Qt.rgba(
+                                    cardRoot.accentColor.r,
+                                    cardRoot.accentColor.g,
+                                    cardRoot.accentColor.b, 0.45) : "#60000000"
+        Behavior on shadowBlur          { NumberAnimation { duration: 220 } }
+        Behavior on shadowVerticalOffset { NumberAnimation { duration: 220 } }
     }
 
     transform: Scale {

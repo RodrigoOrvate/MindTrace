@@ -1,9 +1,9 @@
 // qml/MainDashboard.qml
 // Dashboard principal: sidebar de experimentos + planilha de dados.
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 import MindTrace.Backend 1.0
 
 Item {

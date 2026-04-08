@@ -1,9 +1,8 @@
 // qml/LandingScreen.qml
 // Tela inicial do MindTrace: dois botões gigantes — Criar e Procurar.
 
-import QtQuick 2.12
-import QtQuick.Layouts 1.3
-import QtGraphicalEffects 1.0
+import QtQuick
+import QtQuick.Layouts
 
 Item {
     id: root

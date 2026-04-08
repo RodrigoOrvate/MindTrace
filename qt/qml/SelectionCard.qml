@@ -2,9 +2,9 @@
 // Card de seleção reutilizável (arenas, pares de objetos, etc.)
 // Menor que NORCard; indica seleção com borda accent + check.
 
-import QtQuick 2.12
-import QtQuick.Layouts 1.3
-import QtGraphicalEffects 1.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Effects
 
 Item {
     id: cardRoot
@@ -24,14 +24,14 @@ Item {
     height: 200
 
     layer.enabled: true
-    layer.effect: DropShadow {
-        horizontalOffset: 0
-        verticalOffset:   (cardRoot.selected || hoverArea.containsMouse) ? 8 : 4
-        radius:           (cardRoot.selected || hoverArea.containsMouse) ? 24 : 10
-        samples: 25
-        color:   cardRoot.selected ? "#80ab3d4c" : "#50000000"
-        Behavior on radius        { NumberAnimation { duration: 200 } }
-        Behavior on verticalOffset { NumberAnimation { duration: 200 } }
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowHorizontalOffset: 0
+        shadowVerticalOffset:   (cardRoot.selected || hoverArea.containsMouse) ? 8 : 4
+        shadowBlur:             (cardRoot.selected || hoverArea.containsMouse) ? 0.7 : 0.35
+        shadowColor:            cardRoot.selected ? "#80ab3d4c" : "#50000000"
+        Behavior on shadowBlur          { NumberAnimation { duration: 200 } }
+        Behavior on shadowVerticalOffset { NumberAnimation { duration: 200 } }
     }
 
     transform: Scale {

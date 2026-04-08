@@ -2,20 +2,20 @@
 
 ## Visão Geral
 
-Plataforma C++/Qt5.12 (QML) para tracking comportamental em neurociência. O sistema monitora ratos em até 3 campos simultâneos (mosaico 2×2) usando modelo DeepLabCut exportado em ONNX, executando inferência **nativamente em C++** (sem subprocesso Python).
+Plataforma C++/Qt 6.11.0 (QML) para tracking comportamental em neurociência. O sistema monitora ratos em até 3 campos simultâneos (mosaico 2×2) usando modelo DeepLabCut exportado em ONNX, executando inferência **nativamente em C++** (sem subprocesso Python).
 
 ## Arquitetura
 
-**Stack:** C++17, Qt 5.12.12 LTS, ONNX Runtime 1.16.3, QML
-**Compatibilidade:** Windows 7 (Qt 5.12 LTS), MSVC 14.2+ (VS 2019+)
+**Stack:** C++17, Qt 6.11.0, ONNX Runtime 1.24.4, QML
+**Compatibilidade:** Windows 10/11 (64-bit), MSVC 14.4+ (VS 2022 ou superior)
 
 ### Fluxo de Tracking (Pipeline Nativo)
 
 ```
 QMediaPlayer (headless)
-  → FrameCaptureSurface (QAbstractVideoSurface) — força decodificação em CPU, sem DXVA
-    → frameReady signal (DirectConnection)
-      → DlcController::onFrameCaptured
+  → QVideoSink::videoFrameChanged (DirectConnection, multimedia thread)
+    → DlcController::onVideoFrameChanged
+      → frame.toImage() → convertToFormat(RGB888)
         → OnnxTracker::enqueueFrame (thread-safe, single-slot queue)
           → processJob() — 3 std::threads, uma por campo
             → inferCrop() — Ort::Session.Run() → locref → emit sinais
@@ -32,7 +32,7 @@ QMediaPlayer (headless)
 | Arquivo | Responsabilidade |
 |---|---|
 | `src/onnx_tracker.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
-| `src/dlc_controller.h/cpp` | Orquestrador. FrameCaptureSurface captura frames do QMediaPlayer headless, alimenta OnnxTracker, emite sinais para QML |
+| `src/dlc_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta OnnxTracker, emite sinais para QML |
 | `src/ExperimentManager.cpp/h` | Gestão de experimentos (CRUD, I/O JSON/CSV) |
 | `src/ExperimentTableModel.cpp/h` | Modelo de tabela para CSVs (lazy-loading) |
 | `src/ArenaModel.cpp/h` | Engine de persistência das zonas e polígonos |
@@ -42,7 +42,7 @@ QMediaPlayer (headless)
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `qml/LiveRecording.qml` | Tela de análise — Canvas overlay (skeleton body→nose + pontos), timer 300s por campo, zona de exploração, velocidade 1x–16x |
+| `qml/LiveRecording.qml` | Tela de análise — Canvas overlay (skeleton body→nose + pontos), timer 300s por campo, zona de exploração, velocidade 1x/2x/4x (modo offline) |
 | `qml/ArenaSetup.qml` | Configuração da arena — zonas arrastáveis (Shift+drag), polígonos 3D (Ctrl/Alt+drag), seleção de modo offline/ao vivo |
 
 ## Modelo ONNX
@@ -57,29 +57,36 @@ QMediaPlayer (headless)
 
 ## GPU / ONNX Execution Providers
 
-O `OnnxTracker` tenta **DirectML** (DirectX 12) primeiro e cai para CPU automaticamente:
+O `OnnxTracker` detecta o fabricante da GPU via **DXGI** e roteia para o provider ideal:
 
-- **`onnx_tracker.cpp`**: `OrtSessionOptionsAppendExecutionProvider_DML(opts, 0)` tenta GPU primeiro
-- **Fallback automático para CPU** se DirectML falhar — resultado visível no log via `infoMsg`
-- **GPU ativo**: `SetIntraOpNumThreads(1)` — DML gerencia paralelismo internamente
-- **CPU fallback**: `SetIntraOpNumThreads(2)` + `ORT_ENABLE_ALL` graph optimization
-- **`d3d12.lib` NÃO é linkado** no executável — DX12 é carregado internamente pelo `onnxruntime.dll`. Linkar `d3d12.lib` causava falha de carregamento no Windows 7 (sem `d3d12.dll` no sistema)
-- **DLLs DirectML prontas**: pasta `directml_x64/` contém `onnxruntime.dll` com DirectML baked-in
-- **Build atual**: usa `onnxruntime-win-x64-1.16.3` bundle padrão
+- **DXGI** (`IDXGIFactory1`) enumera os adaptadores e lê o `VendorId` (`0x10DE`=NVIDIA, `0x1002`=AMD, `0x8086`=Intel) — chamada única na inicialização, sem overhead durante inferência
+- **NVIDIA → CUDA**: requer `onnxruntime-win-x64-gpu-1.24.4` + drivers CUDA. Se o build for o padrão (sem CUDA), cai automaticamente para DirectML
+- **AMD/Intel → DirectML**: requer `onnxruntime-win-x64-1.24.4` + DirectX 12 (Win10+)
+- **CPU fallback**: ativa quando nenhum provider GPU está disponível
+- **GPU ativo** (CUDA ou DML): `SetIntraOpNumThreads(1)` — provider gerencia paralelismo
+- **CPU fallback**: `SetIntraOpNumThreads(4)` + `ORT_ENABLE_ALL` graph optimization
+- **`dxgi.lib` linkado** para detecção de vendor. **`d3d12.lib` NÃO é linkado** — DX12/CUDA são internos ao `onnxruntime.dll`
 
-> **Windows 7 / GPU Kepler (K2000):** DirectML requer DX12 — indisponível no Windows 7 e em GPUs Kepler. O sistema cai para CPU automaticamente e emite `"Modo CPU: DirectML indisponível"` no log.
+> **Build ONNX Runtime:**
+> - AMD/Intel → `onnxruntime-win-x64-1.24.4` (DirectML + CPU)
+> - NVIDIA     → `onnxruntime-win-x64-gpu-1.24.4` (CUDA + CPU)
+> O código detecta o vendor via DXGI; NVIDIA vai para CUDA, outros para DirectML.
 
 ### Configuração GPU
 
 ```cpp
-bool gpuOk = try_add_gpu_provider(opts);
-if (gpuOk) {
+const GpuVendor vendor = detectGpuVendor(); // DXGI VendorId
+
+if (vendor == GpuVendor::NVIDIA && try_add_cuda_provider(opts)) {
     opts.SetIntraOpNumThreads(1);
-    emit infoMsg("Modo GPU: DirectML ativo (DirectX 12)");
+    emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
+} else if (try_add_dml_provider(opts)) {
+    opts.SetIntraOpNumThreads(1);
+    emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
 } else {
-    opts.SetIntraOpNumThreads(2);
+    opts.SetIntraOpNumThreads(4);
     opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
-    emit infoMsg("Modo CPU: DirectML indisponível (Windows 7 ou GPU sem DX12)");
+    emit infoMsg("Modo CPU: GPU não disponível");
 }
 ```
 
@@ -141,12 +148,12 @@ Seleção via popup em `ArenaSetup.qml:166-272` ao clicar "Carregar Vídeo".
 cd qt && scripts\build.bat
 ```
 
-- Qt 5.12.12 em `C:\Qt\Qt5.12.12`
-- ONNX Runtime: `onnxruntime-win-x64-1.16.3` (bundled)
-- C++17, CMake + NMake
-- Build copia DLLs: `onnxruntime.dll`, `onnxruntime_providers_shared.dll`
-- **MSVC 14.2+ obrigatório** (VS 2019+) — ONNX Runtime API usa `constexpr`
-- Libs: `onnxruntime.lib` (apenas — `d3d12.lib` removido; DX12 é interno ao `onnxruntime.dll`)
+- Qt 6.11.0 em `C:\Qt\6.11.0\msvc2022_64` (módulos obrigatórios: Qt Multimedia + Qt Shader Tools)
+- ONNX Runtime: `onnxruntime-win-x64-1.24.4` (DirectML/CPU) ou `onnxruntime-win-x64-gpu-1.24.4` (CUDA/CPU)
+- C++17, CMake 3.25+ + NMake
+- Build copia DLLs: `onnxruntime.dll`, `onnxruntime_providers_shared.dll` (+ `onnxruntime_providers_cuda.dll` se build GPU)
+- **MSVC 14.4+ obrigatório** (VS 2022 ou superior)
+- Libs: `onnxruntime.lib` + `dxgi.lib` (d3d12.lib/CUDA são internos ao `onnxruntime.dll`)
 
 ## Protocolo QML ↔ C++
 
@@ -179,6 +186,7 @@ seekTo(ms)              — salta headless para posição (usado pelo positionSy
 | Julia VideoIO vs OpenCV | Removido Julia, tudo via QMediaPlayer |
 | Subprocesso Python lento | ONNX nativo C++ — sem subprocesso |
 | `GetInputName` não existe | Usar `GetInputNameAllocated` (ONNX 1.16+) |
-| Tracking sem sincronia | FrameCaptureSurface nativo garante frames reais do vídeo |
+| Tracking sem sincronia | `QVideoSink::videoFrameChanged` entrega frames reais do decoder |
+| QAbstractVideoSurface removido (Qt 6) | Substituído por `QVideoSink` + `videoFrameChanged` + `frame.toImage()` |
 | Dessincronização em velocidade alta | Dois players independentes acumulam drift — resolvido com headless capped a 2x + `positionSyncTimer` (400ms) + stop-seek-play na troca de velocidade |
-| DirectML causava crash no Windows 7 | `d3d12.lib` removido do executável; DX12 é interno ao `onnxruntime.dll`. Fallback CPU emite `infoReceived` com diagnóstico |
+| Suporte Windows 7 removido | Requer Windows 10/11 (DirectX 12 nativo). Qt 6.11.0 + ONNX Runtime 1.24.4 |

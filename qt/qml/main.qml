@@ -7,8 +7,8 @@
 // Fluxo "Procurar":
 //   LandingScreen → MainDashboard (searchMode)
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
+import QtQuick
+import QtQuick.Controls
 import MindTrace.Backend 1.0
 
 ApplicationWindow {
@@ -34,19 +34,18 @@ ApplicationWindow {
     //    (Criações vindas do botão interno do dashboard são geridas lá.)
     property bool awaitingCreation: false
 
+    // Qt 6: Connections requer sintaxe "function onSignal(params)" para acessar parâmetros
     Connections {
         target: ExperimentManager
-        onExperimentCreated: {
+        function onExperimentCreated(name, path) {
             if (root.awaitingCreation) {
                 root.awaitingCreation = false
-                
                 stack.push(dashboardComponent, {
                     "context":      root.pendingContext,
                     "arenaId":      root.pendingArenaId,
                     "searchMode":   false,
-                    "currentTabIndex": 1, 
-                    // NOVO: Passa o nome do experimento recém-criado
-                    "initialExperimentName": name 
+                    "currentTabIndex": 1,
+                    "initialExperimentName": name
                 })
             }
         }

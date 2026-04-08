@@ -1,8 +1,8 @@
 // qml/HomeScreen.qml
 // Tela de seleção de aparato — intermediária após LandingScreen.
 
-import QtQuick 2.12
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Layouts
 
 Item {
     id: root

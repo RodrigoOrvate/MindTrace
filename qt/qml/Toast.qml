@@ -1,5 +1,5 @@
 // qml/Toast.qml
-import QtQuick 2.12
+import QtQuick
 
 Rectangle {
     id: toast

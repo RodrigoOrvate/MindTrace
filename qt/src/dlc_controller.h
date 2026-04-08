@@ -1,62 +1,15 @@
 #pragma once
 #include <QObject>
 #include <QMediaPlayer>
-#include <QAbstractVideoSurface>
+#include <QVideoSink>
 #include <QVideoFrame>
 #include "onnx_tracker.h"
 
-// ── Frame capture surface ──────────────────────────────────────────────────
-// Registers as the video output on the headless C++ QMediaPlayer.
-// Forces WMF to decode to CPU memory (no DXVA), giving us every frame
-// for ONNX inference. The visible video is handled by a separate QML
-// MediaPlayer (displayPlayer), which can still use hardware acceleration.
-class FrameCaptureSurface : public QAbstractVideoSurface
-{
-    Q_OBJECT
-public:
-    explicit FrameCaptureSurface(QObject* parent = nullptr)
-        : QAbstractVideoSurface(parent) {}
-
-    QList<QVideoFrame::PixelFormat> supportedPixelFormats(
-        QAbstractVideoBuffer::HandleType type) const override
-    {
-        Q_UNUSED(type);
-        return {
-            QVideoFrame::Format_RGB32,
-            QVideoFrame::Format_ARGB32,
-            QVideoFrame::Format_ARGB32_Premultiplied,
-            QVideoFrame::Format_RGB24,
-            QVideoFrame::Format_BGR24,
-            QVideoFrame::Format_BGRA32,
-            QVideoFrame::Format_BGRA32_Premultiplied,
-        };
-    }
-
-    bool present(const QVideoFrame& frame) override
-    {
-        QVideoFrame f = frame;
-        const int w = f.width();
-        const int h = f.height();
-        if (!f.map(QAbstractVideoBuffer::ReadOnly)) return false;
-
-        QImage::Format fmt = QVideoFrame::imageFormatFromPixelFormat(f.pixelFormat());
-        QImage img;
-        if (fmt != QImage::Format_Invalid)
-            img = QImage(f.bits(), w, h, f.bytesPerLine(), fmt).copy();
-        else
-            img = QImage(f.bits(), w, h, f.bytesPerLine(), QImage::Format_RGB32).copy();
-        f.unmap();
-
-        if (!img.isNull())
-            emit frameReady(img, w, h);
-        return true;
-    }
-
-signals:
-    void frameReady(QImage img, int w, int h);
-};
-
 // ── DLC Controller ─────────────────────────────────────────────────────────
+// Headless QMediaPlayer feeds frames to QVideoSink (Qt 6 replacement for
+// QAbstractVideoSurface). Every decoded frame is forwarded to OnnxTracker
+// for inference. The visible video in QML uses a separate MediaPlayer with
+// its own VideoOutput and can still use hardware acceleration.
 class DlcController : public QObject
 {
     Q_OBJECT
@@ -86,15 +39,15 @@ signals:
     void infoReceived (QString message);
 
 private slots:
-    void onFrameCaptured(const QImage& img, int w, int h);
+    void onVideoFrameChanged(const QVideoFrame& frame);
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
 
 private:
     void setAnalyzing(bool v);
 
-    QMediaPlayer*        m_player;
-    FrameCaptureSurface* m_captureSurface;
-    OnnxTracker*         m_tracker;
+    QMediaPlayer* m_player;
+    QVideoSink*   m_videoSink;
+    OnnxTracker*  m_tracker;
 
     bool m_isAnalyzing = false;
     bool m_modelReady  = false;

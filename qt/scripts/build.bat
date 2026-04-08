@@ -6,35 +6,42 @@ echo [INFO] Limpando a pasta build antiga...
 if exist "build" rmdir /s /q "build"
 
 :: ============================================================
-:: build.bat — Compila e executa o MindTrace (Qt 5.12 + CMake)
+:: build.bat — Compila e executa o MindTrace (Qt 6.11 + CMake)
 :: ============================================================
 ::
 :: PRÉ-REQUISITOS (instale uma vez):
-::   1. Qt 5.12 LTS  — https://www.qt.io/offline-installers
-::      Componente: "Qt 5.12.x > MSVC 2017 64-bit"
-::   2. CMake 3.12+  — https://cmake.org/download/
-::   3. Visual Studio 2017 ou superior (qualquer edição)
+::   1. Qt 6.11.0  — https://www.qt.io/offline-installers
+::      Componente: "Qt 6.11.0 > MSVC 2022 64-bit"
+::      (QtQuick.Effects está incluso — qt5compat NÃO é necessário)
+::   2. CMake 3.25+  — https://cmake.org/download/
+::   3. Visual Studio 2022 ou superior (qualquer edição)
+::
+:: GPU (opcional — escolha um dos builds ONNX abaixo):
+::   NVIDIA CUDA  → use onnxruntime-win-x64-gpu-1.24.4   (CUDA + CPU)
+::   AMD/Intel    → use onnxruntime-win-x64-1.24.4        (DirectML + CPU)
+::   (sem GPU)    → use onnxruntime-win-x64-1.24.4        (CPU apenas)
 ::
 :: CONFIGURAÇÃO — edite apenas esta linha:
-set QT_DIR=C:\Qt\Qt5.12.12\5.12.12\msvc2017_64
+set QT_DIR=C:\Qt\6.11.0\msvc2022_64
 
 :: ── Valida Qt ────────────────────────────────────────────────
-if not exist "%QT_DIR%\lib\cmake\Qt5\Qt5Config.cmake" (
+if not exist "%QT_DIR%\lib\cmake\Qt6\Qt6Config.cmake" (
     echo.
-    echo [ERRO] Qt 5.12 nao encontrado em: %QT_DIR%
+    echo [ERRO] Qt 6 nao encontrado em: %QT_DIR%
     echo        Edite a variavel QT_DIR neste script.
+    echo        Instale Qt 6.11.0 pelo instalador oficial: https://www.qt.io/offline-installers
     echo.
     pause & exit /b 1
 )
 
 :: ── Detecta o Visual Studio via vswhere ──────────────────────
-::    vswhere.exe fica sempre no mesmo lugar desde o VS 2017.
-::    Funciona com VS 2017, 2019, 2022 e versoes futuras.
+::    vswhere.exe fica sempre no mesmo lugar desde o VS 2019.
+::    Funciona com VS 2019, 2022 e versoes futuras.
 set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 
 if not exist %VSWHERE% (
     echo [ERRO] vswhere.exe nao encontrado.
-    echo        Instale o Visual Studio 2017 ou superior.
+    echo        Instale o Visual Studio 2022.
     pause & exit /b 1
 )
 
@@ -56,8 +63,7 @@ if not exist %VCVARS% (
 
 echo [OK] Visual Studio encontrado em: %VS_PATH%
 
-:: Ativa o ambiente MSVC — usa o toolset mais recente disponível
-:: (14.1 era forçado, mas ONNX Runtime 1.16+ exige 14.2+)
+:: Ativa o ambiente MSVC (VS 2022, toolset 14.4+)
 call %VCVARS%
 
 :: ── Cria a pasta de build ─────────────────────────────────────
@@ -95,14 +101,14 @@ set EXE=build\MindTrace.exe
 
 :: ── Copia ONNX Runtime DLLs (motor nativo C++) ───────────────
 echo.
-set ONNX_LIB=onnxruntime-win-x64-1.16.3\lib
-for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll) do (
+set ONNX_LIB=onnxruntime-win-x64-1.24.4\lib
+for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
     if exist "%ONNX_LIB%\%%D" (
         copy /y "%ONNX_LIB%\%%D" "build\" >nul
         echo [OK] ONNX DLL copiada: %%D
     )
 )
-echo [DIRETO] onnxruntime.dll = build DirectML com fallback para CPU
+echo [INFO] Prioridade GPU: CUDA (NVIDIA) -^> DirectML (AMD/Intel) -^> CPU
 
 :: Copia modelo ONNX para build\
 for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml) do (

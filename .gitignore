@@ -3,8 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.venv_lab38/
-venv_lab38/
+venv_lab312/
 
 # ── Qt / C++ build artifacts ─────────────────────────────
 build/

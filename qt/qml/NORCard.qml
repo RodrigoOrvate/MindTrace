@@ -1,7 +1,7 @@
 // qml/NORCard.qml
-import QtQuick 2.12
-import QtQuick.Layouts 1.3
-import QtGraphicalEffects 1.0
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Effects
 
 Item {
     id: cardRoot
@@ -17,15 +17,14 @@ Item {
 
     // Sombra dinâmica — apagada quando locked
     layer.enabled: true
-    layer.effect: DropShadow {
-        horizontalOffset: 0
-        verticalOffset: (!cardRoot.locked && cardRoot.hovered) ? 10 : 5
-        radius:          (!cardRoot.locked && cardRoot.hovered) ? 32 : 14
-        samples: 33
-        color: (!cardRoot.locked && cardRoot.hovered) ? "#80ab3d4c" : "#60000000"
-
-        Behavior on radius         { NumberAnimation { duration: 220 } }
-        Behavior on verticalOffset { NumberAnimation { duration: 220 } }
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowHorizontalOffset: 0
+        shadowVerticalOffset:   (!cardRoot.locked && cardRoot.hovered) ? 10 : 5
+        shadowBlur:             (!cardRoot.locked && cardRoot.hovered) ? 0.8 : 0.45
+        shadowColor:            (!cardRoot.locked && cardRoot.hovered) ? "#80ab3d4c" : "#60000000"
+        Behavior on shadowBlur          { NumberAnimation { duration: 220 } }
+        Behavior on shadowVerticalOffset { NumberAnimation { duration: 220 } }
     }
 
     property bool hovered: false

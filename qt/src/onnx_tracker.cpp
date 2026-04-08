@@ -3,14 +3,65 @@
 #include <algorithm>
 #include <thread>
 
-// DirectML execution provider — GPU acceleration via DirectX 12
-// The DirectML build of ONNX Runtime is self-contained with CPU fallback.
+// GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU
+// CUDA:     requires onnxruntime-win-x64-gpu build + NVIDIA CUDA drivers.
+// DirectML: requires onnxruntime-win-x64 standard build + DirectX 12 (Windows 10+).
 #include "dml_provider_factory.h"
+#include <dxgi.h>
 
-static bool try_add_gpu_provider(Ort::SessionOptions& opts) {
-    // Device 0 = primary GPU adapter. Falls back to CPU if unavailable.
-    OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_DML(opts, 0);
-    return status == nullptr;
+// ── GPU vendor detection via DXGI ─────────────────────────────────────────────
+// Enumerates the first discrete (non-software) adapter to identify the vendor.
+// Called once at session creation — no runtime overhead during inference.
+enum class GpuVendor { Unknown, NVIDIA, AMD, Intel };
+
+static GpuVendor detectGpuVendor() {
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1),
+                                  reinterpret_cast<void**>(&factory))))
+        return GpuVendor::Unknown;
+
+    GpuVendor vendor = GpuVendor::Unknown;
+    IDXGIAdapter1* adapter = nullptr;
+    for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+        DXGI_ADAPTER_DESC1 desc{};
+        adapter->GetDesc1(&desc);
+        adapter->Release();
+        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue; // skip WARP/software
+        switch (desc.VendorId) {
+            case 0x10DE: vendor = GpuVendor::NVIDIA; break;
+            case 0x1002: vendor = GpuVendor::AMD;    break;
+            case 0x8086: vendor = GpuVendor::Intel;  break;
+        }
+        if (vendor != GpuVendor::Unknown) break;
+    }
+    factory->Release();
+    return vendor;
+}
+
+// Returns true if CUDA EP was successfully registered (NVIDIA + CUDA ORT build).
+static bool try_add_cuda_provider(Ort::SessionOptions& opts) {
+    try {
+        OrtCUDAProviderOptions cuda_options{};
+        cuda_options.device_id = 0;
+        opts.AppendExecutionProvider_CUDA(cuda_options);
+        return true;
+    } catch (const Ort::Exception&) {
+        return false;   // Standard (DirectML) ORT build — CUDA EP not compiled in
+    }
+}
+
+// Returns true if DirectML EP was successfully registered (AMD/Intel/NVIDIA, DX12).
+// Uses the generic SessionOptions::AppendExecutionProvider("DML", {}) API,
+// since the deprecated C export OrtSessionOptionsAppendExecutionProvider_DML
+// is no longer linked by onnxruntime.lib in v1.24+.
+static bool try_add_dml_provider(Ort::SessionOptions& opts) {
+    try {
+        std::unordered_map<std::string, std::string> dml_options;
+        opts.AppendExecutionProvider("DML", dml_options);
+        return true;
+    } catch (const Ort::Exception&) {
+        return false;  // DirectML EP not available or failed to initialize
+    }
 }
 
 OnnxTracker::OnnxTracker(QObject* parent)
@@ -52,20 +103,25 @@ bool OnnxTracker::createSession()
     try {
         Ort::SessionOptions opts;
 
-        // ── Try DirectML GPU first, fall back to CPU automatically ─────
-        // DirectML requires DirectX 12 (Windows 10+). On Windows 7 or GPUs
-        // without DX12 support (e.g. Kepler/K2000), this returns false and
-        // the session runs on CPU with full graph optimization.
-        bool gpuOk = try_add_gpu_provider(opts);
-        if (gpuOk) {
-            // GPU active — DML manages its own threads, don't over-parallelize
+        // ── GPU provider chain com detecção automática de vendor ──────
+        // DXGI detecta o fabricante da GPU (NVIDIA/AMD/Intel) antes de tentar
+        // qualquer provider, evitando exceções desnecessárias para AMD/Intel.
+        const GpuVendor vendor = detectGpuVendor();
+
+        if (vendor == GpuVendor::NVIDIA && try_add_cuda_provider(opts)) {
+            // NVIDIA + onnxruntime-win-x64-gpu build: máximo desempenho via CUDA
             opts.SetIntraOpNumThreads(1);
-            emit infoMsg("Modo GPU: DirectML ativo (DirectX 12)");
+            emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
+        } else if (try_add_dml_provider(opts)) {
+            // AMD/Intel (ou NVIDIA sem build CUDA): DirectML via DirectX 12
+            const QString gpuName = (vendor == GpuVendor::NVIDIA) ? "NVIDIA" :
+                                    (vendor == GpuVendor::AMD)    ? "AMD"    : "Intel";
+            opts.SetIntraOpNumThreads(1);
+            emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
         } else {
-            // CPU fallback — enable all graph optimizations to compensate
-            opts.SetIntraOpNumThreads(2);
+            opts.SetIntraOpNumThreads(4);
             opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-            emit infoMsg("Modo CPU: DirectML indisponível (Windows 7 ou GPU sem DX12)");
+            emit infoMsg("Modo CPU: GPU não disponível");
         }
 
         // Create one session per campo for parallel inference

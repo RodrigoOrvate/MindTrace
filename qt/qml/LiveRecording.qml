@@ -1,7 +1,7 @@
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.3
-import QtMultimedia 5.12
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtMultimedia
 import MindTrace.Tracking 1.0
 
 Item {
@@ -66,36 +66,38 @@ Item {
     // ── DLC Controller (nativo — ONNX + QVideoProbe para captura de frames) ──
     DlcController { id: dlc }
 
-    // ── Player de exibição (QML nativo — VideoOutput funciona de forma garantida) ─
+    // ── Player de exibição (QML nativo) ──────────────────────────────────────────
+    // Qt 6: MediaPlayer.videoOutput aponta para o VideoOutput (direção invertida vs Qt 5)
     MediaPlayer {
         id: displayPlayer
-        autoLoad: false
+        videoOutput: framePreviewMaster
     }
 
+    // Qt 6: Connections usa sintaxe "function onSignal(params)" para aceder parâmetros
     Connections {
         target: dlc
-        onDimsReceived: {
+        function onDimsReceived(width, height) {
             recordingRoot.videoWidth  = width
             recordingRoot.videoHeight = height
             logModel.append({ msg: "ℹ️ Resolução: " + width + "×" + height, isErr: false })
             logView.positionViewAtEnd()
         }
-        onFpsReceived: {
+        function onFpsReceived(fps) {
             recordingRoot.dlcFps = fps
             logModel.append({ msg: "ℹ️ FPS: " + fps.toFixed(2), isErr: false })
             logView.positionViewAtEnd()
         }
-        onInfoReceived: {
+        function onInfoReceived(message) {
             logModel.append({ msg: "ℹ️ " + message, isErr: false })
             logView.positionViewAtEnd()
         }
-        onReadyReceived: {
+        function onReadyReceived() {
             recordingRoot._dlcReady = true
             logModel.append({ msg: "▶ Motor ONNX pronto — tracking ativo", isErr: false })
             logView.positionViewAtEnd()
         }
-        onTrackReceived: {
-            // Nose position — direct signal from C++ ONNX inference (already synced to displayed frame)
+        function onTrackReceived(campo, x, y, p) {
+            // Nose position — direct signal from C++ ONNX inference
             if (recordingRoot.videoWidth <= 0 || recordingRoot.videoHeight <= 0) return
             var nx = recordingRoot.ratNormX.slice()
             var ny = recordingRoot.ratNormY.slice()
@@ -113,7 +115,7 @@ Item {
             recordingRoot.ratNormY      = ny
             recordingRoot.ratLikelihood = nl
         }
-        onBodyReceived: {
+        function onBodyReceived(campo, x, y, p) {
             if (recordingRoot.videoWidth <= 0 || recordingRoot.videoHeight <= 0) return
             var bx = recordingRoot.bodyNormX.slice()
             var by = recordingRoot.bodyNormY.slice()
@@ -125,7 +127,7 @@ Item {
             recordingRoot.bodyNormY      = by
             recordingRoot.bodyLikelihood = bl
         }
-        onAnalyzingChanged: {
+        function onAnalyzingChanged() {
             if (!dlc.isAnalyzing && recordingRoot.isAnalyzing) {
                 displayPlayer.stop()
                 logModel.append({ msg: "Análise encerrada.", isErr: false })
@@ -133,7 +135,7 @@ Item {
                 recordingRoot.isAnalyzing = false
             }
         }
-        onErrorOccurred: {
+        function onErrorOccurred(errorMsg) {
             displayPlayer.stop()
             logModel.append({ msg: "❌ " + errorMsg, isErr: true })
             logView.positionViewAtEnd()
@@ -429,7 +431,7 @@ Item {
                                     // ao mudar playbackRate enquanto o player está ativo
                                     displayPlayer.stop()
                                     displayPlayer.playbackRate = rate
-                                    displayPlayer.seek(pos)
+                                    displayPlayer.setPosition(pos)
                                     displayPlayer.play()
                                     // Headless capped a 2x: ONNX CPU recebe frames no máx 2x.
                                     // O positionSyncTimer a cada 400ms compensa o drift restante.
@@ -691,10 +693,11 @@ Item {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         color: "#08080f"; border.color: "#1a1a2e"; border.width: 1
 
+                        // Qt 6: VideoOutput não tem "source". O MediaPlayer referencia
+                        // o VideoOutput via sua propriedade "videoOutput".
                         VideoOutput {
                             id: framePreviewMaster
                             anchors.fill: parent
-                            source: displayPlayer
                             fillMode: VideoOutput.PreserveAspectFit
                             opacity: 0.45
                         }

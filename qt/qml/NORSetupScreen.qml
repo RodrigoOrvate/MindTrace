@@ -2,9 +2,9 @@
 // Setup do experimento NOR: nome + pares de objetos por campo + checkbox Droga.
 // Emite experimentReady(name, cols) para o roteador criar o experimento.
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.3
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 import MindTrace.Backend 1.0
 
 Item {

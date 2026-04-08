@@ -3,11 +3,11 @@
 // Dev Mode: exibe diâmetro das zonas; Shift+Scroll redimensiona.
 // Vídeo offline: um VideoOutput no canto + ShaderEffectSource por campo (sem bug de hardware overlay).
 
-import QtQuick 2.12
-import QtQuick.Controls 2.12
-import QtQuick.Layouts 1.3
-import QtMultimedia 5.12
-import QtQuick.Dialogs 1.3
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtMultimedia
+import QtQuick.Dialogs
 import MindTrace.Backend 1.0
 
 Item {
@@ -139,13 +139,15 @@ Item {
     }
 
     // ── Player de vídeo offline ──────────────────────────────────────────────
+    // Qt 6: MediaPlayer.videoOutput aponta para o VideoOutput; status → mediaStatus
     MediaPlayer {
         id: videoPlayer
-        autoPlay: false 
-        onStatusChanged: {
-            // Quando o vídeo carrega, pulamos para o frame 10 (segurança contra tela preta)
-            if (status === MediaPlayer.Loaded) {
-                seek(1000) // Pula para 1 segundo (aprox. frame 30) ou use um valor menor
+        autoPlay: false
+        videoOutput: framePreview
+        onMediaStatusChanged: {
+            // Quando o vídeo carrega, pulamos para 1 segundo (segurança contra tela preta)
+            if (mediaStatus === MediaPlayer.LoadedMedia) {
+                setPosition(1000)  // Qt 6: seek() → setPosition()
                 pause()
             }
         }
@@ -157,8 +159,8 @@ Item {
         nameFilters: ["Vídeos (*.mp4 *.mpg *.mpeg *.avi *.mov)", "Todos os arquivos (*)"]
         onAccepted: {
             videoPlayer.stop()
-            root.videoPath = fileUrl.toString()
-            videoPlayer.source = fileUrl.toString()
+            root.videoPath = selectedFile.toString()  // Qt 6: fileUrl → selectedFile
+            videoPlayer.source = selectedFile
         }
     }
 
@@ -829,10 +831,10 @@ Item {
                     visible: root.videoPath !== ""
 
                     // VideoOutput mestre — ocupa a maior parte da célula
+                    // Qt 6: sem propriedade "source"; o MediaPlayer referencia este item
                     VideoOutput {
                         id: framePreview
                         anchors.fill: parent
-                        source: videoPlayer
                         fillMode: VideoOutput.PreserveAspectFit
                         visible: root.videoPath !== ""
                         opacity: 0.5 // Deixa o fundo suave para desenhar as zonas por cima
@@ -842,13 +844,13 @@ Item {
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: {
-                            var s = videoPlayer.status
-                            if (s === MediaPlayer.Loading)      return "⏳ Carregando…"
+                            var s = videoPlayer.mediaStatus  // Qt 6: status → mediaStatus
+                            if (s === MediaPlayer.LoadingMedia)  return "⏳ Carregando…"
                             if (s === MediaPlayer.InvalidMedia)  return "⚠ Formato inválido"
                             if (s === MediaPlayer.NoMedia)       return "Sem mídia"
                             return ""
                         }
-                        color: videoPlayer.status === MediaPlayer.InvalidMedia ? "#e84c5a" : "#8888aa"
+                        color: videoPlayer.mediaStatus === MediaPlayer.InvalidMedia ? "#e84c5a" : "#8888aa"
                         font.pixelSize: 9
                         visible: text !== ""
                     }

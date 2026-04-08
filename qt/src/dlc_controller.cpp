@@ -4,22 +4,24 @@
 #include <QFile>
 #include <QImage>
 #include <QMetaObject>
+#include <QMediaMetaData>
 #include <QDebug>
 
 DlcController::DlcController(QObject* parent)
     : QObject(parent)
     , m_player(new QMediaPlayer(this))
-    , m_captureSurface(new FrameCaptureSurface(this))
+    , m_videoSink(new QVideoSink(this))
     , m_tracker(new OnnxTracker(this))
 {
-    // ── Register capture surface as the player's video output ────────────────
-    // This forces WMF to decode frames to CPU memory instead of DXVA,
-    // making every frame available for ONNX inference.
-    m_player->setVideoOutput(m_captureSurface);
+    // ── Attach sink to headless player ───────────────────────────────────────
+    // Qt 6: QVideoSink replaces QAbstractVideoSurface. The sink receives every
+    // decoded frame on the multimedia thread, forwarding it to the ONNX tracker.
+    // The visible video in QML uses a separate MediaPlayer + VideoOutput pair.
+    m_player->setVideoOutput(m_videoSink);
 
-    // ── Frame capture → tracker (multimedia thread, DirectConnection) ────────
-    connect(m_captureSurface, &FrameCaptureSurface::frameReady,
-            this, &DlcController::onFrameCaptured,
+    // ── Frame delivery → tracker (multimedia thread, DirectConnection) ───────
+    connect(m_videoSink, &QVideoSink::videoFrameChanged,
+            this, &DlcController::onVideoFrameChanged,
             Qt::DirectConnection);
 
     // ── OnnxTracker signals → DlcController signals ──────────────────────────
@@ -103,9 +105,8 @@ void DlcController::startAnalysis(const QString& videoPath, const QString& model
     if (!m_tracker->isRunning())
         m_tracker->start();
 
-    // Start headless playback at natural frame rate (frame-by-frame delivery
-    // to tracker via FrameCaptureSurface)
-    m_player->setMedia(QUrl::fromLocalFile(cleanVideo));
+    // Start headless playback — QVideoSink delivers every decoded frame
+    m_player->setSource(QUrl::fromLocalFile(cleanVideo));  // Qt 6: setSource (was setMedia)
     m_player->setPlaybackRate(1.0);
     m_player->play();
 
@@ -138,10 +139,21 @@ void DlcController::stopAnalysis()
 
 // ── Frame capture (multimedia thread) ────────────────────────────────────────
 
-void DlcController::onFrameCaptured(const QImage& img, int w, int h)
+void DlcController::onVideoFrameChanged(const QVideoFrame& frame)
 {
     // Guard: drop frames until model is loaded
     if (!m_modelReady || !m_isAnalyzing) return;
+
+    // Qt 6: QVideoFrame::toImage() handles mapping/unmapping internally
+    QImage img = frame.toImage();
+    if (img.isNull()) return;
+
+    // Ensure RGB888 for ONNX input tensor
+    if (img.format() != QImage::Format_RGB888)
+        img = img.convertToFormat(QImage::Format_RGB888);
+
+    const int w = img.width();
+    const int h = img.height();
 
     // Emit dims once when they become known (queued to main thread)
     if (m_videoW != w || m_videoH != h) {
@@ -161,7 +173,8 @@ void DlcController::onFrameCaptured(const QImage& img, int w, int h)
 void DlcController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
     if (status == QMediaPlayer::LoadedMedia) {
-        double fps = m_player->metaData("VideoFrameRate").toDouble();
+        // Qt 6: metaData() returns QMediaMetaData, access via enum key
+        double fps = m_player->metaData().value(QMediaMetaData::VideoFrameRate).toDouble();
         if (fps <= 0.0) fps = 30.0;
         emit fpsReceived(fps);
 
