@@ -84,8 +84,8 @@ Item {
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show("Sessão registrada — 3 campos inseridos.")
-                innerTabs.currentIndex = 1 // Garante que a aba Dados fica visível
+                successToast.show("Sessão registrada! Carregue o próximo vídeo ou consulte a aba Dados.")
+                innerTabs.currentIndex = 1 // Volta para Gravação — prontos para próxima sessão
             }
         }
     }
@@ -489,8 +489,21 @@ Item {
                                 arenaPoints: tabArenaSetup.arenaPoints
                                 floorPoints: tabArenaSetup.floorPoints
 
-                                // Timer de 300 s zerou → abre o diálogo de resultado
-                                onSessionEnded: resultDialog.open()
+                                // Timer de 300 s zerou → injeta dados de tracking e abre o diálogo
+                                onSessionEnded: {
+                                    resultDialog.sessionExplorationBouts = liveRecordingTab.explorationBouts
+                                    resultDialog.sessionExplorationTimes = liveRecordingTab.explorationTimes
+                                    resultDialog.sessionTotalDistance    = liveRecordingTab.totalDistance
+                                    resultDialog.sessionAvgVelocity      = liveRecordingTab.currentVelocity
+                                    resultDialog.sessionPerMinuteData    = liveRecordingTab.perMinuteData
+                                    resultDialog.open()
+                                }
+
+                                // Botão "Carregar Vídeo" na aba Gravação → abre o seletor de vídeo
+                                onRequestVideoLoad: {
+                                    innerTabs.currentIndex = 0  // vai para Arena
+                                    tabArenaSetup.openVideoLoader()
+                                }
                             }
 
                             // Tab 2: Dados
@@ -505,8 +518,32 @@ Item {
                                             visible: tableModel.fetchingMore; running: tableModel.fetchingMore
                                             implicitWidth: 20; implicitHeight: 20
                                         }
+                                        Text {
+                                            text: tableView.rows > 0 ? tableView.rows + " linha(s)" : ""
+                                            color: "#555577"; font.pixelSize: 11
+                                        }
                                         Item { Layout.fillWidth: true }
                                         GhostButton { text: "＋ Linha"; onClicked: tableModel.addRow() }
+                                        Button {
+                                            text: "📤 Exportar"
+                                            onClicked: {
+                                                if (tableModel.exportCsv(workArea.selectedPath + "/export_" +
+                                                    new Date().toISOString().substring(0,10) + ".csv"))
+                                                    savedFeedback.show("Exportado!")
+                                            }
+                                            background: Rectangle {
+                                                radius: 7; color: parent.hovered ? "#1a4a2e" : "#123320"
+                                                border.color: "#2a6a44"; border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                            }
+                                            contentItem: Text {
+                                                text: parent.text; color: "#e8e8f0"
+                                                font.pixelSize: 12; font.weight: Font.Bold
+                                                verticalAlignment: Text.AlignVCenter
+                                                horizontalAlignment: Text.AlignHCenter
+                                            }
+                                            leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
+                                        }
                                         Button {
                                             text: "💾 Salvar"
                                             onClicked: { if (tableModel.saveCsv()) savedFeedback.show("Salvo!") }
@@ -562,10 +599,37 @@ Item {
                                         }
                                         delegate: Rectangle {
                                             implicitWidth: 120; implicitHeight: 32
-                                            color: (row % 2 === 0) ? "#1a1a2e" : "#16162e"
+                                            color: rowDelMa.containsMouse ? "#1f1020"
+                                                 : (row % 2 === 0) ? "#1a1a2e" : "#16162e"
                                             border.color: "#2d2d4a"; border.width: 1
+
+                                            // Botão deletar linha (aparece ao hover na primeira célula)
+                                            Rectangle {
+                                                id: rowDelBtn
+                                                anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
+                                                visible: column === 0 && rowDelMa.containsMouse
+                                                width: 20; height: 20; radius: 4
+                                                color: rowDelBtnMa.containsMouse ? "#5a1a28" : "#3a1020"
+                                                border.color: "#ab3d4c"; border.width: 1
+                                                Text {
+                                                    anchors.centerIn: parent; text: "✕"
+                                                    color: "#ff5566"; font.pixelSize: 9; font.weight: Font.Bold
+                                                }
+                                                MouseArea {
+                                                    id: rowDelBtnMa; anchors.fill: parent
+                                                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        tableModel.removeRow(row)
+                                                        tableModel.saveCsv()
+                                                    }
+                                                }
+                                            }
+
                                             TextInput {
-                                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                                anchors {
+                                                    fill: parent; leftMargin: 8
+                                                    rightMargin: (column === 0 && rowDelMa.containsMouse) ? 28 : 8
+                                                }
                                                 text: model.display !== undefined ? model.display : ""
                                                 color: "#e8e8f0"; font.pixelSize: 13
                                                 verticalAlignment: Text.AlignVCenter
@@ -573,6 +637,13 @@ Item {
                                                 onEditingFinished: {
                                                     tableModel.setData(tableModel.index(row, column), text, Qt.EditRole)
                                                 }
+                                            }
+
+                                            // HoverEnabled na linha inteira (para mostrar botão delete)
+                                            MouseArea {
+                                                id: rowDelMa; anchors.fill: parent; hoverEnabled: true
+                                                // Propaga clique para o TextInput
+                                                onPressed: mouse.accepted = false
                                             }
                                         }
                                     }
@@ -683,14 +754,16 @@ Item {
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
-        width: 400; height: 190
+        width: 400
+        height: step1Layout.implicitHeight + 56
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle { radius: 14; color: "#1a1a2e"; border.color: "#3a3a5c"; border.width: 1 }
 
         ColumnLayout {
-            anchors { fill: parent; margins: 24 }
+            id: step1Layout
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
             Text { text: "Excluir Experimento"; color: "#e8e8f0"; font.pixelSize: 16; font.weight: Font.Bold }

@@ -105,6 +105,13 @@ public:
     // Lê metadata.json a partir do path completo da pasta do experimento.
     Q_INVOKABLE QVariantMap readMetadataFromPath(const QString &folderPath) const;
 
+    // Salva metadados ricos da sessão (bouts, distância, velocidade) como JSON
+    // no subdiretório "sessions/" dentro da pasta do experimento.
+    // nameHint: prefixo descritivo para o nome do arquivo (ex: "TR_A1-A2-A3")
+    Q_INVOKABLE bool saveSessionMetadata(const QString &experimentName,
+                                         const QString &jsonData,
+                                         const QString &nameHint = QString());
+
     // Varre TODOS os contextos e popula o modelo — usado pelo modo Procurar.
     Q_INVOKABLE void loadAllContexts();
 

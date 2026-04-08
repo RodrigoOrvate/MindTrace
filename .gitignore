@@ -20,10 +20,11 @@ debug/
 *.lib
 *.dll
 
-# ── ONNX Runtime SDK (baixado separadamente) ─────────────
-onnxruntime-win-x64-1.16.3/
-onnxruntime.zip
+# ── ONNX Runtime SDK (baixado separadamente na raiz) ────
+onnxruntime-win-x64-*/
 directml_x64/
+onnxruntime.zip
+onnxruntime.lib
 
 # ── Dados locais do MindTrace ────────────────────────────
 MindTrace_Data/

@@ -46,16 +46,17 @@ Baixe em [github.com/microsoft/onnxruntime/releases/tag/v1.24.4](https://github.
 | AMD / Intel | `onnxruntime-win-x64-1.24.4.zip` | DirectML → CPU |
 | NVIDIA | `onnxruntime-win-x64-gpu-1.24.4.zip` | CUDA → CPU |
 
-Extraia **dentro de** `qt/` de forma que o resultado seja:
+Extraia **na raiz do projeto** (um nível acima de `qt/`) de forma que o resultado seja:
 
 ```
-qt/onnxruntime-win-x64-1.24.4/
-    include/
-    lib/
-        onnxruntime.lib
-        onnxruntime.dll
-        onnxruntime_providers_shared.dll
-        ...
+MindTrace - Copia/
+├── directml_x64/
+│   ├── onnxruntime.lib
+│   ├── onnxruntime.dll
+│   └── ...
+└── qt/
+    ├── CMakeLists.txt
+    └── ...
 ```
 
 O provider de GPU é detectado automaticamente em runtime via DXGI (sem recompilar).
@@ -113,16 +114,16 @@ O script:
 ```
 MindTrace.exe (Qt 6.11.0 / C++17 / ONNX Runtime 1.24.4)
   └── LiveRecording.qml
-       └── DlcController (C++)
+       └── InferenceController (C++)
             ├── QVideoSink          — recebe cada frame decodificado do QMediaPlayer headless
             │    └── videoFrameChanged → onVideoFrameChanged → enqueueFrame
-            └── OnnxTracker (QThread)  — inferência ONNX nativa multi-thread
+            └── InferenceEngine (QThread)  — inferência ONNX nativa multi-thread
                  ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML (AMD/Intel) / CPU
                  ├── 3× Ort::Session (uma por campo)
                  └── std::thread por campo → inferência paralela
 ```
 
-**Sinais emitidos (`DlcController` → QML):**
+**Sinais emitidos (`InferenceController` → QML):**
 
 ```
 readyReceived()                      — modelo carregado, tracking ativo
@@ -145,7 +146,7 @@ qt/
 │   ├── core/           — main.cpp
 │   ├── manager/        — ExperimentManager.cpp/.h (CRUD, Registry)
 │   ├── models/         — TableModels, ArenaModel, ConfigModels
-│   └── tracking/       — DlcController, OnnxTracker
+│   └── tracking/       — InferenceController, InferenceEngine
 ├── qml/
 │   ├── core/           — Navegação e componentes base (main.qml, GhostButton)
 │   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
@@ -175,4 +176,6 @@ qt/
 | Subprocesso Python lento | ONNX nativo C++ — sem subprocesso |
 | Dessincronização em velocidade alta | Headless capped a 2× + `positionSyncTimer` 400ms |
 | QAbstractVideoSurface removido no Qt 6 | Substituído por `QVideoSink` + `videoFrameChanged` |
-| Windows 7 / 8 removidos | Requer Windows 10/11 (DirectX 12). Qt 6.11.0 + ONNX 1.24.4 |
+| Suporte Windows 7 / 8 removido | Requer Windows 10/11 (DirectX 12). Qt 6.11.0 + ONNX 1.24.4 |
+| Refatoração Tecnológica | Renomeação de DLC/Onnx para Inference Controller/Engine por clareza técnica |
+| Limpeza e Reorganização | Remoção de arquivos obsoletos (.venv, .zip) e mudança de SDKs para a raiz |

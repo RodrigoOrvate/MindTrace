@@ -51,7 +51,8 @@ Item {
         id: letterPicker
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: 340 // Janela mais larga para comportar bem a grade
+        width: 340  // Janela mais larga para comportar bem a grade
+        height: letterPickerLayout.implicitHeight + 40  // auto-sizing baseado no conteúdo
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -62,7 +63,8 @@ Item {
         }
 
         ColumnLayout {
-            anchors { fill: parent; margins: 16 }
+            id: letterPickerLayout
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
             spacing: 12
 
             Text {

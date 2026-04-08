@@ -29,6 +29,7 @@ Item {
     property var fieldFinished:  [false, false, false]
 
     signal sessionEnded()
+    signal requestVideoLoad()   // solicitado quando usuário quer carregar próximo vídeo
 
     // ── Estado interno ────────────────────────────────────────────────────────
     property bool isAnalyzing:   false
@@ -56,6 +57,24 @@ Item {
     property var _inZone:    [false, false, false, false, false, false]
     property var _entryTime: [0,     0,     0,     0,     0,     0    ]  // ms epoch
 
+    // ── Velocidade e Distância (body point) ───────────────────────────────
+    // Dimensão física da arena por campo (configurável — 50 cm padrão)
+    property double arenaWidthM:  0.50   // largura de 1 campo em metros
+    property double arenaHeightM: 0.50   // altura  de 1 campo em metros
+
+    property var currentVelocity: [0.0, 0.0, 0.0]   // m/s por campo (última janela 100ms)
+    property var totalDistance:   [0.0, 0.0, 0.0]   // metros acumulados por campo
+
+    // Posição body anterior (coordenadas locais 0..1 dentro do campo)
+    property var _prevBodyLX:   [-1.0, -1.0, -1.0]
+    property var _prevBodyLY:   [-1.0, -1.0, -1.0]
+    property var _prevBodyTime: [0, 0, 0]            // ms epoch
+
+    // ── Snapshots por minuto ───────────────────────────────────────────────
+    // Registra distância acumulada e exploração a cada 60 s de sessão real
+    property int  _lastMinuteSnap: 0        // segundo em que foi o último snap (baseado no maior timer)
+    property var  perMinuteData: [[], [], []]  // por campo: [{min, distM, expA_s, expB_s}]
+
     // Tick para forçar re-avaliação do bout live a cada 100 ms
     property int _explorationTick: 0
     property bool _dlcReady: false
@@ -63,8 +82,8 @@ Item {
     // ── Log ───────────────────────────────────────────────────────────────────
     ListModel { id: logModel }
 
-    // ── DLC Controller (nativo — ONNX + QVideoProbe para captura de frames) ──
-    DlcController { id: dlc }
+    // ── Inference Controller (nativo — ONNX + QVideoProbe para captura de frames) ──
+    InferenceController { id: inference }
 
     // ── Player de exibição (QML nativo) ──────────────────────────────────────────
     // Qt 6: MediaPlayer.videoOutput aponta para o VideoOutput (direção invertida vs Qt 5)
@@ -75,7 +94,7 @@ Item {
 
     // Qt 6: Connections usa sintaxe "function onSignal(params)" para aceder parâmetros
     Connections {
-        target: dlc
+        target: inference
         function onDimsReceived(width, height) {
             recordingRoot.videoWidth  = width
             recordingRoot.videoHeight = height
@@ -93,7 +112,7 @@ Item {
         }
         function onReadyReceived() {
             recordingRoot._dlcReady = true
-            logModel.append({ msg: "▶ Motor ONNX pronto — tracking ativo", isErr: false })
+            logModel.append({ msg: "▶ Motor de Inferência pronto — tracking ativo", isErr: false })
             logView.positionViewAtEnd()
         }
         function onTrackReceived(campo, x, y, p) {
@@ -128,7 +147,7 @@ Item {
             recordingRoot.bodyLikelihood = bl
         }
         function onAnalyzingChanged() {
-            if (!dlc.isAnalyzing && recordingRoot.isAnalyzing) {
+            if (!inference.isAnalyzing && recordingRoot.isAnalyzing) {
                 displayPlayer.stop()
                 logModel.append({ msg: "Análise encerrada.", isErr: false })
                 logView.positionViewAtEnd()
@@ -195,9 +214,9 @@ Item {
         running: recordingRoot.isAnalyzing && recordingRoot.isOffline
         onTriggered: {
             if (recordingRoot.playbackRate <= 1) return
-            var drift = displayPlayer.position - dlc.position()
+            var drift = displayPlayer.position - inference.position()
             if (Math.abs(drift) > 800)
-                dlc.seekTo(displayPlayer.position)
+                inference.seekTo(displayPlayer.position)
         }
     }
 
@@ -222,19 +241,26 @@ Item {
         bodyNormX        = [-1, -1, -1]
         bodyNormY        = [-1, -1, -1]
         bodyLikelihood   = [0,  0,  0 ]
+        currentVelocity  = [0.0, 0.0, 0.0]
+        totalDistance    = [0.0, 0.0, 0.0]
+        _prevBodyLX      = [-1.0, -1.0, -1.0]
+        _prevBodyLY      = [-1.0, -1.0, -1.0]
+        _prevBodyTime    = [0, 0, 0]
+        perMinuteData    = [[], [], []]
+        _lastMinuteSnap  = 0
         _explorationTick = 0
         _dlcReady = false
         logModel.clear()
-        logModel.append({ msg: "⏳ Carregando motor ONNX nativo...", isErr: false })
+        logModel.append({ msg: "⏳ Carregando motor de inferência nativo...", isErr: false })
         logView.positionViewAtEnd()
         // Start display player immediately
         var pr = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
         displayPlayer.source = videoPath
         displayPlayer.playbackRate = pr
         displayPlayer.play()
-        // Start C++ backend (ONNX load + QVideoProbe frame capture)
-        dlc.startAnalysis(videoPath, "")
-        if (pr !== 1.0) dlc.setPlaybackRate(Math.min(pr, 2.0))
+        // Start C++ backend (Model load + frame capture)
+        inference.startAnalysis(videoPath, "")
+        if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
         isAnalyzing = true
     }
 
@@ -251,7 +277,7 @@ Item {
             }
         }
         explorationBouts = nb
-        dlc.stopAnalysis()
+        inference.stopAnalysis()
         displayPlayer.stop()
         isAnalyzing = false
         logModel.append({ msg: "⏹ Sessão parada.", isErr: false })
@@ -305,6 +331,72 @@ Item {
         }
         explorationTimes = newTimes
         if (boutsChanged) explorationBouts = newBouts
+
+        // ── Velocidade e distância do body point ──────────────────────────
+        var now2    = Date.now()
+        var newVel  = currentVelocity.slice()
+        var newDist = totalDistance.slice()
+        var newPBLX = _prevBodyLX.slice()
+        var newPBLY = _prevBodyLY.slice()
+        var newPBT  = _prevBodyTime.slice()
+
+        for (var ci = 0; ci < 3; ci++) {
+            var blx = bodyLocalX(ci)
+            var bly = bodyLocalY(ci)
+            var bl  = bodyLikelihood[ci]
+
+            if (blx < 0 || bl < 0.5) {
+                newVel[ci] = 0.0
+                newPBLX[ci] = -1.0
+                continue
+            }
+
+            var prevX = newPBLX[ci]
+            var prevY = newPBLY[ci]
+            var prevT = newPBT[ci]
+
+            if (prevX >= 0 && prevT > 0) {
+                var dx   = (blx - prevX) * arenaWidthM
+                var dy   = (bly - prevY) * arenaHeightM
+                var dist = Math.sqrt(dx * dx + dy * dy)
+                var dt   = (now2 - prevT) / 1000.0
+
+                // Filtra saltos impossíveis (> 1 m/s = animal correndo rápido)
+                if (dt > 0 && dist / dt < 2.0) {
+                    newVel[ci]   = dist / dt
+                    newDist[ci] += dist
+                }
+            }
+
+            newPBLX[ci] = blx
+            newPBLY[ci] = bly
+            newPBT[ci]  = now2
+        }
+
+        currentVelocity = newVel
+        totalDistance   = newDist
+        _prevBodyLX     = newPBLX
+        _prevBodyLY     = newPBLY
+        _prevBodyTime   = newPBT
+
+        // ── Snapshot por minuto ──────────────────────────────────────────
+        // Usa o maior timer restante para calcular minuto corrido
+        var maxTimer = Math.max(timesRemaining[0], timesRemaining[1], timesRemaining[2])
+        var elapsedSec = 300 - maxTimer
+        var currentMin = Math.floor(elapsedSec / 60)
+        if (currentMin > _lastMinuteSnap && elapsedSec >= 60) {
+            _lastMinuteSnap = currentMin
+            var newPMD = [perMinuteData[0].slice(), perMinuteData[1].slice(), perMinuteData[2].slice()]
+            for (var pm = 0; pm < 3; pm++) {
+                newPMD[pm].push({
+                    "min":    currentMin,
+                    "distM":  parseFloat(newDist[pm].toFixed(3)),
+                    "expA_s": parseFloat(explorationTimes[pm * 2].toFixed(1)),
+                    "expB_s": parseFloat(explorationTimes[pm * 2 + 1].toFixed(1))
+                })
+            }
+            perMinuteData = newPMD
+        }
     }
 
     // Retorna segundos do bout atual para a zona zi (ou 0 se não estiver na zona)
@@ -415,8 +507,8 @@ Item {
                                     // Headless capped a 2x: ONNX CPU recebe frames no máx 2x.
                                     // O positionSyncTimer a cada 400ms compensa o drift restante.
                                     var headlessRate = Math.min(rate, 2.0)
-                                    dlc.setPlaybackRate(headlessRate)
-                                    dlc.seekTo(pos)
+                                    inference.setPlaybackRate(headlessRate)
+                                    inference.seekTo(pos)
                                 }
                             }
                         }
@@ -732,9 +824,28 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 8
 
-                    // ── Botão Iniciar / Parar ──────────────────────────────────
+                    // ── Botões Iniciar / Parar + Carregar Vídeo ───────────────
                     RowLayout {
                         Layout.fillWidth: true; spacing: 6
+
+                        // Botão "Carregar Vídeo" — visível apenas quando parado
+                        Rectangle {
+                            visible: !recordingRoot.isAnalyzing
+                            implicitWidth: 130; height: 34; radius: 8
+                            color: loadBtnMa.containsMouse ? "#1e2a3a" : "#131a25"
+                            border.color: "#3a5a8a"; border.width: 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "📂  Carregar Vídeo"
+                                color: "#88aad0"; font.pixelSize: 12; font.bold: true
+                            }
+                            MouseArea {
+                                id: loadBtnMa; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: recordingRoot.requestVideoLoad()
+                            }
+                        }
 
                         Item { Layout.fillWidth: true }
 
@@ -959,6 +1070,54 @@ Item {
                                                          : dv > 0   ? "#5aaa70"
                                                          : "#ff5566"
                                                     font.pixelSize: 9
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle { Layout.fillWidth: true; height: 1; color: "#1f1f3a" }
+
+                                        // ── Velocidade e Distância (body) ─────
+                                        RowLayout {
+                                            Layout.fillWidth: true; spacing: 6
+
+                                            // Velocidade atual
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: "#0d1020"; border.color: "#2a3060"; border.width: 1
+
+                                                RowLayout {
+                                                    anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                                                    Text {
+                                                        text: "⚡"
+                                                        color: "#556688"; font.pixelSize: 9
+                                                    }
+                                                    Item { Layout.fillWidth: true }
+                                                    Text {
+                                                        text: recordingRoot.currentVelocity[campoCard.ci].toFixed(2) + " m/s"
+                                                        color: recordingRoot.currentVelocity[campoCard.ci] > 0.05
+                                                               ? "#88aaff" : "#444466"
+                                                        font.pixelSize: 10; font.bold: true; font.family: "Consolas"
+                                                    }
+                                                }
+                                            }
+
+                                            // Distância acumulada
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                color: "#0d1020"; border.color: "#2a3060"; border.width: 1
+
+                                                RowLayout {
+                                                    anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                                                    Text {
+                                                        text: "📍"
+                                                        color: "#556688"; font.pixelSize: 9
+                                                    }
+                                                    Item { Layout.fillWidth: true }
+                                                    Text {
+                                                        text: recordingRoot.totalDistance[campoCard.ci].toFixed(2) + " m"
+                                                        color: "#88aaff"
+                                                        font.pixelSize: 10; font.bold: true; font.family: "Consolas"
+                                                    }
                                                 }
                                             }
                                         }

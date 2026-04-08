@@ -163,6 +163,28 @@ bool ExperimentTableModel::saveCsv() const
     return true;
 }
 
+bool ExperimentTableModel::exportCsv(const QString &destPath) const
+{
+    if (m_headers.isEmpty()) return false;
+
+    QFile file(destPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+
+    // BOM para abrir direto no Excel sem problemas de codificação
+    file.write("\xEF\xBB\xBF");
+
+    QTextStream out(&file);
+    out << m_headers.join(QLatin1Char(',')) << '\n';
+    for (const QStringList &row : m_loadedRows)
+        out << row.join(QLatin1Char(',')) << '\n';
+    // Também exporta as linhas pendentes (não carregadas pela UI ainda)
+    for (const QStringList &row : m_pendingRows)
+        out << row.join(QLatin1Char(',')) << '\n';
+
+    return true;
+}
+
 // ── Privado ─────────────────────────────────────────────────────────────────
 
 void ExperimentTableModel::parseCsvIntoBuffers(const QString &path)

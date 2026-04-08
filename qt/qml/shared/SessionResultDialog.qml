@@ -25,10 +25,19 @@ Popup {
     property string saveDirectory:    ""
     property string videoPath:        ""
 
+    // ── Dados de tracking da sessão (injetados pelo LiveRecording) ────────
+    // explorationBouts: array[6] de arrays de durações (s) por zona
+    // explorationTimes: array[6] de tempos totais (s) por zona
+    // totalDistance: array[3] de distâncias (m) por campo
+    // currentVelocity: array[3] de velocidades médias (m/s) por campo
+    property var sessionExplorationBouts: [[], [], [], [], [], []]
+    property var sessionExplorationTimes: [0, 0, 0, 0, 0, 0]
+    property var sessionTotalDistance:    [0.0, 0.0, 0.0]
+    property var sessionAvgVelocity:      [0.0, 0.0, 0.0]
+    property var sessionPerMinuteData:    [{}, {}, {}]  // por campo
+
     // ── Validação ─────────────────────────────────────────────────────────
-    property bool animalsOk: (animal1Field.text.trim() === "" || sessao1Field.text.trim().length > 0)
-                          && (animal2Field.text.trim() === "" || sessao2Field.text.trim().length > 0)
-                          && (animal3Field.text.trim() === "" || sessao3Field.text.trim().length > 0)
+    property bool animalsOk: sessaoField.text.trim().length > 0
                           && (animal1Field.text.trim() !== "" || animal2Field.text.trim() !== "" || animal3Field.text.trim() !== "")
     property bool dirOk:     true // Path is automatically captured
     property bool allFilled: animalsOk
@@ -45,16 +54,14 @@ Popup {
     closePolicy: Popup.CloseOnEscape
 
     onOpened: {
+        sessaoField.text    = ""
         animal1Field.text   = ""
         animal2Field.text   = ""
         animal3Field.text   = ""
-        sessao1Field.text   = ""
-        sessao2Field.text   = ""
-        sessao3Field.text   = ""
         droga1Field.text    = ""
         droga2Field.text    = ""
         droga3Field.text    = ""
-        animal1Field.forceActiveFocus()
+        sessaoField.forceActiveFocus()
     }
 
     background: Rectangle {
@@ -95,7 +102,54 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
 
-        // Video path capturado automaticamente
+        // ── Fase da sessão (campo único para os 3 ratos) ──────────────────
+        RowLayout {
+            Layout.fillWidth: true; spacing: 10
+
+            ColumnLayout {
+                spacing: 4
+                Text {
+                    text: "FASE"
+                    color: "#8888aa"; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
+                }
+                Text {
+                    text: "Mesma para os 3 campos"
+                    color: "#444466"; font.pixelSize: 9
+                }
+            }
+
+            TextField {
+                id: sessaoField
+                width: 100
+                placeholderText: "TR / RA / TT"
+                color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 13; font.weight: Font.Bold
+                leftPadding: 12; rightPadding: 12; topPadding: 8; bottomPadding: 8
+                background: Rectangle {
+                    radius: 6; color: "#12122a"
+                    border.color: sessaoField.activeFocus ? "#ab3d4c"
+                                : sessaoField.text.trim().length > 0 ? "#4a4a8c"
+                                : "#3a3a5c"
+                    border.width: 1
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                }
+                Keys.onReturnPressed: animal1Field.forceActiveFocus()
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // Badge com a fase validada
+            Rectangle {
+                visible: sessaoField.text.trim().length > 0
+                radius: 5; color: "#1f0d10"
+                border.color: "#ab3d4c"; border.width: 1
+                implicitWidth: faseLbl.implicitWidth + 16; implicitHeight: 28
+                Text {
+                    id: faseLbl; anchors.centerIn: parent
+                    text: sessaoField.text.trim().toUpperCase()
+                    color: "#ff7788"; font.pixelSize: 13; font.weight: Font.Bold
+                }
+            }
+        }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
 
@@ -122,32 +176,18 @@ Popup {
 
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 4
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 4
-                    TextField {
-                        id: animal1Field
-                        Layout.fillWidth: true
-                        placeholderText: "Nº do Animal"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: animal1Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
+                TextField {
+                    id: animal1Field
+                    Layout.fillWidth: true
+                    placeholderText: "Nº do Animal (ou deixe vazio para pular)"
+                    color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
+                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                    background: Rectangle {
+                        radius: 6; color: "#12122a"
+                        border.color: animal1Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
-                    TextField {
-                        id: sessao1Field
-                        width: 80
-                        placeholderText: "Fase"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: sessao1Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                    }
+                    Keys.onReturnPressed: animal2Field.forceActiveFocus()
                 }
                 TextField {
                     id: droga1Field
@@ -188,32 +228,18 @@ Popup {
 
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 4
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 4
-                    TextField {
-                        id: animal2Field
-                        Layout.fillWidth: true
-                        placeholderText: "Nº do Animal"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: animal2Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
+                TextField {
+                    id: animal2Field
+                    Layout.fillWidth: true
+                    placeholderText: "Nº do Animal (ou deixe vazio para pular)"
+                    color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
+                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                    background: Rectangle {
+                        radius: 6; color: "#12122a"
+                        border.color: animal2Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
-                    TextField {
-                        id: sessao2Field
-                        width: 80
-                        placeholderText: "Fase"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: sessao2Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                    }
+                    Keys.onReturnPressed: animal3Field.forceActiveFocus()
                 }
                 TextField {
                     id: droga2Field
@@ -254,31 +280,16 @@ Popup {
 
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 4
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 4
-                    TextField {
-                        id: animal3Field
-                        Layout.fillWidth: true
-                        placeholderText: "Nº do Animal"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: animal3Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                    }
-                    TextField {
-                        id: sessao3Field
-                        width: 80
-                        placeholderText: "Fase"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: sessao3Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
+                TextField {
+                    id: animal3Field
+                    Layout.fillWidth: true
+                    placeholderText: "Nº do Animal (ou deixe vazio para pular)"
+                    color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
+                    leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                    background: Rectangle {
+                        radius: 6; color: "#12122a"
+                        border.color: animal3Field.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
                 }
                 TextField {
@@ -308,28 +319,13 @@ Popup {
                 text: "✓ Inserir Dados"
                 enabled: root.allFilled
                 onClicked: {
-                    var needsReactivationPrompt = false
-                    
-                    function parseDay(prefix) {
-                        var p = prefix.toUpperCase().trim()
-                        if (p === "TR") return "1"
-                        if (p === "RA") {
-                            if (!root.hasReactivation) needsReactivationPrompt = true
-                            return "2"
-                        }
-                        if (p === "TT") return root.hasReactivation ? "3" : "2"
-                        return ""
-                    }
-                    
-                    var d1 = animal1Field.text.trim() ? parseDay(sessao1Field.text) : "0"
-                    var d2 = animal2Field.text.trim() ? parseDay(sessao2Field.text) : "0"
-                    var d3 = animal3Field.text.trim() ? parseDay(sessao3Field.text) : "0"
-                    
-                    if (d1 === "" || d2 === "" || d3 === "") {
+                    var fase = sessaoField.text.toUpperCase().trim()
+                    var p = fase
+                    if (p !== "TR" && p !== "RA" && p !== "TT") {
                         errorPopup.open()
                         return
                     }
-                    if (needsReactivationPrompt) {
+                    if (p === "RA" && !root.hasReactivation) {
                         reactivationPromptPopup.open()
                         return
                     }
@@ -352,32 +348,84 @@ Popup {
 
     function doInsert() {
         var v = root.videoPath.replace("file:///", "")
+        var fase = sessaoField.text.toUpperCase().trim()
         var rows = []
 
-        function parseDay(prefix) {
-            var p = prefix.toUpperCase().trim()
+        function parseDay(p) {
             if (p === "TR") return "1"
             if (p === "RA") return "2"
             if (p === "TT") return root.hasReactivation ? "3" : "2"
             return ""
         }
 
+        var dia = parseDay(fase)
+
         if (animal1Field.text.trim()) {
-            var r1 = [v, animal1Field.text.trim(), "1", parseDay(sessao1Field.text), root.pair1]
+            var r1 = [v, animal1Field.text.trim(), "1", dia, root.pair1]
             if (root.includeDrug) r1.push(droga1Field.text.trim())
             rows.push(r1)
         }
         if (animal2Field.text.trim()) {
-            var r2 = [v, animal2Field.text.trim(), "2", parseDay(sessao2Field.text), root.pair2]
+            var r2 = [v, animal2Field.text.trim(), "2", dia, root.pair2]
             if (root.includeDrug) r2.push(droga2Field.text.trim())
             rows.push(r2)
         }
         if (animal3Field.text.trim()) {
-            var r3 = [v, animal3Field.text.trim(), "3", parseDay(sessao3Field.text), root.pair3]
+            var r3 = [v, animal3Field.text.trim(), "3", dia, root.pair3]
             if (root.includeDrug) r3.push(droga3Field.text.trim())
             rows.push(r3)
         }
+
         ExperimentManager.insertSessionResult(root.experimentName, rows)
+
+        // ── Salva metadados ricos da sessão (bouts, distância, velocidade) ──
+        var sessionMeta = {
+            "timestamp":  new Date().toISOString(),
+            "fase":       fase,
+            "dia":        dia,
+            "videoPath":  v,
+            "campos": []
+        }
+        var animais = [animal1Field.text.trim(), animal2Field.text.trim(), animal3Field.text.trim()]
+        var drogas  = [droga1Field.text.trim(),  droga2Field.text.trim(),  droga3Field.text.trim()]
+        var pares   = [root.pair1, root.pair2, root.pair3]
+        for (var i = 0; i < 3; i++) {
+            if (!animais[i]) continue
+            var zi0 = i * 2
+            var zi1 = i * 2 + 1
+            var bouts0 = root.sessionExplorationBouts[zi0] || []
+            var bouts1 = root.sessionExplorationBouts[zi1] || []
+            var campoMeta = {
+                "animal":        animais[i],
+                "campo":         i + 1,
+                "par":           pares[i],
+                "droga":         drogas[i],
+                "exploração": {
+                    "objA_total_s":  (root.sessionExplorationTimes[zi0] || 0).toFixed(1),
+                    "objB_total_s":  (root.sessionExplorationTimes[zi1] || 0).toFixed(1),
+                    "objA_bouts":    bouts0,
+                    "objB_bouts":    bouts1,
+                    "objA_n_bouts":  bouts0.length,
+                    "objB_n_bouts":  bouts1.length,
+                    "DI":            (bouts0.length + bouts1.length > 0)
+                                     ? (((root.sessionExplorationTimes[zi1] || 0) - (root.sessionExplorationTimes[zi0] || 0))
+                                        / ((root.sessionExplorationTimes[zi0] || 0) + (root.sessionExplorationTimes[zi1] || 0) + 0.001)).toFixed(3)
+                                     : "NaN"
+                },
+                "movimento": {
+                    "distancia_total_m":  (root.sessionTotalDistance[i]  || 0).toFixed(3),
+                    "velocidade_media_ms":(root.sessionAvgVelocity[i]    || 0).toFixed(3)
+                },
+                "porMinuto": root.sessionPerMinuteData[i] || []
+            }
+            sessionMeta["campos"].push(campoMeta)
+        }
+
+        // Constrói hint legível para o nome do arquivo: ex. "TR_A1-A2"
+        var animaisStr = animais.filter(function(a){ return a.length > 0; }).join("-")
+        var nameHint   = fase + "_" + animaisStr
+        ExperimentManager.saveSessionMetadata(root.experimentName, JSON.stringify(sessionMeta), nameHint)
+
         root.close()
     }
 
@@ -412,7 +460,7 @@ Popup {
                         ExperimentManager.setExperimentReactivation(root.experimentName, true)
                         root.hasReactivation = true
                         reactivationPromptPopup.close()
-                        root.doInsert()
+                        root.doInsert()  // re-calls doInsert with updated hasReactivation
                     }
                     background: Rectangle {
                         radius: 8

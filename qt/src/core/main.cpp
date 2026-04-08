@@ -1,6 +1,6 @@
 #include <QApplication>
 #include <QQmlApplicationEngine>
-#include "dlc_controller.h"
+#include "inference_controller.h"
 #include <QQmlContext>
 #include <QtQml>
 #include <QMessageBox>
@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 
     qDebug() << "Tipos QML registrados.";
 
-    qmlRegisterType<DlcController>("MindTrace.Tracking", 1, 0, "DlcController");
+    qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
 
     QQmlApplicationEngine engine;
 

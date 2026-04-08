@@ -14,16 +14,16 @@ Plataforma C++/Qt 6.11.0 (QML) para tracking comportamental em neurociência. O 
 ```
 QMediaPlayer (headless)
   → QVideoSink::videoFrameChanged (DirectConnection, multimedia thread)
-    → DlcController::onVideoFrameChanged
+    → InferenceController::onVideoFrameChanged
       → frame.toImage() → convertToFormat(RGB888)
-        → OnnxTracker::enqueueFrame (thread-safe, single-slot queue)
+        → InferenceEngine::enqueueFrame (thread-safe, single-slot queue)
           → processJob() — 3 std::threads, uma por campo
             → inferCrop() — Ort::Session.Run() → locref → emit sinais
               → trackReceived / bodyReceived (QueuedConnection → QML)
 ```
 
 **Pontos críticos da arquitetura:**
-- **Headless player + displayPlayer separado**: O `QMediaPlayer` headless (C++) serve frames ao tracker. O vídeo visível no QML é um segundo `MediaPlayer` independente — pode usar hardware acceleration.
+- **Headless player + displayPlayer separado**: O `QMediaPlayer` headless (C++) serve frames ao motor de inferência. O vídeo visível no QML é um segundo `MediaPlayer` independente — pode usar hardware acceleration.
 - **3 sessões ONNX paralelas**: Uma `Ort::Session` por campo, cada uma rodando em `std::thread` próprio dentro de `processJob()`.
 - **Single-slot queue**: `enqueueFrame()` descarta frame anterior pendente — sempre processa o mais recente, evitando backpressure.
 
@@ -31,8 +31,8 @@ QMediaPlayer (headless)
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/tracking/onnx_tracker.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
-| `src/tracking/dlc_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta OnnxTracker, emite sinais para QML |
+| `src/tracking/inference_engine.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
+| `src/tracking/inference_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta InferenceEngine, emite sinais para QML |
 | `src/manager/ExperimentManager.cpp/h` | Gestão de experimentos (CRUD, I/O JSON/CSV, `registry.json`) |
 | `src/models/ExperimentTableModel.cpp/h` | Modelo de tabela para CSVs (lazy-loading) |
 | `src/models/ArenaModel.cpp/h` | Engine de persistência das zonas e polígonos |
@@ -59,7 +59,7 @@ QMediaPlayer (headless)
 
 ## GPU / ONNX Execution Providers
 
-O `OnnxTracker` detecta o fabricante da GPU via **DXGI** e roteia para o provider ideal:
+O `InferenceEngine` detecta o fabricante da GPU via **DXGI** e roteia para o provider ideal:
 
 - **DXGI** (`IDXGIFactory1`) enumera os adaptadores e lê o `VendorId` (`0x10DE`=NVIDIA, `0x1002`=AMD, `0x8086`=Intel) — chamada única na inicialização, sem overhead durante inferência
 - **NVIDIA → CUDA**: requer `onnxruntime-win-x64-gpu-1.24.4` + drivers CUDA. Se o build for o padrão (sem CUDA), cai automaticamente para DirectML
@@ -92,7 +92,7 @@ if (vendor == GpuVendor::NVIDIA && try_add_cuda_provider(opts)) {
 }
 ```
 
-**Alternativa Python (`dlc_processor.py`)**: script standalone que usa `onnxruntime` com `CPUExecutionProvider` apenas — serve como referência/gold standard, não integrado ao pipeline C++.
+**Alternativa Python (`inference_processor.py`)**: script standalone que usa `onnxruntime` com `CPUExecutionProvider` apenas — serve como referência/gold standard, não integrado ao pipeline C++.
 
 ## Velocidade de Reprodução
 
@@ -119,9 +119,9 @@ var decrement = recordingRoot.isOffline ? Math.round(recordingRoot.playbackRate)
 
 Dois players independentes acumulam drift ao longo do tempo. Solução em três camadas:
 
-1. **`DlcController::setPlaybackRate(rate)`** — sincroniza headless ao mudar velocidade
+1. **`InferenceController::setPlaybackRate(rate)`** — sincroniza headless ao mudar velocidade
 2. **Headless capped a 2x** — independente da velocidade de display, o headless nunca ultrapassa 2x, mantendo ONNX num ritmo gerenciável
-3. **`positionSyncTimer` (400ms)** — se drift entre `displayPlayer.position` e `dlc.position()` ultrapassar 800ms, `dlc.seekTo(displayPlayer.position)` ressincroniza o headless
+3. **`positionSyncTimer` (400ms)** — se drift entre `displayPlayer.position` e `inference.position()` ultrapassar 800ms, `inference.seekTo(displayPlayer.position)` ressincroniza o headless
 
 Mudança de velocidade usa **stop → setRate → seek → play** no `displayPlayer` para evitar frame preto do WMF durante transição.
 
@@ -167,7 +167,7 @@ cd qt && scripts\build.bat
 ```
 
 - Qt 6.11.0 em `C:\Qt\6.11.0\msvc2022_64` (módulos obrigatórios: Qt Multimedia + Qt Shader Tools)
-- ONNX Runtime: `onnxruntime-win-x64-1.24.4` (DirectML/CPU) ou `onnxruntime-win-x64-gpu-1.24.4` (CUDA/CPU)
+- ONNX Runtime: SDK `directml_x64` na raiz do projeto (o CMake busca via `../directml_x64`)
 - C++17, CMake 3.25+ + NMake
 - Build copia DLLs: `onnxruntime.dll`, `onnxruntime_providers_shared.dll` (+ `onnxruntime_providers_cuda.dll` se build GPU)
 - **MSVC 14.4+ obrigatório** (VS 2022 ou superior)
@@ -175,7 +175,7 @@ cd qt && scripts\build.bat
 
 ## Protocolo QML ↔ C++
 
-Sinais emitidos pelo `DlcController`:
+Sinais emitidos pelo `InferenceController`:
 ```
 readyReceived()               — modelo carregado
 trackReceived(campo, x, y, p) — nose, coords mosaico em pixels
@@ -187,7 +187,7 @@ errorOccurred(msg)            — erro fatal
 analyzingChanged()            — bool isAnalyzing
 ```
 
-Métodos invocáveis do `DlcController` (Q_INVOKABLE):
+Métodos invocáveis do `InferenceController` (Q_INVOKABLE):
 ```
 startAnalysis(videoPath, modelDir)
 stopAnalysis()
@@ -195,6 +195,22 @@ setPlaybackRate(rate)   — sincroniza headless player com displayPlayer
 position()              — posição atual do headless em ms
 seekTo(ms)              — salta headless para posição (usado pelo positionSyncTimer)
 ```
+
+## Velocidade e Distância (Body Point)
+
+O `LiveRecording` calcula velocidade e distância a partir das coordenadas locais do body point a cada 100 ms:
+- **`currentVelocity[campo]`** — m/s na última janela de 100 ms (filtrado: descarta >2 m/s como ruído)
+- **`totalDistance[campo]`** — metros acumulados desde o início da sessão
+- **`arenaWidthM / arenaHeightM`** — dimensões físicas de 1 campo (padrão 0.5 m; ajustar conforme arena real)
+- **`perMinuteData[campo]`** — snapshots por minuto: `{min, distM, expA_s, expB_s}`
+
+## Metadados Ricos de Sessão
+
+Ao salvar a sessão (`SessionResultDialog.doInsert`), além das linhas no CSV, é gerado um JSON em:
+```
+<experimento>/sessions/session_<timestamp>.json
+```
+Contém: `fase`, `dia`, `videoPath`, por campo → `animal`, `par`, `droga`, bouts de exploração por objeto, DI, `distancia_total_m`, `velocidade_media_ms`, dados por minuto.
 
 ## Histórico de Problemas
 
@@ -211,3 +227,7 @@ seekTo(ms)              — salta headless para posição (usado pelo positionSy
 | Caracteres especiais no Excel | Injeção de UTF-8 BOM (\xEF\xBB\xBF) na escrita dos CSVs |
 | Armazenamento rígido | Implementado registry.json para permitir salvar experimentos em diretórios customizados |
 | Complexidade de diretórios | Organização de QML e SRC em subpastas core/shared/nor/models para escalabilidade |
+| Redundância de SDK | Bibliotecas movidas para a raiz (fora de `qt/`) para um ambiente de código mais limpo |
+| Aba Dados não atualizava | `innerTabs.currentIndex = 1` corrigido para `= 2` (Dados é índice 2, não Gravação) |
+| Popup altura cortada | `CampoSelector` e `analysisModePrompt` receberam altura explícita/auto-sizing |
+| Fase TR/TT/RA por rato | Unificado: campo `sessaoField` único aplica a mesma fase aos 3 ratos da sessão |

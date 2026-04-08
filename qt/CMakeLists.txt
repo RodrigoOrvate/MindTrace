@@ -10,9 +10,9 @@ set(CMAKE_PREFIX_PATH "C:/Qt/6.11.0/msvc2022_64")
 
 find_package(Qt6 6.11 REQUIRED COMPONENTS Core Widgets Quick QuickControls2 Multimedia)
 
-# ONNX Runtime C++ SDK (bundled in repo)
+# ONNX Runtime C++ SDK (bundled in project root)
 # Use directml_x64 for AMD/Intel/NVIDIA DirectML support
-set(ONNX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/directml_x64")
+set(ONNX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../directml_x64")
 
 qt6_add_resources(QRC_SOURCES resources.qrc)
 
@@ -26,10 +26,10 @@ add_executable(MindTrace WIN32
     "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaModel.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaConfigModel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaConfigModel.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dlc_controller.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dlc_controller.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/onnx_tracker.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/onnx_tracker.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_controller.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_controller.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_engine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_engine.h"
     "${QRC_SOURCES}"
 )
 

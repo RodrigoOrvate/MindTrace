@@ -259,19 +259,22 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
     const QString csvPath = experimentPath(trimmed)
                             + QStringLiteral("/tracking_data.csv");
 
-    QFile file(csvPath);
-    if (!file.open(QIODevice::Append | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("Não foi possível abrir o CSV: ") + csvPath);
-        return false;
-    }
-
-    QTextStream out(&file);
-    for (const QVariant &rowVar : rows) {
-        // Aceita tanto QStringList quanto QVariantList vindos do QML
-        const QStringList cols = rowVar.toStringList();
-        if (!cols.isEmpty())
-            out << cols.join(QLatin1Char(',')) << QLatin1Char('\n');
-    }
+    {   // Escopo garante que QFile é *fechado* (não apenas flushed) ANTES do sinal.
+        // ~QTextStream() faz flush para o buffer do QFile; ~QFile() faz flush + close
+        // para o OS. Só então loadCsv() enxerga as linhas novas em disco.
+        QFile file(csvPath);
+        if (!file.open(QIODevice::Append | QIODevice::Text)) {
+            emit errorOccurred(QStringLiteral("Não foi possível abrir o CSV: ") + csvPath);
+            return false;
+        }
+        QTextStream out(&file);
+        for (const QVariant &rowVar : rows) {
+            // Aceita tanto QStringList quanto QVariantList vindos do QML
+            const QStringList cols = rowVar.toStringList();
+            if (!cols.isEmpty())
+                out << cols.join(QLatin1Char(',')) << QLatin1Char('\n');
+        }
+    }   // out destruído → flush ao QFile; file destruído → close + flush ao OS
 
     emit sessionDataInserted(trimmed);
     return true;
@@ -476,6 +479,34 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
         return false;
     }
     file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+    return true;
+}
+
+bool ExperimentManager::saveSessionMetadata(const QString &experimentName,
+                                             const QString &jsonData,
+                                             const QString &nameHint)
+{
+    const QString folderPath = experimentPath(experimentName.trimmed());
+    if (folderPath.isEmpty()) {
+        emit errorOccurred(QStringLiteral("Experimento não encontrado: ") + experimentName);
+        return false;
+    }
+
+    const QString sessionsDir = folderPath + QStringLiteral("/sessions");
+    QDir().mkpath(sessionsDir);
+
+    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
+    const QString base      = nameHint.isEmpty()
+                              ? QStringLiteral("session_") + timestamp
+                              : QStringLiteral("session_") + nameHint + QLatin1Char('_') + timestamp;
+    const QString filePath  = sessionsDir + QLatin1Char('/') + base + QStringLiteral(".json");
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        emit errorOccurred(QStringLiteral("Não foi possível salvar metadados da sessão: ") + filePath);
+        return false;
+    }
+    file.write(jsonData.toUtf8());
     return true;
 }
 

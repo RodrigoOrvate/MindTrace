@@ -28,6 +28,9 @@ Item {
     signal pairsEdited(string p1, string p2, string p3)
     signal analysisModeChangedExternally(string mode)
 
+    // Chamado pela aba Gravação quando o usuário quer carregar um novo vídeo
+    function openVideoLoader() { analysisModePrompt.open() }
+
     // 6 zonas, 2 por campo: { x: xRatio, y: yRatio, r: radiusRatio }
     property var zones: [
         {x: 0.3, y: 0.5, r: 0.12}, {x: 0.7, y: 0.5, r: 0.12},
@@ -168,7 +171,7 @@ Item {
     // Popup: análise offline ou ao vivo?
     Popup {
         id: analysisModePrompt
-        width: 400; height: 220
+        width: 400; height: 280
         anchors.centerIn: parent
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape

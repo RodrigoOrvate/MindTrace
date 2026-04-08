@@ -47,6 +47,8 @@ public:
     Q_INVOKABLE void addRow();
     Q_INVOKABLE void removeRow(int row);
     Q_INVOKABLE bool saveCsv() const;
+    // Exporta para um arquivo diferente (cópia limpa para compartilhamento)
+    Q_INVOKABLE bool exportCsv(const QString &destPath) const;
 
 signals:
     void sourcePathChanged();
