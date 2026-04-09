@@ -2,6 +2,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 import QtQuick.Effects
 
 Item {
@@ -23,7 +24,7 @@ Item {
         shadowHorizontalOffset: 0
         shadowVerticalOffset:   (!cardRoot.locked && cardRoot.hovered) ? 10 : 5
         shadowBlur:             (!cardRoot.locked && cardRoot.hovered) ? 0.8 : 0.45
-        shadowColor:            (!cardRoot.locked && cardRoot.hovered) ? "#80ab3d4c" : "#60000000"
+        shadowColor:            (!cardRoot.locked && cardRoot.hovered) ? Qt.rgba(171, 61, 76, 0.5) : Qt.rgba(0, 0, 0, 0.375)
         Behavior on shadowBlur          { NumberAnimation { duration: 220 } }
         Behavior on shadowVerticalOffset { NumberAnimation { duration: 220 } }
     }
@@ -45,8 +46,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 18
-        color: (!cardRoot.locked && cardRoot.hovered) ? "#222240" : "#1a1a2e"
-        border.color: (!cardRoot.locked && cardRoot.hovered) ? "#ab3d4c" : "#2d2d4a"
+        color: (!cardRoot.locked && cardRoot.hovered) ? ThemeManager.surfaceAlt : ThemeManager.surface
+        border.color: (!cardRoot.locked && cardRoot.hovered) ? ThemeManager.accent : ThemeManager.border
         border.width: 1.5
 
         Behavior on color        { ColorAnimation { duration: 200 } }
@@ -60,7 +61,8 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 text: cardRoot.icon
                 font.pixelSize: 44
-                color: cardRoot.locked ? "#555577" : "#ab3d4c"
+                color: cardRoot.locked ? ThemeManager.textTertiary : ThemeManager.accent
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.preferredHeight: 18 }
@@ -69,11 +71,12 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: cardRoot.title
-                color: cardRoot.locked ? "#555577" : "#e8e8f0"
+                color: cardRoot.locked ? ThemeManager.textTertiary : ThemeManager.textPrimary
                 font.pixelSize: 15
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.preferredHeight: 12 }
@@ -82,10 +85,11 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: cardRoot.description
-                color: cardRoot.locked ? "#444466" : "#8888aa"
+                color: cardRoot.locked ? ThemeManager.textTertiary : ThemeManager.textSecondary
                 font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.fillHeight: true }
@@ -94,7 +98,8 @@ Item {
                 Layout.fillWidth: true
                 height: 3
                 radius: 2
-                color: cardRoot.locked ? "#2d2d4a" : "#8a2e3b"
+                color: cardRoot.locked ? ThemeManager.border : ThemeManager.accentDim
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
         }
 

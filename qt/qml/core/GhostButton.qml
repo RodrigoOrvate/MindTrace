@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import "Theme"
 
 Button {
     id: control
@@ -12,8 +13,8 @@ Button {
             id: bgRect
             anchors.fill: parent
             radius: 7
-            color: control.hovered ? "#16162e" : "transparent"
-            border.color: control.hovered ? "#ab3d4c" : "#2d2d4a"
+            color: control.hovered ? ThemeManager.surface : "transparent"
+            border.color: control.hovered ? ThemeManager.accent : ThemeManager.border
             border.width: 1
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -23,7 +24,7 @@ Button {
             source: bgRect
             anchors.fill: bgRect
             shadowEnabled: control.hovered
-            shadowColor: "#ab3d4c"
+            shadowColor: ThemeManager.accent
             shadowBlur: 0.5
             opacity: control.hovered ? 0.5 : 0.0
             Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -31,7 +32,7 @@ Button {
     }
     contentItem: Text {
         text: control.text
-        color: control.hovered ? "#ffffff" : "#8888aa"
+        color: control.hovered ? ThemeManager.buttonText : ThemeManager.textSecondary
         font.pixelSize: 12
         verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
         Behavior on color { ColorAnimation { duration: 150 } }

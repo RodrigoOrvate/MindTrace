@@ -12,6 +12,7 @@ import QtQuick.Controls
 import MindTrace.Backend 1.0
 import "../nor"
 import "../shared"
+import "Theme"
 
 ApplicationWindow {
     id: root
@@ -21,7 +22,9 @@ ApplicationWindow {
     minimumWidth:  820
     minimumHeight: 580
     title: "MindTrace"
-    color: "#0f0f1a"
+    color: ThemeManager.background
+    
+    Behavior on color { ColorAnimation { duration: 200 } }
 
     // ── Estado acumulado durante o fluxo de criação ───────────────────────
     property string pendingContext:     ""
@@ -76,6 +79,31 @@ ApplicationWindow {
             NumberAnimation { property: "x"; from: 0; to: root.width; duration: 220; easing.type: Easing.OutCubic }
             NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 180 }
         }
+    }
+
+    // ── Settings Button in Chrome (top-right) ─────────────────────────────
+    Button {
+        id: settingsButton
+        anchors { top: parent.top; right: parent.right; margins: 12 }
+        width: 40
+        height: 40
+        text: "⚙️"
+        font.pixelSize: 18
+        flat: true
+
+        background: Rectangle {
+            color: settingsButton.hovered ? ThemeManager.surfaceAlt : "transparent"
+            radius: 6
+            Behavior on color { ColorAnimation { duration: 150 } }
+        }
+
+        onClicked: settingsOverlay.open()
+    }
+
+    // ── Settings Modal Overlay ─────────────────────────────────────────────
+    SettingsScreen {
+        id: settingsOverlay
+        parent: root
     }
 
     // ── Componentes de tela ───────────────────────────────────────────────

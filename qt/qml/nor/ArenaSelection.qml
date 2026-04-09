@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 
 Item {
     id: root
@@ -19,7 +20,7 @@ Item {
     signal selectionConfirmed(string context, string arenaId)
     signal backRequested()
 
-    Rectangle { anchors.fill: parent; color: "#0f0f1a" }
+    Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
     ColumnLayout {
         anchors.fill: parent
@@ -38,16 +39,20 @@ Item {
                 spacing: 2
                 Text {
                     text: "Reconhecimento de Objetos"
-                    color: "#e8e8f0"; font.pixelSize: 22; font.weight: Font.Bold
+                    color: ThemeManager.textPrimary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    font.pixelSize: 22; font.weight: Font.Bold
                 }
                 Text {
                     text: "Defina o tipo de contexto — arena quadrada (60×60 cm)"
-                    color: "#8888aa"; font.pixelSize: 13
+                    color: ThemeManager.textSecondary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    font.pixelSize: 13
                 }
             }
         }
 
-        Rectangle { Layout.fillWidth: true; Layout.topMargin: 18; height: 1; color: "#2d2d4a" }
+        Rectangle { Layout.fillWidth: true; Layout.topMargin: 18; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
@@ -71,7 +76,7 @@ Item {
 
                     radius: 10
                     color: "#06060f"
-                    border.color: "#4a4a6a"
+                    border.color: ThemeManager.borderLight
                     border.width: 2
                     clip: true
 
@@ -188,8 +193,8 @@ Item {
                     Rectangle {
                         Layout.fillWidth: true; height: 64; radius: 10
                         property bool isSelected: root.selectedContext === "Padrão"
-                        color:        isSelected ? "#1f0d10" : (stdMouse.containsMouse ? "#16162e" : "#12122a")
-                        border.color: isSelected ? "#ab3d4c" : "#2d2d4a"; border.width: isSelected ? 2 : 1
+                        color:        isSelected ? ThemeManager.accentDim : (stdMouse.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                        border.color: isSelected ? ThemeManager.accent : ThemeManager.border; border.width: isSelected ? 2 : 1
                         Behavior on color        { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
 
@@ -198,13 +203,13 @@ Item {
                             spacing: 2
                             Text {
                                 text: "Sem contexto  (Padrão)"
-                                color: parent.parent.isSelected ? "#e8e8f0" : "#8888aa"
+                                color: parent.parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
                                 font.pixelSize: 13; font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 150 } }
                             }
                             Text {
                                 text: "Paredes uniformes — arena não diferencia o contexto."
-                                color: "#555577"; font.pixelSize: 10; wrapMode: Text.WordWrap
+                                color: ThemeManager.textTertiary; font.pixelSize: 10; wrapMode: Text.WordWrap
                             }
                         }
                         MouseArea {
@@ -218,8 +223,8 @@ Item {
                     Rectangle {
                         Layout.fillWidth: true; height: 64; radius: 10
                         property bool isSelected: root.selectedContext === "Contextual"
-                        color:        isSelected ? "#1f0d10" : (ctxMouse.containsMouse ? "#16162e" : "#12122a")
-                        border.color: isSelected ? "#ab3d4c" : "#2d2d4a"; border.width: isSelected ? 2 : 1
+                        color:        isSelected ? ThemeManager.accentDim : (ctxMouse.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                        border.color: isSelected ? ThemeManager.accent : ThemeManager.border; border.width: isSelected ? 2 : 1
                         Behavior on color        { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
 
@@ -228,13 +233,13 @@ Item {
                             spacing: 2
                             Text {
                                 text: "Com contexto  (Contextual)"
-                                color: parent.parent.isSelected ? "#e8e8f0" : "#8888aa"
+                                color: parent.parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
                                 font.pixelSize: 13; font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 150 } }
                             }
                             Text {
                                 text: "Paredes coloridas distintas — contexto visualmente diferenciado."
-                                color: "#555577"; font.pixelSize: 10; wrapMode: Text.WordWrap
+                                color: ThemeManager.textTertiary; font.pixelSize: 10; wrapMode: Text.WordWrap
                             }
                         }
                         MouseArea {
@@ -253,7 +258,7 @@ Item {
                     visible: root.selectedContext === "Contextual"
                     spacing: 4
 
-                    Text { text: "Paredes da arena:"; color: "#555577"; font.pixelSize: 10 }
+                    Text { text: "Paredes da arena:"; color: ThemeManager.textTertiary; font.pixelSize: 10 }
 
                     RowLayout {
                         spacing: 6
@@ -267,7 +272,7 @@ Item {
                             delegate: RowLayout {
                                 spacing: 4
                                 Rectangle { width: 10; height: 10; radius: 2; color: modelData.color }
-                                Text { text: modelData.label; color: "#666688"; font.pixelSize: 9 }
+                                Text { text: modelData.label; color: ThemeManager.textTertiary; font.pixelSize: 9 }
                             }
                         }
                     }
@@ -281,7 +286,7 @@ Item {
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
-            Text { text: "Passo 2  —  Contexto da Arena"; color: "#8888aa"; font.pixelSize: 11 }
+            Text { text: "Passo 2  —  Contexto da Arena"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
 
             Button {
                 text: "Próximo →"
@@ -293,7 +298,7 @@ Item {
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {
-                    text: parent.text; color: "#e8e8f0"
+                    text: parent.text; color: ThemeManager.buttonText
                     font.pixelSize: 13; font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 import QtMultimedia
 import MindTrace.Tracking 1.0
 
@@ -456,8 +457,10 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             height: 110
-            color: "#12122a"
-            border.color: "#2d2d4a"; border.width: 1
+            color: ThemeManager.surfaceDim
+            border.color: ThemeManager.border; border.width: 1
+            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on border.color { ColorAnimation { duration: 200 } }
 
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 12
@@ -469,7 +472,7 @@ Item {
 
                     // ── Velocidade (só aparece em modo offline) ──────────────
                     Text {
-                        text: "\u23E9"; font.pixelSize: 13; color: "#8888aa"
+                        text: "\u23E9"; font.pixelSize: 13; color: ThemeManager.textTertiary
                         visible: recordingRoot.isOffline
                     }
                     Repeater {
@@ -481,13 +484,15 @@ Item {
                             height: 28; radius: 6
                             width: spdLbl.implicitWidth + 14
                             visible: recordingRoot.isOffline
-                            color: isSel ? "#ab3d4c" : (spdMa.containsMouse ? "#25253e" : "transparent")
-                            border.color: isSel ? "#ff5566" : (spdMa.containsMouse ? "#4a4a6c" : "#3a3a5c")
+                            color: isSel ? ThemeManager.accent : (spdMa.containsMouse ? ThemeManager.surfaceAlt : "transparent")
+                            border.color: isSel ? ThemeManager.accentHover : (spdMa.containsMouse ? ThemeManager.borderLight : ThemeManager.border)
                             border.width: 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                             Text {
                                 id: spdLbl; anchors.centerIn: parent
                                 text: modelData + "x"
-                                color: speedBtn.isSel ? "#ffffff" : (spdMa.containsMouse ? "#e8e8f0" : "#8888aa")
+                                color: speedBtn.isSel ? ThemeManager.buttonText : (spdMa.containsMouse ? ThemeManager.textPrimary : ThemeManager.textSecondary)
                                 font.pixelSize: 11; font.weight: Font.Bold
                             }
                             MouseArea {
@@ -525,15 +530,16 @@ Item {
                         ]
                         delegate: RowLayout {
                             spacing: 6
-                            Text { text: modelData.label; color: "#8888aa"; font.pixelSize: 11 }
+                            Text { text: modelData.label; color: ThemeManager.textSecondary; font.pixelSize: 11 }
                             Rectangle {
-                                radius: 4; color: "#1f0d10"
-                                border.color: "#ab3d4c"; border.width: 1
+                                radius: 4; color: ThemeManager.accentDim
+                                border.color: ThemeManager.accent; border.width: 1
+                                Behavior on color { ColorAnimation { duration: 150 } }
                                 implicitWidth: cpTxt.implicitWidth + 16; implicitHeight: 20
                                 Text {
                                     id: cpTxt; anchors.centerIn: parent
                                     text: modelData.pair !== "" ? "Par " + modelData.pair : "—"
-                                    color: "#ff7788"; font.pixelSize: 11; font.weight: Font.Bold
+                                    color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold
                                 }
                             }
                         }
@@ -814,11 +820,13 @@ Item {
             // ── Painel de dados (direita) ──────────────────────────────────────
             Rectangle {
                 width: 370; Layout.fillHeight: true
-                color: "#1a1a2e"
+                color: ThemeManager.surface
+                Behavior on color { ColorAnimation { duration: 200 } }
 
                 Rectangle {
                     anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-                    width: 1; color: "#2d2d4a"
+                    width: 1; color: ThemeManager.border
+                    Behavior on color { ColorAnimation { duration: 200 } }
                 }
 
                 ColumnLayout {
@@ -832,13 +840,14 @@ Item {
                         Rectangle {
                             visible: !recordingRoot.isAnalyzing
                             implicitWidth: 130; height: 34; radius: 8
-                            color: loadBtnMa.containsMouse ? "#1e2a3a" : "#131a25"
-                            border.color: "#3a5a8a"; border.width: 1
+                            color: loadBtnMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                            border.color: ThemeManager.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
                                 text: "📂  Carregar Vídeo"
-                                color: "#88aad0"; font.pixelSize: 12; font.bold: true
+                                color: ThemeManager.textSecondary; font.pixelSize: 12; font.bold: true
                             }
                             MouseArea {
                                 id: loadBtnMa; anchors.fill: parent; hoverEnabled: true
@@ -876,15 +885,18 @@ Item {
                     // ── LOG ────────────────────────────────────────────────────
                     Text {
                         text: "LOG"
-                        color: "#555577"; font.pixelSize: 10; font.weight: Font.Bold
+                        color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
                     }
 
                     Rectangle {
                         Layout.fillWidth: true; height: 100
-                        radius: 6; color: "#0a0a16"
-                        border.color: "#2d2d4a"; border.width: 1
+                        radius: 6; color: ThemeManager.surfaceDim
+                        border.color: ThemeManager.border; border.width: 1
                         clip: true
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
 
                         ListView {
                             id: logView
@@ -892,24 +904,28 @@ Item {
                             model: logModel; clip: true; spacing: 2
                             ScrollBar.vertical: ScrollBar {
                                 policy: ScrollBar.AsNeeded
-                                contentItem: Rectangle { implicitWidth: 4; radius: 2; color: "#3a3a5c" }
+                                contentItem: Rectangle { implicitWidth: 4; radius: 2; color: ThemeManager.borderLight }
                             }
                             delegate: Text {
                                 width: logView.width - 10
                                 text: model.msg
-                                color: model.isErr ? "#ff5566" : "#8888aa"
+                                color: model.isErr ? ThemeManager.error : ThemeManager.textSecondary
                                 font.pixelSize: 10; wrapMode: Text.WordWrap
                             }
                         }
                     }
 
                     // ── Exploração de objetos ──────────────────────────────────
-                    Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
+                    Rectangle {
+                        Layout.fillWidth: true; height: 1; color: ThemeManager.border
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                    }
 
                     Text {
                         text: "EXPLORAÇÃO DE OBJETOS"
-                        color: "#555577"; font.pixelSize: 10; font.weight: Font.Bold
+                        color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
                     }
 
                     ScrollView {
@@ -928,9 +944,11 @@ Item {
                                     id: campoCard
                                     width: parent.width
                                     height: cardInner.implicitHeight + 16
-                                    radius: 6; color: "#12122a"
-                                    border.color: recordingRoot.fieldFinished[index] ? "#2a4a30" : "#2d2d4a"
+                                    radius: 6; color: ThemeManager.surfaceDim
+                                    border.color: recordingRoot.fieldFinished[index] ? ThemeManager.success : ThemeManager.border
                                     border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    Behavior on border.color { ColorAnimation { duration: 200 } }
 
                                     property int    ci:      index
                                     property int    zi0:     index * 2
@@ -949,17 +967,20 @@ Item {
                                             Layout.fillWidth: true
                                             Text {
                                                 text: "CAMPO " + (campoCard.ci + 1)
-                                                color: "#555577"; font.pixelSize: 10; font.weight: Font.Bold
+                                                color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
+                                                Behavior on color { ColorAnimation { duration: 150 } }
                                             }
                                             Item { Layout.fillWidth: true }
                                             // Timer badge
                                             Rectangle {
                                                 radius: 4
-                                                color: recordingRoot.fieldFinished[campoCard.ci] ? "#0d1f10" : "#1a1a30"
-                                                border.color: recordingRoot.fieldFinished[campoCard.ci] ? "#3a8a50"
-                                                            : recordingRoot.timerStarted[campoCard.ci] ? "#ab3d4c"
-                                                            : "#3a3a5c"
+                                                color: recordingRoot.fieldFinished[campoCard.ci] ? ThemeManager.surfaceDim : ThemeManager.surface
+                                                border.color: recordingRoot.fieldFinished[campoCard.ci] ? ThemeManager.success
+                                                            : recordingRoot.timerStarted[campoCard.ci] ? ThemeManager.accent
+                                                            : ThemeManager.border
                                                 border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                                 implicitWidth: timerBdg.implicitWidth + 10; implicitHeight: 18
                                                 Text {
                                                     id: timerBdg; anchors.centerIn: parent
@@ -967,16 +988,16 @@ Item {
                                                         : recordingRoot.timerStarted[campoCard.ci]
                                                           ? recordingRoot.formatTime(recordingRoot.timesRemaining[campoCard.ci])
                                                           : "Aguardando rato"
-                                                    color: recordingRoot.fieldFinished[campoCard.ci] ? "#5aaa70"
+                                                    color: recordingRoot.fieldFinished[campoCard.ci] ? ThemeManager.successLight
                                                          : recordingRoot.timerStarted[campoCard.ci]
-                                                           ? (recordingRoot.timesRemaining[campoCard.ci] <= 30 ? "#ff5566" : "#e8e8f0")
-                                                           : "#555577"
+                                                           ? (recordingRoot.timesRemaining[campoCard.ci] <= 30 ? ThemeManager.error : ThemeManager.textPrimary)
+                                                           : ThemeManager.textTertiary
                                                     font.pixelSize: 9; font.bold: true; font.family: "Consolas"
                                                 }
                                             }
                                         }
 
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: "#1f1f3a" }
+                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
                                         // ── OBJ A (familiar / esquerda) ───────
                                         RowLayout {
@@ -989,23 +1010,23 @@ Item {
                                             Item { Layout.fillWidth: true }
                                             Text {
                                                 text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"
-                                                color: "#e8e8f0"; font.pixelSize: 11; font.family: "Consolas"
+                                                color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas"
                                             }
                                         }
                                         // Bout live OBJ A
                                         Rectangle {
                                             Layout.fillWidth: true; height: 18; radius: 4
                                             visible: recordingRoot._inZone[campoCard.zi0]
-                                            color: "#2a0d14"
-                                            border.color: "#7a2030"; border.width: 1
+                                            color: ThemeManager.accentDim
+                                            border.color: ThemeManager.accent; border.width: 1
                                             Text {
                                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
                                                 text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi0).toFixed(1) + " s"
-                                                color: "#ff7788"; font.pixelSize: 9; font.bold: true
+                                                color: ThemeManager.accent; font.pixelSize: 9; font.bold: true
                                             }
                                         }
 
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: "#1a1a2e" }
+                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
                                         // ── OBJ B (novo / direita) ────────────
                                         RowLayout {
@@ -1018,15 +1039,15 @@ Item {
                                             Item { Layout.fillWidth: true }
                                             Text {
                                                 text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"
-                                                color: "#e8e8f0"; font.pixelSize: 11; font.family: "Consolas"
+                                                color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas"
                                             }
                                         }
                                         // Bout live OBJ B
                                         Rectangle {
                                             Layout.fillWidth: true; height: 18; radius: 4
                                             visible: recordingRoot._inZone[campoCard.zi1]
-                                            color: "#0d1020"
-                                            border.color: "#2a3a60"; border.width: 1
+                                            color: ThemeManager.surfaceDim
+                                            border.color: ThemeManager.borderLight; border.width: 1
                                             Text {
                                                 anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
                                                 text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi1).toFixed(1) + " s"
@@ -1034,25 +1055,27 @@ Item {
                                             }
                                         }
 
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: "#1f1f3a" }
+                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
                                         // ── Índice de Discriminação ───────────
                                         Rectangle {
                                             Layout.fillWidth: true; height: 26; radius: 4
                                             property real diVal: recordingRoot.discriminationIndex(campoCard.ci)
-                                            color: isNaN(diVal) ? "#14141e"
-                                                 : diVal > 0    ? "#0d1f10"
-                                                 : "#1f0d10"
-                                            border.color: isNaN(diVal) ? "#2d2d4a"
-                                                        : diVal > 0    ? "#2a4a30"
-                                                        : "#4a2030"
+                                            color: isNaN(diVal) ? ThemeManager.surfaceDim
+                                                 : diVal > 0    ? ThemeManager.surfaceDim
+                                                 : ThemeManager.surfaceDim
+                                            border.color: isNaN(diVal) ? ThemeManager.border
+                                                        : diVal > 0    ? ThemeManager.success
+                                                        : ThemeManager.accent
                                             border.width: 1
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                                             RowLayout {
                                                 anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
                                                 Text {
                                                     text: "DI"
-                                                    color: "#555577"; font.pixelSize: 9; font.weight: Font.Bold
+                                                    color: ThemeManager.textTertiary; font.pixelSize: 9; font.weight: Font.Bold
                                                 }
                                                 Item { Layout.fillWidth: true }
                                                 Text {
@@ -1074,7 +1097,7 @@ Item {
                                             }
                                         }
 
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: "#1f1f3a" }
+                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
                                         // ── Velocidade e Distância (body) ─────
                                         RowLayout {
@@ -1083,13 +1106,14 @@ Item {
                                             // Velocidade atual
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: 4
-                                                color: "#0d1020"; border.color: "#2a3060"; border.width: 1
+                                                color: ThemeManager.surfaceDim; border.color: ThemeManager.border; border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 200 } }
 
                                                 RowLayout {
                                                     anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
                                                     Text {
                                                         text: "⚡"
-                                                        color: "#556688"; font.pixelSize: 9
+                                                        color: ThemeManager.textTertiary; font.pixelSize: 9
                                                     }
                                                     Item { Layout.fillWidth: true }
                                                     Text {
@@ -1104,13 +1128,14 @@ Item {
                                             // Distância acumulada
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: 4
-                                                color: "#0d1020"; border.color: "#2a3060"; border.width: 1
+                                                color: ThemeManager.surfaceDim; border.color: ThemeManager.border; border.width: 1
+                                                Behavior on color { ColorAnimation { duration: 200 } }
 
                                                 RowLayout {
                                                     anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
                                                     Text {
                                                         text: "📍"
-                                                        color: "#556688"; font.pixelSize: 9
+                                                        color: ThemeManager.textTertiary; font.pixelSize: 9
                                                     }
                                                     Item { Layout.fillWidth: true }
                                                     Text {

@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
+import "Theme"
 
 Item {
     id: cardRoot
@@ -27,7 +28,7 @@ Item {
         shadowColor:            hoverArea.containsMouse ? Qt.rgba(
                                     cardRoot.accentColor.r,
                                     cardRoot.accentColor.g,
-                                    cardRoot.accentColor.b, 0.45) : "#60000000"
+                                    cardRoot.accentColor.b, 0.45) : Qt.rgba(0, 0, 0, 0.375)
         Behavior on shadowBlur          { NumberAnimation { duration: 220 } }
         Behavior on shadowVerticalOffset { NumberAnimation { duration: 220 } }
     }
@@ -44,8 +45,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 22
-        color:        hoverArea.containsMouse ? "#1e1e38" : "#1a1a2e"
-        border.color: hoverArea.containsMouse ? cardRoot.accentColor : "#2d2d4a"
+        color:        hoverArea.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surface
+        border.color: hoverArea.containsMouse ? cardRoot.accentColor : ThemeManager.border
         border.width: hoverArea.containsMouse ? 2 : 1
 
         Behavior on color        { ColorAnimation { duration: 200 } }
@@ -71,10 +72,11 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: cardRoot.title
-                color: "#e8e8f0"
+                color: ThemeManager.textPrimary
                 font.pixelSize: 24
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.preferredHeight: 16 }
@@ -84,10 +86,11 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: cardRoot.description
-                color: "#8888aa"
+                color: ThemeManager.textSecondary
                 font.pixelSize: 12
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.fillHeight: true }
@@ -97,7 +100,7 @@ Item {
                 Layout.fillWidth: true
                 height: 4
                 radius: 2
-                color: hoverArea.containsMouse ? cardRoot.accentColor : "#2d2d4a"
+                color: hoverArea.containsMouse ? cardRoot.accentColor : ThemeManager.border
                 Behavior on color { ColorAnimation { duration: 200 } }
             }
         }

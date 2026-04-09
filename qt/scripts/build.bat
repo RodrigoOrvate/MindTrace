@@ -16,10 +16,9 @@ if exist "build" rmdir /s /q "build"
 ::   2. CMake 3.25+  — https://cmake.org/download/
 ::   3. Visual Studio 2022 ou superior (qualquer edição)
 ::
-:: GPU (opcional — escolha um dos builds ONNX abaixo):
-::   NVIDIA CUDA  → use onnxruntime-win-x64-gpu-1.24.4   (CUDA + CPU)
-::   AMD/Intel    → use onnxruntime-win-x64-1.24.4        (DirectML + CPU)
-::   (sem GPU)    → use onnxruntime-win-x64-1.24.4        (CPU apenas)
+:: GPU — coloque o SDK na raiz como onnxruntime_sdk/ (ver README.md Seção 2):
+::   NVIDIA CUDA  → onnxruntime-win-x64-gpu-1.24.4  renomeado para onnxruntime_sdk/
+::   AMD/Intel    → onnxruntime-win-x64-1.24.4       renomeado para onnxruntime_sdk/
 ::
 :: CONFIGURAÇÃO — edite apenas esta linha:
 set QT_DIR=C:\Qt\6.11.0\msvc2022_64
@@ -101,10 +100,16 @@ set EXE=build\MindTrace.exe
 
 :: ── Copia ONNX Runtime DLLs (motor nativo C++) ───────────────
 echo.
-set ONNX_LIB=directml_x64
+set ONNX_SDK=..\onnxruntime_sdk
+if not exist "%ONNX_SDK%\lib\onnxruntime.dll" (
+    echo [ERRO] ONNX Runtime SDK nao encontrado em: %ONNX_SDK%\lib\
+    echo        Baixe o pacote adequado para sua GPU (ver README.md Secao 2^)
+    echo        e renomeie a pasta extraida para 'onnxruntime_sdk' na raiz do projeto.
+    pause & exit /b 1
+)
 for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
-    if exist "%ONNX_LIB%\%%D" (
-        copy /y "%ONNX_LIB%\%%D" "build\" >nul
+    if exist "%ONNX_SDK%\lib\%%D" (
+        copy /y "%ONNX_SDK%\lib\%%D" "build\" >nul
         echo [OK] ONNX DLL copiada: %%D
     )
 )

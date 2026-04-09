@@ -21,6 +21,7 @@ debug/
 *.dll
 
 # ── ONNX Runtime SDK (baixado separadamente na raiz) ────
+onnxruntime_sdk/
 onnxruntime-win-x64-*/
 directml_x64/
 onnxruntime.zip

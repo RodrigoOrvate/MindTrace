@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 import MindTrace.Backend 1.0
 
 Popup {

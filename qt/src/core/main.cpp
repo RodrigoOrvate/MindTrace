@@ -9,6 +9,7 @@
 #include "ExperimentTableModel.h"
 #include "ArenaModel.h"
 #include "ArenaConfigModel.h"
+#include "ThemeSettings.h"
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
@@ -78,6 +79,10 @@ int main(int argc, char *argv[])
     qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
 
     QQmlApplicationEngine engine;
+
+    // Registra ThemeSettings como context property para acesso QML
+    ThemeSettings *themeSettings = new ThemeSettings(&engine);
+    engine.rootContext()->setContextProperty("ThemeSettings", themeSettings);
 
     // Coleta todos os warnings/erros emitidos pelo motor QML
     QStringList qmlErrors;

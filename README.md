@@ -16,7 +16,7 @@ Sistema de tracking comportamental de ratos em arenas NOR, rodando **nativamente
 | Visual Studio | 2022 ou superior | Instalar workload "Desenvolvimento para desktop com C++" |
 | CMake | 3.25+ | Adicionar ao PATH durante instalação |
 | Qt | 6.11.0 | Ver seção abaixo — instalar via Qt Online Installer |
-| ONNX Runtime | 1.24.4 | Bundled no repositório (ver seção 2) |
+| ONNX Runtime | 1.24.4 | Baixar conforme sua GPU — ver Seção 2 |
 | Python | 3.12+ (opcional) | Apenas para debug/validação do modelo |
 
 ### Instalação do Qt 6.11.0
@@ -39,27 +39,51 @@ Se o caminho for diferente, edite a variável `QT_DIR` no início de `qt\scripts
 
 ## 2. ONNX Runtime 1.24.4
 
-Baixe em [github.com/microsoft/onnxruntime/releases/tag/v1.24.4](https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4):
+> Você só precisa **baixar um pacote** — o que corresponde à sua GPU.  
+> O código detecta a GPU automaticamente em runtime (via DXGI) e usa o melhor provider disponível.
 
-| GPU | Arquivo | Provider ativo |
-|---|---|---|
-| AMD / Intel | `onnxruntime-win-x64-1.24.4.zip` | DirectML → CPU |
-| NVIDIA | `onnxruntime-win-x64-gpu-1.24.4.zip` | CUDA → CPU |
+### Passo 1 — Baixe o pacote certo para sua GPU
 
-Extraia **na raiz do projeto** (um nível acima de `qt/`) de forma que o resultado seja:
+**NVIDIA:**
+
+Baixe [`onnxruntime-win-x64-gpu-1.24.4.zip`](https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip) em [github.com/microsoft/onnxruntime/releases/tag/v1.24.4](https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4).
+
+Providers ativos em runtime: **CUDA → CPU fallback**
+
+> Requer drivers NVIDIA com suporte a CUDA instalados.
+
+**AMD / Intel / outra:**
+
+Baixe [`onnxruntime-win-x64-1.24.4.zip`](https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-1.24.4.zip) no mesmo link acima.
+
+Providers ativos em runtime: **DirectML (DirectX 12) → CPU fallback**
+
+> Funciona em qualquer placa com suporte a DirectX 12 (AMD, Intel, inclusive NVIDIA se preferir).
+
+### Passo 2 — Extraia e renomeie para `onnxruntime_sdk`
+
+Após extrair o `.zip`, você verá uma pasta com o nome original (ex.: `onnxruntime-win-x64-1.24.4`).  
+**Renomeie** essa pasta para `onnxruntime_sdk` e coloque-a na **raiz do projeto** — ou seja, **um nível acima** da pasta `qt/`:
 
 ```
-MindTrace - Copia/
-├── directml_x64/
-│   ├── onnxruntime.lib
-│   ├── onnxruntime.dll
+MindTrace/                  ← raiz do projeto (aqui fica o onnxruntime_sdk)
+├── onnxruntime_sdk/        ← coloque aqui, NÃO dentro de qt/
+│   ├── include/
+│   │   └── onnxruntime_cxx_api.h
+│   ├── lib/
+│   │   ├── onnxruntime.lib
+│   │   ├── onnxruntime.dll
+│   │   └── onnxruntime_providers_shared.dll
 │   └── ...
-└── qt/
+└── qt/                     ← pasta de código-fonte (NÃO coloque o SDK aqui)
     ├── CMakeLists.txt
-    └── ...
+    └── scripts/
+        └── build.bat
 ```
 
-O provider de GPU é detectado automaticamente em runtime via DXGI (sem recompilar).
+> **Atenção:** a pasta `qt/` contém o código-fonte. O `onnxruntime_sdk` deve ficar na raiz (`MindTrace/`), não dentro de `qt/`.
+
+Pronto. O build vai encontrar os headers e a lib automaticamente.
 
 ---
 
@@ -85,12 +109,27 @@ O script:
 1. Detecta o Visual Studio instalado via `vswhere`
 2. Configura CMake (C++17, NMake Makefiles)
 3. Compila e roda `windeployqt`
-4. Copia DLLs do ONNX Runtime e o modelo para `build/`
+4. Copia DLLs do ONNX Runtime de `onnxruntime_sdk\lib\` para `build\`
 5. Executa `MindTrace.exe`
 
 ---
 
-## 5. Modelo Neural
+## 5. Detecção de GPU em Runtime
+
+O código detecta automaticamente a GPU via **DXGI** na inicialização — sem necessidade de recompilar:
+
+| GPU detectada | Provider ONNX ativo | Pacote necessário |
+|---|---|---|
+| NVIDIA | CUDA | `onnxruntime-win-x64-gpu-1.24.4` |
+| AMD / Intel | DirectML (DirectX 12) | `onnxruntime-win-x64-1.24.4` |
+| Nenhuma | CPU (fallback automático) | qualquer um |
+
+O status é exibido na área de log durante o carregamento do modelo, ex.:  
+`"Modo GPU: CUDA ativo (NVIDIA)"` ou `"Modo GPU: DirectML ativo (AMD, DirectX 12)"`.
+
+---
+
+## 6. Modelo Neural
 
 - **Arquitetura:** ResNet-50 via DeepLabCut (MobileNetV2 em treinamento)
 - **Bodyparts:** `nose` (canal 0), `body` (canal 1)
@@ -98,7 +137,7 @@ O script:
 
 ---
 
-## 6. Vídeo e Mosaico
+## 7. Vídeo e Mosaico
 
 - **Fonte:** DVR Intelbras — mosaico 2×2 em arquivo único
 - **Resolução:** 720×480 @ ~29.97 fps
@@ -109,7 +148,7 @@ O script:
 
 ---
 
-## 7. Arquitetura do Sistema
+## 8. Arquitetura do Sistema
 
 ```
 MindTrace.exe (Qt 6.11.0 / C++17 / ONNX Runtime 1.24.4)
@@ -138,35 +177,50 @@ analyzingChanged()                  — bool isAnalyzing
 
 ---
 
-## 8. Estrutura de Pastas
+## 9. Estrutura de Pastas
 
 ```
-qt/
-├── src/
-│   ├── core/           — main.cpp
-│   ├── manager/        — ExperimentManager.cpp/.h (CRUD, Registry)
-│   ├── models/         — TableModels, ArenaModel, ConfigModels
-│   └── tracking/       — InferenceController, InferenceEngine
-├── qml/
-│   ├── core/           — Navegação e componentes base (main.qml, GhostButton)
-│   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
-│   └── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
-├── data/               — arenas.json, arena_config_referencia.json
-├── scripts/            — build.bat
-├── CMakeLists.txt
-└── resources.qrc
+MindTrace/
+├── onnxruntime_sdk/    ← SDK ONNX Runtime (você baixa e renomeia)
+└── qt/
+    ├── src/
+    │   ├── core/           — main.cpp
+    │   ├── manager/        — ExperimentManager.cpp/.h (CRUD, Registry)
+    │   ├── models/         — TableModels, ArenaModel, ConfigModels
+    │   └── tracking/       — InferenceController, InferenceEngine
+    ├── qml/
+    │   ├── core/           — Navegação e componentes base (main.qml, GhostButton, Theme/)
+    │   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
+    │   └── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
+    ├── data/               — arenas.json, arena_config_referencia.json
+    ├── scripts/            — build.bat
+    ├── CMakeLists.txt
+    └── resources.qrc
 ```
 
-## 9. Novas Funcionalidades (Workflow Moderno)
+---
+
+## 10. Sistema de Temas (Dark / Light)
+
+O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/core/Theme/`).
+
+- **Ativar/desativar:** botão de configurações (⚙) no canto superior direito de qualquer tela
+- **Padrão:** dark mode (sempre inicia em dark)
+- Todas as telas respondem ao tema em tempo real com animações suaves
+
+---
+
+## 11. Funcionalidades Principais
 
 - **Registry System:** Salve experimentos em qualquer HD/Partição; o MindTrace gerencia o atalho no `registry.json`.
 - **Session Codes:** Use `TR` (Treino), `RA` (Reativação) e `TT` (Teste). O sistema calcula o dia e valida a configuração automaticamente.
 - **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
 - **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
+- **Velocidade:** Análise offline em 1x, 2x ou 4x com sincronização automática entre display e inferência.
 
 ---
 
-## 10. Histórico de Problemas Resolvidos
+## 12. Histórico de Problemas Resolvidos
 
 | Problema | Solução |
 |---|---|
@@ -177,5 +231,6 @@ qt/
 | Dessincronização em velocidade alta | Headless capped a 2× + `positionSyncTimer` 400ms |
 | QAbstractVideoSurface removido no Qt 6 | Substituído por `QVideoSink` + `videoFrameChanged` |
 | Suporte Windows 7 / 8 removido | Requer Windows 10/11 (DirectX 12). Qt 6.11.0 + ONNX 1.24.4 |
-| Refatoração Tecnológica | Renomeação de DLC/Onnx para Inference Controller/Engine por clareza técnica |
-| Limpeza e Reorganização | Remoção de arquivos obsoletos (.venv, .zip) e mudança de SDKs para a raiz |
+| Toggle de tema não funcionava | `qmldir` ausente em `Theme/` — sem ele cada componente recebe instância separada |
+| App iniciava em tema claro | `loadThemePreference()` carregava valor salvo; removido do `Component.onCompleted` |
+| Três SDKs na raiz | Unificado para um único `onnxruntime_sdk/` — usuário baixa só o que precisa |

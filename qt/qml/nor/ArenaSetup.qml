@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 import QtMultimedia
 import QtQuick.Dialogs
 import MindTrace.Backend 1.0
@@ -177,8 +178,8 @@ Item {
         closePolicy: Popup.CloseOnEscape
 
         background: Rectangle {
-            radius: 14; color: "#1a1a2e"
-            border.color: "#ab3d4c"; border.width: 1
+            radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: ThemeManager.accent; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
         }
 
         ColumnLayout {
@@ -186,14 +187,14 @@ Item {
             spacing: 14
 
             Text {
-                text: "Tipo de Análise"; color: "#e8e8f0"
+                text: "Tipo de Análise"; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 16; font.weight: Font.Bold
             }
 
             Text {
                 Layout.fillWidth: true
                 text: root.analysisMode === "" ? "Escolha o modo e carregue o vídeo:" : "Pronto para gravar!"
-                color: "#8888aa"; font.pixelSize: 13
+                color: ThemeManager.textSecondary; font.pixelSize: 13; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             RowLayout {
@@ -202,20 +203,20 @@ Item {
                 // Análise Offline
                 Rectangle {
                     Layout.fillWidth: true; height: 80; radius: 8
-                    color: offBtnMa.offlineHover ? "#2a1f30" : "#16162e"
-                    border.color: "#ab3d4c"; border.width: 2
+                    color: offBtnMa.offlineHover ? ThemeManager.accentHover : ThemeManager.surfaceAlt
+                    border.color: ThemeManager.accent; border.width: 2; Behavior on color { ColorAnimation { duration: 200 } }
 
                     property bool offlineHover: offBtnMa.containsMouse
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "🎬  Análise Offline"; color: "#e8e8f0"
+                            text: "🎬  Análise Offline"; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Vídeo pré-gravado"; color: "#8888aa"
+                            text: "Vídeo pré-gravado"; color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -234,20 +235,22 @@ Item {
                 // Análise Ao Vivo
                 Rectangle {
                     Layout.fillWidth: true; height: 80; radius: 8
-                    color: liveBtnMa.liveHover ? "#162a22" : "#16162e"
-                    border.color: "#3a8a50"; border.width: 2
+                    color: liveBtnMa.liveHover ? ThemeManager.accentHover : ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: ThemeManager.success; border.width: 2; Behavior on border.color { ColorAnimation { duration: 200 } }
 
                     property bool liveHover: liveBtnMa.containsMouse
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "📹  Análise Ao Vivo"; color: "#e8e8f0"
+                            text: "📹  Análise Ao Vivo"
+                            color: ThemeManager.textPrimary
+                            Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Câmera (salva o vídeo)"; color: "#8888aa"
+                            text: "Câmera (salva o vídeo)"; color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -284,25 +287,29 @@ Item {
         width: 440; height: 180
         modal: true; focus: true; closePolicy: Popup.CloseOnEscape
         background: Rectangle {
-            radius: 14; color: "#1a1a2e"
-            border.color: "#ab3d4c"; border.width: 1
+            radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: ThemeManager.accent; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
         }
         ColumnLayout {
             anchors { fill: parent; margins: 20 }
             spacing: 12
             Text {
                 text: "Selecionar diretório"
-                color: "#e8e8f0"; font.pixelSize: 15; font.weight: Font.Bold
+                color: ThemeManager.textPrimary
+                Behavior on color { ColorAnimation { duration: 150 } }
+                font.pixelSize: 15; font.weight: Font.Bold
             }
             TextField {
                 id: savePathField
                 Layout.fillWidth: true
                 placeholderText: "Cole o caminho da pasta ou clique Pesquisar..."
-                color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
+                color: ThemeManager.textPrimary
+                Behavior on color { ColorAnimation { duration: 150 } }
+                placeholderTextColor: ThemeManager.textPlaceholder; font.pixelSize: 12
                 onTextChanged: root.saveDirectory = text
                 background: Rectangle {
-                    radius: 6; color: "#12122a"
-                    border.color: savePathField.activeFocus ? "#ab3d4c" : "#3a3a5c"
+                    radius: 6; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: savePathField.activeFocus ? ThemeManager.accent : ThemeManager.border; Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 1
                 }
             }
@@ -320,10 +327,10 @@ Item {
                     }
                     background: Rectangle {
                         radius: 8
-                        color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
+                        color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
                     }
                     contentItem: Text {
-                        text: parent.text; color: "#e8e8f0"
+                        text: parent.text; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                         font.pixelSize: 13; font.weight: Font.Bold
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     }
@@ -344,12 +351,16 @@ Item {
 
             Text {
                 text: "Configuração da Arena"
-                color: "#e8e8f0"; font.pixelSize: 14; font.weight: Font.Bold
+                color: ThemeManager.textPrimary
+                Behavior on color { ColorAnimation { duration: 150 } }
+                font.pixelSize: 14; font.weight: Font.Bold
             }
             Item { Layout.fillWidth: true }
             Text {
                 text: "Shift: Objetos  |  Ctrl: Quinas da Parede  |  Alt: Quinas do Chão"
-                color: "#444466"; font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
+                color: ThemeManager.textTertiary
+                Behavior on color { ColorAnimation { duration: 150 } }
+                font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
             }
 
             // ── Editar Pares ──
@@ -360,14 +371,14 @@ Item {
                 
                 background: Rectangle {
                     radius: 6
-                    color: editPairsBtn.hovered ? "#25253e" : "#16162e"
-                    border.color: editPairsBtn.hovered ? "#666688" : "#4a4a6c"
+                    color: editPairsBtn.hovered ? ThemeManager.surfaceHover : ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: editPairsBtn.hovered ? ThemeManager.border : ThemeManager.borderLight; Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 2
                 }
                 
                 contentItem: Text {
                     text: parent.text
-                    color: editPairsBtn.hovered ? "#e8e8f0" : "#8888aa"
+                    color: editPairsBtn.hovered ? ThemeManager.textPrimary : ThemeManager.textPlaceholder; Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 11
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
@@ -385,14 +396,14 @@ Item {
                 
                 background: Rectangle {
                     radius: 6
-                    color: root.devMode ? (devModeBtn.hovered ? "#7a5500" : "#8a6200") : (devModeBtn.hovered ? "#25253e" : "#16162e")
-                    border.color: root.devMode ? "#c88000" : (devModeBtn.hovered ? "#666688" : "#4a4a6c")
+                    color: root.devMode ? (devModeBtn.hovered ? "#7a5500" : "#8a6200") : (devModeBtn.hovered ? ThemeManager.surfaceHover : ThemeManager.background); Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: root.devMode ? "#c88000" : (devModeBtn.hovered ? ThemeManager.border : ThemeManager.borderLight); Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 2
                 }
                 
                 contentItem: Text {
                     text: parent.text
-                    color: root.devMode ? "#ffffff" : (devModeBtn.hovered ? "#e8e8f0" : "#8888aa")
+                    color: root.devMode ? "#ffffff" : (devModeBtn.hovered ? ThemeManager.textPrimary : ThemeManager.textPlaceholder); Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 11
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
@@ -411,14 +422,14 @@ Item {
                 
                 background: Rectangle {
                     radius: 6
-                    color: root.videoPath !== "" ? (videoBtnRect.hovered ? "#1a3a22" : "#1f4428") : (videoBtnRect.hovered ? "#25253e" : "#16162e")
-                    border.color: root.videoPath !== "" ? "#3a8a50" : (videoBtnRect.hovered ? "#666688" : "#4a4a6c")
+                    color: root.videoPath !== "" ? (videoBtnRect.hovered ? ThemeManager.success : ThemeManager.successLight) : (videoBtnRect.hovered ? ThemeManager.surfaceHover : ThemeManager.background); Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: root.videoPath !== "" ? ThemeManager.success : (videoBtnRect.hovered ? ThemeManager.border : ThemeManager.borderLight); Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 2
                 }
                 
                 contentItem: Text {
                     text: parent.text
-                    color: root.videoPath !== "" ? "#ffffff" : (videoBtnRect.hovered ? "#e8e8f0" : "#8888aa")
+                    color: root.videoPath !== "" ? ThemeManager.textPrimary : (videoBtnRect.hovered ? ThemeManager.textPrimary : ThemeManager.textPlaceholder); Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 11
                     font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter
@@ -453,11 +464,10 @@ Item {
                 }
                 background: Rectangle {
                     radius: 7
-                    color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {
-                    text: parent.text; color: "#e8e8f0"
+                    text: parent.text; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 12; font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }
@@ -492,17 +502,21 @@ Item {
                             Layout.fillWidth: true; spacing: 6
                             Text {
                                 text: "Campo " + (campoCell.campoIndex + 1)
-                                color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold
+                                color: ThemeManager.textSecondary
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                font.pixelSize: 11; font.weight: Font.Bold
                             }
                             Rectangle {
                                 visible: campoCell.campoPair !== ""
-                                radius: 3; color: "#1f0d10"
-                                border.color: "#ab3d4c"; border.width: 1
+                                radius: 3; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
+                                border.color: ThemeManager.accent; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
                                 implicitWidth: pairTxt.implicitWidth + 10; implicitHeight: 16
                                 Text {
                                     id: pairTxt; anchors.centerIn: parent
                                     text: "Par " + campoCell.campoPair
-                                    color: "#ab3d4c"; font.pixelSize: 9
+                                    color: ThemeManager.accent
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    font.pixelSize: 9
                                 }
                             }
                             Item { Layout.fillWidth: true }
@@ -517,8 +531,8 @@ Item {
                                 width:  Math.min(parent.width, parent.height)
                                 height: width
                                 anchors.centerIn: parent
-                                color: "#0a0a16"
-                                border.color: "#ab3d4c"; border.width: 2
+                                color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
+                                border.color: ThemeManager.accent; border.width: 2; Behavior on border.color { ColorAnimation { duration: 200 } }
                                 clip: true
 
                                 ShaderEffectSource {
@@ -638,7 +652,7 @@ Item {
                                         anchors.centerIn: parent; spacing: 1
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: campoCell.campoIds[0]; color: "#e8e8f0"
+                                            text: campoCell.campoIds[0]; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                                             font.pixelSize: Math.max(7, zoneA.width * 0.22)
                                             font.weight: Font.Bold
                                             horizontalAlignment: Text.AlignHCenter
@@ -814,7 +828,7 @@ Item {
                                     anchors.centerIn: parent
                                     visible: campoCell.campoPair === "" && root.videoPath === ""
                                     text: "Par não definido"
-                                    color: "#2d2d4a"; font.pixelSize: 10
+                                    color: ThemeManager.border; font.pixelSize: 10
                                 }
                             }
                         }
@@ -854,7 +868,7 @@ Item {
                             if (s === MediaPlayer.NoMedia)       return "Sem mídia"
                             return ""
                         }
-                        color: videoPlayer.mediaStatus === MediaPlayer.InvalidMedia ? "#e84c5a" : "#8888aa"
+                        color: videoPlayer.mediaStatus === MediaPlayer.InvalidMedia ? ThemeManager.error : ThemeManager.textSecondary
                         font.pixelSize: 9
                         visible: text !== ""
                     }
@@ -866,13 +880,14 @@ Item {
                         // Play / Pause
                         Rectangle {
                             Layout.fillWidth: true; height: 24; radius: 5
-                            color: playMa.containsMouse ? "#1a4a2a" : "#1f5430"
-                            border.color: "#3a8a50"; border.width: 1
+                            color: playMa.containsMouse ? ThemeManager.success : ThemeManager.accentDim
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            border.color: ThemeManager.success; border.width: 1
                             Text {
                                 anchors.centerIn: parent
                                 text: videoPlayer.playbackState === MediaPlayer.PlayingState
                                       ? "⏸ Pausar" : "▶ Reproduzir"
-                                color: "#5aaa70"; font.pixelSize: 10; font.weight: Font.Bold
+                                color: ThemeManager.successLight; font.pixelSize: 10; font.weight: Font.Bold
                             }
                             MouseArea {
                                 id: playMa; anchors.fill: parent
@@ -890,11 +905,12 @@ Item {
                         Rectangle {
                             height: 24; radius: 5
                             implicitWidth: rmLbl.implicitWidth + 16
-                            color: rmMa.containsMouse ? "#3a0d15" : "#2a0c18"
-                            border.color: "#ab3d4c"; border.width: 1
+                            color: rmMa.containsMouse ? ThemeManager.accentHover : ThemeManager.surfaceDim
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            border.color: ThemeManager.accent; border.width: 1
                             Text {
                                 id: rmLbl; anchors.centerIn: parent
-                                text: "✕ Remover"; color: "#e88080"
+                                text: "✕ Remover"; color: ThemeManager.error
                                 font.pixelSize: 10
                             }
                             MouseArea {
@@ -920,7 +936,7 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         text: "Análise offline\n(câmera 4 não usada)"
-                        color: "#2d2d4a"; font.pixelSize: 9
+                        color: ThemeManager.border; font.pixelSize: 9
                         horizontalAlignment: Text.AlignHCenter
                     }
                 }
@@ -944,45 +960,50 @@ Item {
         }
 
         background: Rectangle {
-            radius: 12; color: "#1a1a2e"
-            border.color: "#3a3a5c"; border.width: 1
+            radius: 12; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
         }
 
         ColumnLayout {
             anchors { fill: parent; margins: 20 }
             spacing: 14
 
-            Text { text: "Editar Pares de Objetos"; color: "#e8e8f0"; font.pixelSize: 15; font.weight: Font.Bold }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
+            Text {
+                text: "Editar Pares de Objetos"
+                color: ThemeManager.textPrimary
+                Behavior on color { ColorAnimation { duration: 150 } }
+                font.pixelSize: 15; font.weight: Font.Bold
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
 
             RowLayout {
                 spacing: 10
-                Text { text: "Campo 1:"; color: "#8888aa"; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: "Campo 1:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP1; Layout.fillWidth: true
-                    color: "#e8e8f0"; font.pixelSize: 13; placeholderText: "Ex: AA"
+                    color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: AA"
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                    background: Rectangle { color: "#12122a"; border.color: editP1.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1; radius: 5 }
+                    background: Rectangle { color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: editP1.activeFocus ? ThemeManager.accent : ThemeManager.border; border.width: 1; radius: 5 }
                 }
             }
             RowLayout {
                 spacing: 10
-                Text { text: "Campo 2:"; color: "#8888aa"; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: "Campo 2:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP2; Layout.fillWidth: true
-                    color: "#e8e8f0"; font.pixelSize: 13; placeholderText: "Ex: BB"
+                    color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: BB"
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                    background: Rectangle { color: "#12122a"; border.color: editP2.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1; radius: 5 }
+                    background: Rectangle { color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: editP2.activeFocus ? ThemeManager.accent : ThemeManager.border; border.width: 1; radius: 5 }
                 }
             }
             RowLayout {
                 spacing: 10
-                Text { text: "Campo 3:"; color: "#8888aa"; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: "Campo 3:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP3; Layout.fillWidth: true
-                    color: "#e8e8f0"; font.pixelSize: 13; placeholderText: "Ex: CC"
+                    color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: CC"
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                    background: Rectangle { color: "#12122a"; border.color: editP3.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1; radius: 5 }
+                    background: Rectangle { color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: editP3.activeFocus ? ThemeManager.accent : ThemeManager.border; border.width: 1; radius: 5 }
                 }
             }
 
@@ -994,7 +1015,7 @@ Item {
                 Button {
                     text: "Cancelar"; onClicked: editPairsPopup.close()
                     background: Rectangle { color: "transparent" }
-                    contentItem: Text { text: parent.text; color: "#8888aa"; font.pixelSize: 12; font.weight: Font.Bold }
+                    contentItem: Text { text: parent.text; color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold }
                 }
                 Button {
                     text: "Aplicar"
@@ -1017,8 +1038,8 @@ Item {
                         editPairsPopup.close()
                         saveToast.show("Pares alterados! Não esqueça de Salvar a Configuração.")
                     }
-                    background: Rectangle { radius: 6; color: parent.hovered ? "#8a2e3b" : "#ab3d4c" }
-                    contentItem: Text { text: parent.text; color: "#ffffff"; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    background: Rectangle { radius: 6; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } } }
+                    contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }
             }
@@ -1030,3 +1051,4 @@ Item {
         anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 }
     }
 }
+

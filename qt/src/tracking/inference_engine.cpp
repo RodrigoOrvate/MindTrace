@@ -6,7 +6,7 @@
 // GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU
 // CUDA:     requires onnxruntime-win-x64-gpu build + NVIDIA CUDA drivers.
 // DirectML: requires onnxruntime-win-x64 standard build + DirectX 12 (Windows 10+).
-#include "dml_provider_factory.h"
+// Note: dml_provider_factory.h not needed — uses generic GetExecutionProviderApi("DML") API.
 #include <dxgi.h>
 
 // ── GPU vendor detection via DXGI ─────────────────────────────────────────────
@@ -51,31 +51,13 @@ static bool try_add_cuda_provider(Ort::SessionOptions& opts) {
 }
 
 // Returns true if DirectML EP was successfully registered (AMD/Intel/NVIDIA, DX12).
-// Uses the generic SessionOptions::AppendExecutionProvider("DML", {}) API,
-// since the deprecated C export OrtSessionOptionsAppendExecutionProvider_DML
-// is no longer linked by onnxruntime.lib in v1.24+.
+// Uses the generic AppendExecutionProvider("DML", {}) API available in ORT 1.20+.
 static bool try_add_dml_provider(Ort::SessionOptions& opts) {
     try {
-        // DirectML requer obrigatoriamente que estas opções sejam configuradas
+        // DirectML requer estas opções obrigatoriamente
         opts.DisableMemPattern();
         opts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
-        // Opcionalmente, tentar via API específica em builds mais recentes primeiro
-        const OrtApi& api = Ort::GetApi();
-        const OrtDmlApi* dml_api = nullptr;
-        OrtStatus* status = api.GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&dml_api));
-        if (status == nullptr && dml_api != nullptr) {
-            OrtStatus* dml_status = dml_api->SessionOptionsAppendExecutionProvider_DML(opts, 0); // device_id = 0
-            if (dml_status == nullptr) {
-                return true;
-            } else {
-                api.ReleaseStatus(dml_status);
-            }
-        } else if (status != nullptr) {
-            api.ReleaseStatus(status);
-        }
-
-        // Fallback genérico caso a API de provedor falhe
         std::unordered_map<std::string, std::string> dml_options;
         dml_options["device_id"] = "0";
         opts.AppendExecutionProvider("DML", dml_options);

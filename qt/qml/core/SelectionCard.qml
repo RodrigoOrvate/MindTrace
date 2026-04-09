@@ -5,6 +5,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
+import "Theme"
 
 Item {
     id: cardRoot
@@ -13,8 +14,8 @@ Item {
     property string title:       ""
     property string description: ""
     property string badge:       ""       // label de badge opcional (ex.: "Treino")
-    property color  badgeColor:  "#2d2d4a"
-    property color  badgeText:   "#8888aa"
+    property color  badgeColor:  ThemeManager.border
+    property color  badgeText:   ThemeManager.textSecondary
     property string events:      ""       // linha de eventos (ex.: "OBJA  •  OBJB")
     property bool   selected:    false
 
@@ -29,7 +30,7 @@ Item {
         shadowHorizontalOffset: 0
         shadowVerticalOffset:   (cardRoot.selected || hoverArea.containsMouse) ? 8 : 4
         shadowBlur:             (cardRoot.selected || hoverArea.containsMouse) ? 0.7 : 0.35
-        shadowColor:            cardRoot.selected ? "#80ab3d4c" : "#50000000"
+        shadowColor:            cardRoot.selected ? Qt.rgba(171, 61, 76, 0.5) : Qt.rgba(0, 0, 0, 0.3125)
         Behavior on shadowBlur          { NumberAnimation { duration: 200 } }
         Behavior on shadowVerticalOffset { NumberAnimation { duration: 200 } }
     }
@@ -46,9 +47,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 14
-        color:        cardRoot.selected ? "#222240"
-                    : hoverArea.containsMouse ? "#1e1e38" : "#1a1a2e"
-        border.color: cardRoot.selected ? "#ab3d4c" : "#2d2d4a"
+        color:        cardRoot.selected ? ThemeManager.surfaceAlt
+                    : hoverArea.containsMouse ? ThemeManager.surface : ThemeManager.surface
+        border.color: cardRoot.selected ? ThemeManager.accent : ThemeManager.border
         border.width: cardRoot.selected ? 2 : 1
 
         Behavior on color        { ColorAnimation { duration: 180 } }
@@ -72,11 +73,12 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: cardRoot.title
-                color: "#e8e8f0"
+                color: ThemeManager.textPrimary
                 font.pixelSize: 13
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.preferredHeight: 6 }
@@ -86,10 +88,11 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
                 text: cardRoot.description
-                color: "#8888aa"
+                color: ThemeManager.textSecondary
                 font.pixelSize: 10
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Item { Layout.fillHeight: true }
@@ -102,6 +105,7 @@ Item {
                 color: cardRoot.badgeColor
                 implicitWidth: badgeLabel.implicitWidth + 12
                 implicitHeight: 18
+                Behavior on color { ColorAnimation { duration: 150 } }
                 Text {
                     id: badgeLabel
                     anchors.centerIn: parent
@@ -109,6 +113,7 @@ Item {
                     color: cardRoot.badgeText
                     font.pixelSize: 10
                     font.weight: Font.Bold
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
 
@@ -118,7 +123,7 @@ Item {
                 Layout.fillWidth: true
                 visible: cardRoot.events !== ""
                 text: cardRoot.events
-                color: cardRoot.selected ? "#ab3d4c" : "#555577"
+                color: cardRoot.selected ? ThemeManager.accent : ThemeManager.textTertiary
                 font.pixelSize: 10
                 font.weight: Font.Bold
                 horizontalAlignment: Text.AlignHCenter
@@ -132,17 +137,18 @@ Item {
         Rectangle {
             anchors { top: parent.top; right: parent.right; margins: 8 }
             width: 18; height: 18; radius: 9
-            color: cardRoot.selected ? "#ab3d4c" : "transparent"
-            border.color: cardRoot.selected ? "#ab3d4c" : "#3a3a5c"
+            color: cardRoot.selected ? ThemeManager.accent : "transparent"
+            border.color: cardRoot.selected ? ThemeManager.accent : ThemeManager.textTertiary
             border.width: 1.5
             opacity: (cardRoot.selected || hoverArea.containsMouse) ? 1.0 : 0.0
             Behavior on color   { ColorAnimation { duration: 150 } }
+            Behavior on border.color { ColorAnimation { duration: 150 } }
             Behavior on opacity { NumberAnimation { duration: 150 } }
 
             Text {
                 anchors.centerIn: parent
                 text: "✓"
-                color: "#e8e8f0"
+                color: "#ffffff"
                 font.pixelSize: 10
                 font.weight: Font.Bold
                 visible: cardRoot.selected

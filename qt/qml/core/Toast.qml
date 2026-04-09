@@ -1,5 +1,6 @@
 // qml/Toast.qml
 import QtQuick
+import "Theme"
 
 Rectangle {
     id: toast
@@ -7,15 +8,20 @@ Rectangle {
     property string message: ""
 
     width: toastText.implicitWidth + 32; height: 36; radius: 8
-    color: successMode ? "#1f0d10" : "#1a0a0a"
-    border.color: successMode ? "#ab3d4c" : "#ff4757"; border.width: 1
+    color: successMode ? ThemeManager.accentDim : "#1a0a0a"
+    border.color: successMode ? ThemeManager.accent : "#ff4757"
+    border.width: 1
     opacity: 0; visible: opacity > 0
+    Behavior on color { ColorAnimation { duration: 150 } }
+    Behavior on border.color { ColorAnimation { duration: 150 } }
 
     Text {
         id: toastText
         anchors.centerIn: parent
         text: toast.message
-        color: successMode ? "#c9505f" : "#ff6b7a"; font.pixelSize: 12
+        color: successMode ? ThemeManager.accent : "#ff6b7a"
+        font.pixelSize: 12
+        Behavior on color { ColorAnimation { duration: 150 } }
     }
 
     function show(msg) {

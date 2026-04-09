@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
+import "../core/Theme"
 import "../shared"
 import MindTrace.Backend 1.0
 
@@ -49,7 +50,7 @@ Item {
             ExperimentManager.loadContext(context)
     }
 
-    Rectangle { anchors.fill: parent; color: "#0f0f1a" }
+    Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
     Connections {
         target: ExperimentManager
@@ -97,11 +98,11 @@ Item {
         // ── Barra superior ───────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            height: 56; color: "#1a1a2e"
+            height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
 
             Rectangle {
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: 1; color: "#2d2d4a"
+                height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }
             }
 
             RowLayout {
@@ -116,19 +117,19 @@ Item {
                     text: root.searchMode
                           ? "Reconhecimento de Objetos — Experimentos"
                           : "Reconhecimento de Objetos — Dashboard"
-                    color: "#e8e8f0"; font.pixelSize: 16; font.weight: Font.Bold
+                    color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                 }
 
                 Rectangle {
                     visible: root.context !== ""
-                    radius: 4; color: "#1f0d10"
-                    border.color: "#ab3d4c"; border.width: 1
+                    radius: 4; color: ThemeManager.surfaceHover
+                    border.color: ThemeManager.accent; border.width: 1; Behavior on color { ColorAnimation { duration: 200 } }
                     implicitWidth: ctxLabel.implicitWidth + 16; implicitHeight: 24
                     Text {
                         id: ctxLabel
                         anchors.centerIn: parent
                         text: "NOR " + root.context
-                        color: "#ab3d4c"; font.pixelSize: 11; font.weight: Font.Bold
+                        color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                     }
                 }
 
@@ -145,11 +146,11 @@ Item {
             // ── Sidebar ──────────────────────────────────────────────────
             Rectangle {
                 width: 250; Layout.fillHeight: true
-                color: "#1a1a2e"
+                color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
 
                 Rectangle {
                     anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
-                    width: 1; color: "#2d2d4a"
+                    width: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }
                 }
 
                 ColumnLayout {
@@ -158,19 +159,19 @@ Item {
 
                     Text {
                         text: "Experimentos"
-                        color: "#e8e8f0"; font.pixelSize: 12; font.weight: Font.Bold
+                        color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
+                        Behavior on color { ColorAnimation { duration: 150 } }
                     }
 
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
                         placeholderText: "Pesquisar…"
-                        color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 13
+                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
-                            radius: 6; color: "#12122a"
-                            border.color: searchField.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                            border.color: searchField.activeFocus ? ThemeManager.accent : ThemeManager.borderLight; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
                         onTextChanged: ExperimentManager.setFilter(text)
                     }
@@ -195,7 +196,7 @@ Item {
 
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
-                            contentItem: Rectangle { implicitWidth: 4; radius: 2; color: "#3a3a5c" }
+                            contentItem: Rectangle { implicitWidth: 4; radius: 2; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
                         }
 
                         delegate: Rectangle {
@@ -203,7 +204,7 @@ Item {
                             width: experimentList.width; height: 36
                             property bool isSelected: experimentList.currentIndex === index
                             property bool isHovered: mainArea.containsMouse || trashArea.containsMouse
-                            color: isSelected ? "#ab3d4c" : (isHovered ? "#16162e" : "transparent")
+                            color: isSelected ? ThemeManager.accent : (isHovered ? ThemeManager.surfaceAlt : "transparent"); Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on color { ColorAnimation { duration: 120 } }
 
                             Text {
@@ -213,7 +214,7 @@ Item {
                                     top: parent.top; bottom: parent.bottom
                                 }
                                 text: model.name
-                                color: expDelegate.isSelected ? "#e8e8f0" : "#8888aa"
+                                color: expDelegate.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
                                 font.pixelSize: 13; elide: Text.ElideRight
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -227,7 +228,7 @@ Item {
                                 Text {
                                     anchors.centerIn: parent; text: "🗑"
                                     font.pixelSize: 13
-                                    color: trashArea.containsMouse ? "#e84c5a" : "#cc4455"
+                                    color: trashArea.containsMouse ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } }
                                 }
                                 MouseArea {
                                     id: trashArea; anchors.fill: parent
@@ -258,7 +259,7 @@ Item {
 
                             Rectangle {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                height: 1; color: "#2d2d4a"; opacity: 0.5
+                                height: 1; color: ThemeManager.border; opacity: 0.5; Behavior on color { ColorAnimation { duration: 200 } }
                             }
                         }
 
@@ -266,7 +267,7 @@ Item {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
                             text: "Nenhum experimento\nencontrado"
-                            color: "#8888aa"; font.pixelSize: 12
+                            color: ThemeManager.textSecondary; font.pixelSize: 12; Behavior on color { ColorAnimation { duration: 150 } }
                             horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -288,11 +289,10 @@ Item {
 
                         background: Rectangle {
                             radius: 8
-                            color: parent.hovered ? "#8a2e3b" : "#ab3d4c"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 200 } }
                         }
                         contentItem: Text {
-                            text: parent.text; color: "#e8e8f0"
+                            text: parent.text; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 12; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                         }
@@ -383,7 +383,7 @@ Item {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: "Selecione um experimento\nna barra lateral"
-                                color: "#8888aa"; font.pixelSize: 14
+                                color: ThemeManager.textSecondary; font.pixelSize: 14
                                 horizontalAlignment: Text.AlignHCenter
                             }
                         }
@@ -394,10 +394,13 @@ Item {
                         spacing: 0
 
                         Rectangle {
-                            Layout.fillWidth: true; height: 40; color: "#1a1a2e"
+                            Layout.fillWidth: true; height: 40
+                            color: ThemeManager.surface
+                            Behavior on color { ColorAnimation { duration: 200 } }
                             Rectangle {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                                height: 1; color: "#2d2d4a"
+                                height: 1; color: ThemeManager.border
+                                Behavior on color { ColorAnimation { duration: 200 } }
                             }
 
                             Row {
@@ -421,7 +424,7 @@ Item {
                                         Rectangle {
                                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                             height: parent.isActive ? 2 : (parent.isHovered ? 1 : 0)
-                                            color: parent.isActive ? "#ab3d4c" : (parent.isHovered ? "#8a2e3b" : "transparent")
+                                            color: parent.isActive ? ThemeManager.accent : (parent.isHovered ? ThemeManager.accentHover : "transparent"); Behavior on color { ColorAnimation { duration: 200 } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on height { NumberAnimation { duration: 150 } }
                                         }
@@ -429,7 +432,7 @@ Item {
                                         Text {
                                             id: tabLabel; anchors.centerIn: parent
                                             text: modelData
-                                            color: tabItem.isActive ? "#ffffff" : (tabItem.isHovered ? "#d0d0e0" : "#8888aa")
+                                            color: tabItem.isActive ? ThemeManager.textPrimary : (tabItem.isHovered ? ThemeManager.textSecondary : ThemeManager.textTertiary); Behavior on color { ColorAnimation { duration: 150 } }
                                             font.pixelSize: 12
                                             font.weight: tabItem.isActive ? Font.Bold : Font.Normal
                                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -448,7 +451,7 @@ Item {
                             Text {
                                 anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
                                 text: workArea.selectedName
-                                color: "#555577"; font.pixelSize: 12; elide: Text.ElideRight
+                                color: ThemeManager.textTertiary; font.pixelSize: 12; elide: Text.ElideRight; Behavior on color { ColorAnimation { duration: 150 } }
                             }
                         }
 
@@ -520,7 +523,7 @@ Item {
                                         }
                                         Text {
                                             text: tableView.rows > 0 ? tableView.rows + " linha(s)" : ""
-                                            color: "#555577"; font.pixelSize: 11
+                                            color: ThemeManager.textTertiary; font.pixelSize: 11; Behavior on color { ColorAnimation { duration: 150 } }
                                         }
                                         Item { Layout.fillWidth: true }
                                         GhostButton { text: "＋ Linha"; onClicked: tableModel.addRow() }
@@ -532,12 +535,14 @@ Item {
                                                     savedFeedback.show("Exportado!")
                                             }
                                             background: Rectangle {
-                                                radius: 7; color: parent.hovered ? "#1a4a2e" : "#123320"
-                                                border.color: "#2a6a44"; border.width: 1
+                                                radius: 7
+                                                color: parent.hovered ? ThemeManager.successLight : ThemeManager.success
+                                                border.color: ThemeManager.successLight; border.width: 1
                                                 Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                             }
                                             contentItem: Text {
-                                                text: parent.text; color: "#e8e8f0"
+                                                text: parent.text; color: ThemeManager.buttonText
                                                 font.pixelSize: 12; font.weight: Font.Bold
                                                 verticalAlignment: Text.AlignVCenter
                                                 horizontalAlignment: Text.AlignHCenter
@@ -549,11 +554,10 @@ Item {
                                             onClicked: { if (tableModel.saveCsv()) savedFeedback.show("Salvo!") }
                                             background: Rectangle {
                                                 radius: 7
-                                                color: parent.hovered ? "#8a2e3b" : "#ab3d4c"
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 200 } }
                                             }
                                             contentItem: Text {
-                                                text: parent.text; color: "#e8e8f0"
+                                                text: parent.text; color: ThemeManager.buttonText
                                                 font.pixelSize: 12; font.weight: Font.Bold
                                                 verticalAlignment: Text.AlignVCenter
                                                 horizontalAlignment: Text.AlignHCenter
@@ -568,12 +572,12 @@ Item {
                                             model: workArea.colCount
                                             delegate: Rectangle {
                                                 width: Math.max(100, tableView.width / Math.max(1, workArea.colCount))
-                                                height: 32; color: "#12122a"
-                                                border.color: "#2d2d4a"; border.width: 1
+                                                height: 32; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                                                border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
                                                 Text {
                                                     anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
                                                     text: tableModel.headerData(index, Qt.Horizontal, Qt.DisplayRole) || ""
-                                                    color: "#8888aa"; font.pixelSize: 12; font.weight: Font.Bold
+                                                    color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                                                     verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
                                                 }
                                             }
@@ -591,17 +595,17 @@ Item {
                                         rowHeightProvider: function() { return 32 }
                                         ScrollBar.vertical: ScrollBar {
                                             policy: ScrollBar.AsNeeded
-                                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: "#3a3a5c" }
+                                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
                                         }
                                         ScrollBar.horizontal: ScrollBar {
                                             policy: ScrollBar.AsNeeded
-                                            contentItem: Rectangle { implicitHeight: 6; radius: 3; color: "#3a3a5c" }
+                                            contentItem: Rectangle { implicitHeight: 6; radius: 3; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
                                         }
                                         delegate: Rectangle {
                                             implicitWidth: 120; implicitHeight: 32
-                                            color: rowDelMa.containsMouse ? "#1f1020"
-                                                 : (row % 2 === 0) ? "#1a1a2e" : "#16162e"
-                                            border.color: "#2d2d4a"; border.width: 1
+                                            color: rowDelMa.containsMouse ? ThemeManager.surfaceHover
+                                                 : (row % 2 === 0) ? ThemeManager.surface : ThemeManager.surfaceAlt; Behavior on color { ColorAnimation { duration: 200 } }
+                                            border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
 
                                             // Botão deletar linha (aparece ao hover na primeira célula)
                                             Rectangle {
@@ -609,11 +613,11 @@ Item {
                                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
                                                 visible: column === 0 && rowDelMa.containsMouse
                                                 width: 20; height: 20; radius: 4
-                                                color: rowDelBtnMa.containsMouse ? "#5a1a28" : "#3a1020"
-                                                border.color: "#ab3d4c"; border.width: 1
+                                                color: rowDelBtnMa.containsMouse ? ThemeManager.accentHover : "#3a1020"; Behavior on color { ColorAnimation { duration: 200 } }
+                                                border.color: ThemeManager.accent; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
                                                 Text {
                                                     anchors.centerIn: parent; text: "✕"
-                                                    color: "#ff5566"; font.pixelSize: 9; font.weight: Font.Bold
+                                                    color: ThemeManager.error; font.pixelSize: 9; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                                                 }
                                                 MouseArea {
                                                     id: rowDelBtnMa; anchors.fill: parent
@@ -631,7 +635,7 @@ Item {
                                                     rightMargin: (column === 0 && rowDelMa.containsMouse) ? 28 : 8
                                                 }
                                                 text: model.display !== undefined ? model.display : ""
-                                                color: "#e8e8f0"; font.pixelSize: 13
+                                                color: ThemeManager.textPrimary; font.pixelSize: 13; Behavior on color { ColorAnimation { duration: 150 } }
                                                 verticalAlignment: Text.AlignVCenter
                                                 clip: true; selectByMouse: true
                                                 onEditingFinished: {
@@ -672,8 +676,8 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle {
-            radius: 14; color: "#1a1a2e"
-            border.color: "#3a3a5c"; border.width: 1
+            radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: ThemeManager.borderLight; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
         }
 
         onOpened: { createNameField.text = ""; createNameField.forceActiveFocus() }
@@ -687,30 +691,29 @@ Item {
                 Text { text: "📋"; font.pixelSize: 20 }
                 Text {
                     text: "Novo Experimento NOR"
-                    color: "#e8e8f0"; font.pixelSize: 17; font.weight: Font.Bold
+                    color: ThemeManager.textPrimary; font.pixelSize: 17; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                    text: "✕"; color: "#8888aa"; font.pixelSize: 14
+                    text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: createPopup.close() }
                 }
             }
 
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 6
-                Text { text: "Nome do experimento"; color: "#8888aa"; font.pixelSize: 12 }
+                Text { text: "Nome do experimento"; color: ThemeManager.textSecondary; font.pixelSize: 12; Behavior on color { ColorAnimation { duration: 150 } } }
                 TextField {
                     id: createNameField
                     Layout.fillWidth: true
                     placeholderText: "Ex.: Grupo_Controle_Dia1"
-                    color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 13
+                    color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                     leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                     background: Rectangle {
-                        radius: 6; color: "#12122a"
-                        border.color: createNameField.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: createNameField.activeFocus ? ThemeManager.accent : ThemeManager.borderLight; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
                     Keys.onReturnPressed: {
                         if (createNameField.text.trim().length > 0) createBtn.clicked()
@@ -734,11 +737,10 @@ Item {
                     }
                     background: Rectangle {
                         radius: 8
-                        color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }
                     }
                     contentItem: Text {
-                        text: parent.text; color: "#e8e8f0"
+                        text: parent.text; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                         font.pixelSize: 13; font.weight: Font.Bold
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     }
@@ -759,19 +761,26 @@ Item {
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-        background: Rectangle { radius: 14; color: "#1a1a2e"; border.color: "#3a3a5c"; border.width: 1 }
+        background: Rectangle {
+            radius: 14
+            color: ThemeManager.surface
+            border.color: ThemeManager.borderLight
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on border.color { ColorAnimation { duration: 200 } }
+        }
 
         ColumnLayout {
             id: step1Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: "Excluir Experimento"; color: "#e8e8f0"; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
                 text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
-                color: "#8888aa"; font.pixelSize: 13; wrapMode: Text.WordWrap
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             RowLayout {
@@ -782,11 +791,10 @@ Item {
                     text: "Continuar"
                     onClicked: { deleteStep1Popup.close(); deleteNameField.text = ""; deleteStep2Popup.open() }
                     background: Rectangle {
-                        radius: 7; color: parent.hovered ? "#8a2e3b" : "#ab3d4c"
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        radius: 7; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 200 } }
                     }
                     contentItem: Text {
-                        text: parent.text; color: "#e8e8f0"; font.pixelSize: 12; font.weight: Font.Bold
+                        text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
@@ -806,30 +814,36 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: deleteNameField.forceActiveFocus()
 
-        background: Rectangle { radius: 14; color: "#1a1a2e"; border.color: "#ab3d4c"; border.width: 1 }
+        background: Rectangle {
+            radius: 14
+            color: ThemeManager.surface
+            border.color: ThemeManager.accent
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on border.color { ColorAnimation { duration: 200 } }
+        }
 
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 14
 
-            Text { text: "Confirmação Final"; color: "#e8e8f0"; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
                 text: "Digite o nome do experimento para confirmar a exclusão:"
-                color: "#8888aa"; font.pixelSize: 13; wrapMode: Text.WordWrap
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             TextField {
                 id: deleteNameField
                 Layout.fillWidth: true
                 placeholderText: root.pendingDeleteName
-                color: "#e8e8f0"; placeholderTextColor: "#444466"; font.pixelSize: 13
+                color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textPlaceholder; font.pixelSize: 13
                 leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                 background: Rectangle {
-                    radius: 6; color: "#12122a"
-                    border.color: deleteNameField.activeFocus ? "#ab3d4c" : "#3a3a5c"; border.width: 1
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                    radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: deleteNameField.activeFocus ? ThemeManager.accent : ThemeManager.borderLight; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } }
                 }
                 Keys.onReturnPressed: {
                     if (text === root.pendingDeleteName) {
@@ -849,11 +863,10 @@ Item {
                     onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
                     background: Rectangle {
                         radius: 7
-                        color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }
                     }
                     contentItem: Text {
-                        text: parent.text; color: "#e8e8f0"; font.pixelSize: 12; font.weight: Font.Bold
+                        text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8

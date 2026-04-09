@@ -3,6 +3,7 @@
 
 import QtQuick
 import QtQuick.Layouts
+import "Theme"
 
 Item {
     id: root
@@ -10,7 +11,11 @@ Item {
     signal createSelected()
     signal searchSelected()
 
-    Rectangle { anchors.fill: parent; color: "#0f0f1a" }
+    Rectangle { 
+        anchors.fill: parent
+        color: ThemeManager.background
+        Behavior on color { ColorAnimation { duration: 200 } }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -25,15 +30,17 @@ Item {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: "MindTrace"
-                color: "#e8e8f0"
+                color: ThemeManager.textPrimary
                 font.pixelSize: 36
                 font.weight: Font.Bold
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: "Sistema de análise comportamental"
-                color: "#8888aa"
+                color: ThemeManager.textSecondary
                 font.pixelSize: 13
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
         }
 
@@ -41,7 +48,8 @@ Item {
             Layout.fillWidth: true
             Layout.topMargin: 24
             height: 1
-            color: "#2d2d4a"
+            color: ThemeManager.border
+            Behavior on color { ColorAnimation { duration: 200 } }
         }
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 32 }
@@ -76,8 +84,9 @@ Item {
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: "UFRN — Laboratório de Neurobiologia da Memória"
-            color: "#3a3a5c"
+            color: ThemeManager.textTertiary
             font.pixelSize: 11
+            Behavior on color { ColorAnimation { duration: 150 } }
         }
     }
 }

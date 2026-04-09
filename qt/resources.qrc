@@ -6,8 +6,14 @@
     <file>qml/core/HomeScreen.qml</file>
     <file>qml/core/SelectionCard.qml</file>
     <file>qml/core/GhostButton.qml</file>
+    <file>qml/core/PrimaryButton.qml</file>
     <file>qml/core/Toast.qml</file>
     <file>qml/core/qtquickcontrols2.conf</file>
+
+    <file>qml/core/Theme/qmldir</file>
+    <file>qml/core/Theme/ThemeManager.qml</file>
+    <file>qml/core/Theme/ColorPalette.qml</file>
+    <file>qml/core/Theme/SettingsScreen.qml</file>
 
     <file>qml/shared/LiveRecording.qml</file>
     <file>qml/shared/SessionResultDialog.qml</file>
