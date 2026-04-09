@@ -59,37 +59,36 @@ QMediaPlayer (headless)
 
 ## GPU / ONNX Execution Providers
 
-O `InferenceEngine` detecta o fabricante da GPU via **DXGI** e roteia para o provider ideal:
+O `InferenceEngine` detecta o fabricante da GPU via **DXGI** e tenta providers em cascata:
 
 - **DXGI** (`IDXGIFactory1`) enumera os adaptadores e lê o `VendorId` (`0x10DE`=NVIDIA, `0x1002`=AMD, `0x8086`=Intel) — chamada única na inicialização, sem overhead durante inferência
-- **NVIDIA → CUDA**: requer `onnxruntime-win-x64-gpu-1.24.4` + drivers CUDA. Se o build for o padrão (sem CUDA), cai automaticamente para DirectML
-- **AMD/Intel → DirectML**: requer `onnxruntime-directml` binários + `DirectML.dll` (extraídos do NuGet) + DirectX 12 (Win10+)
-- **CPU fallback**: ativa quando nenhum provider GPU está disponível
+- **NVIDIA → CUDA → DirectML → CPU**: tenta CUDA primeiro; se a sessão falhar (ex: CUDA Toolkit/cuDNN não instalados), cai para DirectML; se DirectML falhar, CPU
+- **AMD/Intel → DirectML → CPU**: tenta DirectML; se falhar, CPU
 - **GPU ativo** (CUDA ou DML): `SetIntraOpNumThreads(1)` — provider gerencia paralelismo
 - **CPU fallback**: `SetIntraOpNumThreads(4)` + `ORT_ENABLE_ALL` graph optimization
 - **`dxgi.lib` linkado** para detecção de vendor. **`d3d12.lib` NÃO é linkado** — DX12/CUDA são internos ao `onnxruntime.dll`
 
-> **Build ONNX Runtime:**
-> - NVIDIA     → `setup_onnx.ps1 -GpuType CUDA` (Baixa do GitHub)
-> - AMD/Intel → `setup_onnx.ps1 -GpuType DML` (Baixa do NuGet)
-> O script automatiza o download e organização em `onnxruntime_sdk/`.
+> **Setup ONNX Runtime:** usar `build.bat` — ele detecta SDK ausente e oferece download automático.  
+> O `setup_onnx.ps1` **não deve ser executado diretamente** — o `build.bat` o chama com o ambiente MSVC correto.
+> - NVIDIA  → opção 2 (Baixa `onnxruntime-win-x64-gpu` do GitHub)
+> - AMD/Intel → opção 1 (Baixa `Microsoft.ML.OnnxRuntime.DirectML` do NuGet)
 
-### Configuração GPU
+> **CUDA requer dependências externas ao ORT:** CUDA Toolkit 12.x + cuDNN 9.x instalados separadamente. Sem eles, o provider CUDA falha na criação da sessão e o fallback para DirectML é automático.
 
-```cpp
-const GpuVendor vendor = detectGpuVendor(); // DXGI VendorId
+### Cascata de providers (`createSession`)
 
-if (vendor == GpuVendor::NVIDIA && try_add_cuda_provider(opts)) {
-    opts.SetIntraOpNumThreads(1);
-    emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
-} else if (try_add_dml_provider(opts)) {
-    opts.SetIntraOpNumThreads(1);
-    emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
-} else {
-    opts.SetIntraOpNumThreads(4);
-    opts.SetGraphOptimizationLevel(ORT_ENABLE_ALL);
-    emit infoMsg("Modo CPU: GPU não disponível");
-}
+A lógica usa `tryCreateSessions(opts)` — helper que cria as 3 sessões e retorna `false` se qualquer uma falhar, permitindo retry com o próximo provider:
+
+```
+NVIDIA detectado → try_add_cuda_provider → tryCreateSessions
+  ├── OK  → "Modo GPU: CUDA ativo (NVIDIA)"
+  └── FAIL → try_add_dml_provider → tryCreateSessions
+               ├── OK  → "Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"
+               └── FAIL → CPU opts → tryCreateSessions → "Modo CPU: GPU não disponível"
+
+AMD/Intel detectado → try_add_dml_provider → tryCreateSessions
+  ├── OK  → "Modo GPU: DirectML ativo (AMD/Intel, DirectX 12)"
+  └── FAIL → CPU opts → "Modo CPU: GPU não disponível"
 ```
 
 **Alternativa Python (`inference_processor.py`)**: script standalone que usa `onnxruntime` com `CPUExecutionProvider` apenas — serve como referência/gold standard, não integrado ao pipeline C++.
@@ -250,3 +249,5 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | Fase TR/TT/RA por rato | Unificado: campo `sessaoField` único aplica a mesma fase aos 3 ratos da sessão |
 | Toggle de tema não funcionava | `qmldir` ausente em `Theme/` — sem ele `pragma Singleton` é ignorado e cada componente recebe instância separada |
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo anterior; removido de `Component.onCompleted` para garantir dark mode sempre |
+| NVIDIA sem CUDA Toolkit não iniciava análise | `try_add_cuda_provider` não valida CUDA em runtime — a sessão só falha em `Ort::Session(...)`. Resolvido com `tryCreateSessions()` por tentativa: CUDA → DirectML → CPU |
+| `setup_onnx.ps1` executado diretamente sem MSVC | Script deve ser chamado apenas pelo `build.bat`, que ativa o ambiente MSVC correto antes |

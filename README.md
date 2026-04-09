@@ -16,7 +16,7 @@ Sistema de tracking comportamental de ratos em arenas NOR, rodando **nativamente
 | Visual Studio | 2022 ou superior | Instalar workload "Desenvolvimento para desktop com C++" |
 | CMake | 3.25+ | Adicionar ao PATH durante instalação |
 | Qt | 6.11.0 | Ver seção abaixo — instalar via Qt Online Installer |
-| ONNX Runtime | 1.24.4 | Baixar pacote DirectML (ver Seção 2) |
+| ONNX Runtime | 1.24.4 | Configurado automaticamente pelo `build.bat` (ver Seção 2) |
 | Python | 3.12+ (opcional) | Apenas para debug/validação do modelo |
 
 ### Instalação do Qt 6.11.0
@@ -44,22 +44,29 @@ Se o caminho for diferente, edite a variável `QT_DIR` no início de `qt\scripts
 
 ### Passo 1 — Configuração Automática (Recomendado)
 
-O projeto inclui um script que baixa e organiza as DLLs e cabeçalhos automaticamente conforme sua GPU:
+O `build.bat` detecta automaticamente se o SDK está faltando e oferece baixá-lo:
 
-1. Abra o terminal na pasta `qt/`.
-2. Execute o comando:
-   ```cmd
-   powershell -ExecutionPolicy Bypass -File scripts\setup_onnx.ps1
-   ```
-3. Escolha entre **DML** (AMD ou Intel) ou **CUDA** (NVIDIA).
+```cmd
+cd qt
+scripts\build.bat
+```
 
-> **Atenção:** O `build.bat` também detectará se o SDK está faltando e oferecerá rodar este script automaticamente no primeiro build.
+Na primeira execução sem o SDK, ele perguntará:
+```
+[1] Sim, para GPU AMD ou Intel (DirectML)
+[2] Sim, para GPU NVIDIA (CUDA)
+[3] Não, sair
+```
+
+Selecione a opção correspondente à sua GPU. O script baixa e organiza tudo automaticamente.
+
+> **Não execute o `setup_onnx.ps1` diretamente.** Use sempre o `build.bat` — ele garante o ambiente MSVC correto antes de qualquer operação.
 
 ---
 
 ### Passo 2 — Configuração Manual (Fallback)
 
-Se o script falhar ou você preferir controle manual, organize os arquivos conforme abaixo:
+Se o download automático falhar, organize os arquivos manualmente:
 
 #### Para AMD / Intel (DirectML):
 1.  **Baixe o Motor:** [`Microsoft.ML.OnnxRuntime.DirectML.1.24.4.nupkg`](https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/1.24.4)
@@ -83,8 +90,6 @@ MindTrace/
 
 > **Atenção:** a pasta `qt/` contém o código-fonte. O `onnxruntime_sdk` deve ficar na raiz (`MindTrace/`), não dentro de `qt/`.
 
-Pronto. O build vai encontrar os headers e a lib automaticamente.
-
 ---
 
 ## 3. Modelo ONNX
@@ -107,25 +112,64 @@ scripts\build.bat
 
 O script:
 1. Detecta o Visual Studio instalado via `vswhere`
-2. Configura CMake (C++17, NMake Makefiles)
-3. Compila e roda `windeployqt`
-4. Copia DLLs do ONNX Runtime de `onnxruntime_sdk\lib\` para `build\`
-5. Executa `MindTrace.exe`
+2. Verifica o SDK ONNX e oferece download automático se ausente
+3. Configura CMake (C++17, NMake Makefiles)
+4. Compila e roda `windeployqt`
+5. Copia DLLs do ONNX Runtime de `onnxruntime_sdk\lib\` para `build\`
+6. Executa `MindTrace.exe`
 
 ---
 
 ## 5. Detecção de GPU em Runtime
 
-O código detecta automaticamente a GPU via **DXGI** na inicialização — sem necessidade de recompilar:
+O código detecta automaticamente a GPU via **DXGI** na inicialização e tenta os providers em cascata — sem necessidade de recompilar:
 
-| GPU detectada | Provider ONNX ativo | Pacote necessário |
+| GPU detectada | Provider tentado (ordem) | Resultado se falhar |
 |---|---|---|
-| NVIDIA | CUDA | `onnxruntime-win-x64-gpu-1.24.4` |
-| AMD / Intel | DirectML (DirectX 12) | `onnxruntime-win-x64-1.24.4` |
-| Nenhuma | CPU (fallback automático) | qualquer um |
+| NVIDIA | CUDA → DirectML → CPU | Fallback automático para o próximo |
+| AMD / Intel | DirectML → CPU | Fallback automático para CPU |
+| Nenhuma | CPU | — |
 
 O status é exibido na área de log durante o carregamento do modelo, ex.:  
-`"Modo GPU: CUDA ativo (NVIDIA)"` ou `"Modo GPU: DirectML ativo (AMD, DirectX 12)"`.
+`"Modo GPU: CUDA ativo (NVIDIA)"` ou `"Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"`.
+
+### Aviso para usuários NVIDIA (CUDA)
+
+O pacote `onnxruntime-win-x64-gpu` **não inclui** os drivers CUDA — apenas o motor de inferência.  
+Para que o provider CUDA funcione, você precisa instalar separadamente:
+
+| Dependência | Versão recomendada | Download |
+|---|---|---|
+| CUDA Toolkit | 12.6.3 | [Baixar CUDA 12.6.3](https://developer.nvidia.com/cuda-12-6-3-download-archive) · [Arquivo completo](https://developer.nvidia.com/cuda-toolkit-archive) |
+| cuDNN | 9.x (para CUDA 12) | [Baixar cuDNN](https://developer.nvidia.com/cudnn-downloads) · [Arquivo completo](https://developer.nvidia.com/rdp/cudnn-archive) |
+
+#### Instalando o cuDNN (passo obrigatório após o download)
+
+A partir do **cuDNN 8**, o instalador **não copia mais os arquivos para dentro da pasta do CUDA** — ele instala em um diretório separado. Você precisa copiar as DLLs manualmente.
+
+**1. Localize a pasta do cuDNN instalado:**
+```
+C:\Program Files\NVIDIA\CUDNN\v9.x\bin\
+```
+Dentro de `bin\` haverá uma subpasta com a versão do CUDA correspondente (ex: `12.6\`). Use a que bater com a versão do seu CUDA Toolkit.
+
+**2. Copie todas as DLLs dessa subpasta para o `bin\` do CUDA:**
+
+| Origem | Destino |
+|---|---|
+| `C:\Program Files\NVIDIA\CUDNN\v9.x\bin\12.6\*.dll` | `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\` |
+
+> Se instalou CUDA 13.x em vez de 12.x, o procedimento é o mesmo — use a subpasta `13.x\` do cuDNN e copie para o `bin\` do CUDA 13.
+
+**3. Verifique** que o arquivo `cudnn64_9.dll` está em:
+```
+C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\cudnn64_9.dll
+```
+
+Após copiar, rode `scripts\build.bat` e o log do app deve exibir `"Modo GPU: CUDA ativo (NVIDIA)"`.
+
+> **Sem esses drivers, o CUDA falha silenciosamente e o app cai automaticamente para DirectML (DirectX 12).** O comportamento é idêntico ao de placas AMD/Intel — sem perda de funcionalidade, apenas menor desempenho de inferência comparado ao CUDA nativo.  
+> Você verá no log: `"Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"` em vez de `"Modo GPU: CUDA ativo (NVIDIA)"`.
 
 ---
 
@@ -157,7 +201,7 @@ MindTrace.exe (Qt 6.11.0 / C++17 / ONNX Runtime 1.24.4)
             ├── QVideoSink          — recebe cada frame decodificado do QMediaPlayer headless
             │    └── videoFrameChanged → onVideoFrameChanged → enqueueFrame
             └── InferenceEngine (QThread)  — inferência ONNX nativa multi-thread
-                 ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML (AMD/Intel) / CPU
+                 ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML / CPU (cascata)
                  ├── 3× Ort::Session (uma por campo)
                  └── std::thread por campo → inferência paralela
 ```
@@ -181,7 +225,7 @@ analyzingChanged()                  — bool isAnalyzing
 
 ```
 MindTrace/
-├── onnxruntime_sdk/    ← SDK ONNX Runtime (você baixa e renomeia)
+├── onnxruntime_sdk/    ← SDK ONNX Runtime (configurado pelo build.bat)
 └── qt/
     ├── src/
     │   ├── core/           — main.cpp
@@ -193,7 +237,7 @@ MindTrace/
     │   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
     │   └── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
     ├── data/               — arenas.json, arena_config_referencia.json
-    ├── scripts/            — build.bat
+    ├── scripts/            — build.bat, setup_onnx.ps1
     ├── CMakeLists.txt
     └── resources.qrc
 ```
@@ -234,3 +278,4 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | Toggle de tema não funcionava | `qmldir` ausente em `Theme/` — sem ele cada componente recebe instância separada |
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo; removido do `Component.onCompleted` |
 | Três SDKs na raiz | Unificado para um único `onnxruntime_sdk/` — usuário baixa só o que precisa |
+| NVIDIA sem CUDA Toolkit caía em erro fatal | `tryCreateSessions()` por provider — CUDA falha → tenta DirectML → CPU (cascata automática) |

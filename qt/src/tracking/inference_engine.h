@@ -51,6 +51,7 @@ private:
     };
 
     bool createSession();
+    bool tryCreateSessions(Ort::SessionOptions& opts);
     void processJob(const Job& job);
     void inferCrop(const QImage& crop, int campo, int ox, int oy,
                    float scaleX, float scaleY);

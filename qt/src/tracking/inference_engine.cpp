@@ -145,38 +145,74 @@ void InferenceEngine::requestStop()
 
 // ── Session creation ──────────────────────────────────────────────────────────
 
-bool InferenceEngine::createSession()
+// Helper: tenta criar as 3 sessões ONNX com as opções fornecidas.
+// Retorna true se todas foram criadas com sucesso, false caso contrário.
+// Em caso de falha, reseta os ponteiros para não deixar sessões parciais.
+bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& opts)
 {
     try {
-        Ort::SessionOptions opts;
-
-        // ── GPU provider chain com detecção automática de vendor ──────
-        // DXGI detecta o fabricante da GPU (NVIDIA/AMD/Intel) antes de tentar
-        // qualquer provider, evitando exceções desnecessárias para AMD/Intel.
-        const GpuVendor vendor = detectGpuVendor();
-
-        if (vendor == GpuVendor::NVIDIA && try_add_cuda_provider(opts)) {
-            // NVIDIA + onnxruntime-win-x64-gpu build: máximo desempenho via CUDA
-            opts.SetIntraOpNumThreads(1);
-            emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
-        } else if (try_add_dml_provider(opts)) {
-            // AMD/Intel (ou NVIDIA sem build CUDA): DirectML via DirectX 12
-            const QString gpuName = (vendor == GpuVendor::NVIDIA) ? "NVIDIA" :
-                                    (vendor == GpuVendor::AMD)    ? "AMD"    : "Intel";
-            opts.SetIntraOpNumThreads(1);
-            emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
-        } else {
-            opts.SetIntraOpNumThreads(4);
-            opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-            emit infoMsg("Modo CPU: GPU não disponível");
-        }
-
-        // Create one session per campo for parallel inference
         for (int i = 0; i < 3; i++) {
             m_sessions[i] = std::make_unique<Ort::Session>(
                 m_env, m_modelPath.toStdWString().c_str(), opts);
         }
+        return true;
+    } catch (const Ort::Exception& e) {
+        qDebug() << "[ORT] Falha ao criar sessão:" << e.what();
+        for (int i = 0; i < 3; i++) m_sessions[i].reset();
+        return false;
+    }
+}
 
+bool InferenceEngine::createSession()
+{
+    // DXGI detecta o fabricante da GPU uma única vez
+    const GpuVendor vendor = detectGpuVendor();
+
+    // ── Tentativa 1: CUDA (NVIDIA) ────────────────────────────────────────────
+    // try_add_cuda_provider apenas registra o provider nas opções — não valida
+    // se os drivers CUDA/cuDNN estão disponíveis. A validação real acontece em
+    // tryCreateSessions(). Se falhar (ex: cudart não instalado), cai para DML.
+    if (vendor == GpuVendor::NVIDIA) {
+        Ort::SessionOptions opts;
+        if (try_add_cuda_provider(opts)) {
+            opts.SetIntraOpNumThreads(1);
+            if (tryCreateSessions(opts)) {
+                emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
+                goto sessions_ready;
+            }
+            qDebug() << "[ORT] CUDA registrado mas sessão falhou (CUDA runtime/cuDNN ausente?). Tentando DirectML...";
+        }
+    }
+
+    // ── Tentativa 2: DirectML (AMD/Intel/NVIDIA sem CUDA) ─────────────────────
+    {
+        Ort::SessionOptions opts;
+        if (try_add_dml_provider(opts)) {
+            opts.SetIntraOpNumThreads(1);
+            if (tryCreateSessions(opts)) {
+                const QString gpuName = (vendor == GpuVendor::NVIDIA) ? "NVIDIA" :
+                                        (vendor == GpuVendor::AMD)    ? "AMD"    : "Intel";
+                emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
+                goto sessions_ready;
+            }
+            qDebug() << "[ORT] DirectML registrado mas sessão falhou. Usando CPU.";
+        }
+    }
+
+    // ── Tentativa 3: CPU fallback ─────────────────────────────────────────────
+    {
+        Ort::SessionOptions opts;
+        opts.SetIntraOpNumThreads(4);
+        opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+        if (!tryCreateSessions(opts)) {
+            emit errorMsg("ONNX: falha ao criar sessão mesmo em modo CPU.");
+            return false;
+        }
+        emit infoMsg("Modo CPU: GPU não disponível");
+    }
+
+sessions_ready:
+    try {
         Ort::AllocatorWithDefaultOptions alloc;
 
         // Query names from the first session (identical across all three)
@@ -189,7 +225,6 @@ bool InferenceEngine::createSession()
         }
         m_hasLocref = (m_outputNames.size() >= 2);
         return true;
-
     } catch (const Ort::Exception& e) {
         emit errorMsg(QString("ONNX load error: ") + e.what());
         return false;
