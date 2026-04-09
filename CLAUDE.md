@@ -63,16 +63,16 @@ O `InferenceEngine` detecta o fabricante da GPU via **DXGI** e roteia para o pro
 
 - **DXGI** (`IDXGIFactory1`) enumera os adaptadores e lê o `VendorId` (`0x10DE`=NVIDIA, `0x1002`=AMD, `0x8086`=Intel) — chamada única na inicialização, sem overhead durante inferência
 - **NVIDIA → CUDA**: requer `onnxruntime-win-x64-gpu-1.24.4` + drivers CUDA. Se o build for o padrão (sem CUDA), cai automaticamente para DirectML
-- **AMD/Intel → DirectML**: requer `onnxruntime-win-x64-1.24.4` + DirectX 12 (Win10+)
+- **AMD/Intel → DirectML**: requer `onnxruntime-directml` binários + `DirectML.dll` (extraídos do NuGet) + DirectX 12 (Win10+)
 - **CPU fallback**: ativa quando nenhum provider GPU está disponível
 - **GPU ativo** (CUDA ou DML): `SetIntraOpNumThreads(1)` — provider gerencia paralelismo
 - **CPU fallback**: `SetIntraOpNumThreads(4)` + `ORT_ENABLE_ALL` graph optimization
 - **`dxgi.lib` linkado** para detecção de vendor. **`d3d12.lib` NÃO é linkado** — DX12/CUDA são internos ao `onnxruntime.dll`
 
 > **Build ONNX Runtime:**
-> - AMD/Intel → `onnxruntime-win-x64-1.24.4` (DirectML + CPU)
-> - NVIDIA     → `onnxruntime-win-x64-gpu-1.24.4` (CUDA + CPU)
-> O código detecta o vendor via DXGI; NVIDIA vai para CUDA, outros para DirectML.
+> - NVIDIA     → `setup_onnx.ps1 -GpuType CUDA` (Baixa do GitHub)
+> - AMD/Intel → `setup_onnx.ps1 -GpuType DML` (Baixa do NuGet)
+> O script automatiza o download e organização em `onnxruntime_sdk/`.
 
 ### Configuração GPU
 
@@ -167,10 +167,9 @@ cd qt && scripts\build.bat
 ```
 
 - Qt 6.11.0 em `C:\Qt\6.11.0\msvc2022_64` (módulos obrigatórios: Qt Multimedia + Qt Shader Tools)
-- ONNX Runtime: pasta `onnxruntime_sdk/` na raiz do projeto (CMake busca `../onnxruntime_sdk`)
-  - **NVIDIA:** baixar `onnxruntime-win-x64-gpu-1.24.4.zip`, extrair, renomear para `onnxruntime_sdk/`
-  - **AMD/Intel:** baixar `onnxruntime-win-x64-1.24.4.zip`, extrair, renomear para `onnxruntime_sdk/`
-  - Estrutura esperada: `onnxruntime_sdk/include/` (headers) + `onnxruntime_sdk/lib/` (lib + DLLs)
+- ONNX Runtime: pasta `onnxruntime_sdk/` na raiz do projeto (gerada via `qt/scripts/setup_onnx.ps1`)
+  - **Uso:** `powershell -ExecutionPolicy Bypass -File scripts\setup_onnx.ps1`
+  - Estrutura esperada: `onnxruntime_sdk/include/` (headers) + `onnxruntime_sdk/lib/` (lib + DLLs, incluindo `DirectML.dll`)
 - C++17, CMake 3.25+ + NMake
 - Build copia DLLs de `onnxruntime_sdk/lib/` para `build/`
 - **MSVC 14.4+ obrigatório** (VS 2022 ou superior)

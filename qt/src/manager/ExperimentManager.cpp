@@ -29,28 +29,33 @@ QVariant ExperimentListModel::data(const QModelIndex &index, int role) const
         return QVariant();
 
     switch (role) {
-    case NameRole: return m_names.at(index.row());
-    case PathRole: return m_paths.at(index.row());
-    default:       return QVariant();
+    case NameRole:    return m_names.at(index.row());
+    case PathRole:    return m_paths.at(index.row());
+    case ContextRole: return m_contexts.at(index.row());
+    default:          return QVariant();
     }
 }
 
 QHash<int, QByteArray> ExperimentListModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
-    roles[NameRole] = "name";
-    roles[PathRole] = "path";
+    roles[NameRole]    = "name";
+    roles[PathRole]    = "path";
+    roles[ContextRole] = "context";
     return roles;
 }
 
 void ExperimentListModel::setSourceData(const QStringList &names,
-                                        const QStringList &paths)
+                                        const QStringList &paths,
+                                        const QStringList &contexts)
 {
     beginResetModel();
-    m_allNames = names;
-    m_allPaths = paths;
-    m_names    = names;
-    m_paths    = paths;
+    m_allNames    = names;
+    m_allPaths    = paths;
+    m_allContexts = contexts;
+    m_names       = names;
+    m_paths       = paths;
+    m_contexts    = contexts;
     endResetModel();
     emit countChanged();
 }
@@ -58,18 +63,15 @@ void ExperimentListModel::setSourceData(const QStringList &names,
 void ExperimentListModel::applyFilter(const QString &query)
 {
     beginResetModel();
-    if (query.isEmpty()) {
-        m_names = m_allNames;
-        m_paths = m_allPaths;
-    } else {
-        m_names.clear();
-        m_paths.clear();
-        const QString lower = query.toLower();
-        for (int i = 0; i < m_allNames.size(); ++i) {
-            if (m_allNames.at(i).toLower().contains(lower)) {
-                m_names.append(m_allNames.at(i));
-                m_paths.append(m_allPaths.at(i));
-            }
+    m_names.clear();
+    m_paths.clear();
+    m_contexts.clear();
+
+    for (int i = 0; i < m_allNames.size(); ++i) {
+        if (m_allNames.at(i).contains(query, Qt::CaseInsensitive)) {
+            m_names.append(m_allNames.at(i));
+            m_paths.append(m_allPaths.at(i));
+            m_contexts.append(m_allContexts.at(i));
         }
     }
     endResetModel();
@@ -81,9 +83,9 @@ void ExperimentListModel::applyFilter(const QString &query)
 // ===========================================================================
 
 ExperimentManager::ExperimentManager(QObject *parent)
-    : QObject(parent)
-    , m_model(new ExperimentListModel(this))
-{}
+    : QObject(parent), m_model(new ExperimentListModel(this)), m_inSearchMode(false)
+{
+}
 
 ExperimentListModel *ExperimentManager::model()        const { return m_model; }
 QString              ExperimentManager::activeContext() const { return m_activeContext; }
@@ -100,16 +102,17 @@ QString ExperimentManager::basePath() const
 // Varre o diretório do contexto ativo e atualiza o modelo — sempre executa.
 void ExperimentManager::scanAndUpdateModel()
 {
-    QStringList names, paths;
+    QStringList names, paths, contexts;
 
     // 1. Pastas do diretório padrão
     const QString contextPath = basePath() + QLatin1Char('/') + m_activeContext;
     QDir dir(contextPath);
     if (dir.exists()) {
-        const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        for (const QString &entry : entries) {
-            names.append(entry);
-            paths.append(contextPath + QLatin1Char('/') + entry);
+        const QFileInfoList entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const QFileInfo &info : entries) {
+            names << info.fileName();
+            paths << info.absoluteFilePath();
+            contexts << m_activeContext;
         }
     }
 
@@ -117,30 +120,27 @@ void ExperimentManager::scanAndUpdateModel()
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
     if (regFile.open(QIODevice::ReadOnly)) {
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (int i = 0; i < arr.size(); ++i) {
-            QJsonObject obj = arr[i].toObject();
+        for (const auto& v : arr) {
+            QJsonObject obj = v.toObject();
             if (obj["context"].toString() == m_activeContext) {
-                QString n = obj["name"].toString();
-                QString p = obj["path"].toString();
-                if (QDir(p).exists()) {
-                    if (!names.contains(n)) {
-                        names.append(n);
-                        paths.append(p);
-                    }
+                QString path = obj["path"].toString();
+                // Evita duplicar se o experimento já foi achado na varredura de pastas
+                if (!paths.contains(path, Qt::CaseInsensitive)) {
+                    names << obj["name"].toString();
+                    paths << path;
+                    contexts << m_activeContext;
                 }
             }
         }
     }
 
-    m_model->setSourceData(names, paths);
+    m_model->setSourceData(names, paths, contexts);
 }
 
 void ExperimentManager::loadContext(const QString &context)
 {
-    const bool changed = (m_activeContext != context);
-    m_activeContext = context;
-    if (changed)
-        emit activeContextChanged();
+    m_inSearchMode = false;
+    setActiveContext(context);
     scanAndUpdateModel();
 }
 
@@ -230,16 +230,26 @@ bool ExperimentManager::deleteExperiment(const QString &name)
         emit errorOccurred(QStringLiteral("Nome inválido."));
         return false;
     }
-    const QString folderPath = basePath() + QLatin1Char('/') + m_activeContext + QLatin1Char('/') + trimmed;
-    QDir dir(folderPath);
-    if (!dir.exists()) {
+
+    // Usa experimentPath() para encontrar o caminho real (padrão ou registry)
+    const QString folderPath = experimentPath(trimmed);
+    if (folderPath.isEmpty()) {
         emit errorOccurred(QStringLiteral("Experimento não encontrado: ") + trimmed);
         return false;
+    }
+    QDir dir(folderPath);
+    if (!dir.exists()) {
+        // Pasta já não existe (excluída externamente) — limpa o registry e atualiza
+        removeFromRegistry(trimmed);
+        scanAndUpdateModel();
+        emit experimentDeleted(trimmed);
+        return true;
     }
     if (!dir.removeRecursively()) {
         emit errorOccurred(QStringLiteral("Não foi possível excluir: ") + trimmed);
         return false;
     }
+    removeFromRegistry(trimmed);
     scanAndUpdateModel();
     emit experimentDeleted(trimmed);
     return true;
@@ -340,39 +350,40 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
 
 void ExperimentManager::loadAllContexts()
 {
-    QDir base(basePath());
-    base.mkpath(base.path());
+    QString rootPath = basePath();
+    QDir base(rootPath);
+    base.mkpath(rootPath);
 
-    QStringList names, paths;
-
-    // 1. Busca padrão nas pastas
-    const QStringList contexts = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QString &ctx : contexts) {
-        const QString ctxPath = basePath() + QLatin1Char('/') + ctx;
-        QDir ctxDir(ctxPath);
-        const QStringList entries = ctxDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        for (const QString &entry : entries) {
-            names.append(entry);
-            paths.append(ctxPath + QLatin1Char('/') + entry);
+    QStringList ctxFolders = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    QStringList names, paths, contexts;
+    for (const QString &ctx : ctxFolders) {
+        QDir ctxDir(rootPath + "/" + ctx);
+        QFileInfoList entries = ctxDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const QFileInfo &info : entries) {
+            names << info.fileName();
+            paths << info.absoluteFilePath();
+            contexts << ctx;
         }
     }
 
-    // 2. Busca do registro global para diretorios customizados
+    // Registry
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
     if (regFile.open(QIODevice::ReadOnly)) {
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (int i = 0; i < arr.size(); ++i) {
-            QJsonObject obj = arr[i].toObject();
-            QString n = obj["name"].toString();
-            QString p = obj["path"].toString();
-            if (QDir(p).exists() && !names.contains(n)) {
-                names.append(n);
-                paths.append(p);
+        for (const auto& v : arr) {
+            QJsonObject obj = v.toObject();
+            QString path = obj["path"].toString();
+            // Evita duplicar experimentos que estão no registro e também na árvore de diretórios
+            if (!paths.contains(path, Qt::CaseInsensitive)) {
+                names << obj["name"].toString();
+                paths << path;
+                contexts << obj["context"].toString();
             }
         }
     }
 
-    m_model->setSourceData(names, paths);
+    m_inSearchMode = true;
+    m_model->setSourceData(names, paths, contexts);
 }
 
 void ExperimentManager::setActiveContext(const QString &context)
@@ -380,6 +391,12 @@ void ExperimentManager::setActiveContext(const QString &context)
     if (m_activeContext != context) {
         m_activeContext = context;
         emit activeContextChanged();
+        
+        // Se NÃO estivermos em modo de pesquisa, trocamos a sidebar para mostrar apenas esse contexto.
+        // Se ESTIVERMOS em modo pesquisa, mantemos a lista global (resultados da busca).
+        if (!m_inSearchMode && !m_activeContext.isEmpty()) {
+            scanAndUpdateModel();
+        }
     }
 }
 
@@ -525,6 +542,35 @@ void ExperimentManager::setExperimentReactivation(const QString &experimentName,
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
     }
+}
+
+void ExperimentManager::refreshModel()
+{
+    scanAndUpdateModel();
+}
+
+void ExperimentManager::removeFromRegistry(const QString &name)
+{
+    const QString regPath = basePath() + QStringLiteral("/registry.json");
+    QFile regFile(regPath);
+    if (!regFile.open(QIODevice::ReadOnly))
+        return;
+    QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
+    regFile.close();
+
+    QJsonArray updated;
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        if (obj["name"].toString() == name && obj["context"].toString() == m_activeContext)
+            continue; // remove esta entrada
+        updated.append(obj);
+    }
+
+    if (arr.size() == updated.size())
+        return; // nada removido — não reescreve
+
+    if (regFile.open(QIODevice::WriteOnly))
+        regFile.write(QJsonDocument(updated).toJson());
 }
 
 // ── Helpers de escrita ───────────────────────────────────────────────────────

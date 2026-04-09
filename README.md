@@ -16,7 +16,7 @@ Sistema de tracking comportamental de ratos em arenas NOR, rodando **nativamente
 | Visual Studio | 2022 ou superior | Instalar workload "Desenvolvimento para desktop com C++" |
 | CMake | 3.25+ | Adicionar ao PATH durante instalação |
 | Qt | 6.11.0 | Ver seção abaixo — instalar via Qt Online Installer |
-| ONNX Runtime | 1.24.4 | Baixar conforme sua GPU — ver Seção 2 |
+| ONNX Runtime | 1.24.4 | Baixar pacote DirectML (ver Seção 2) |
 | Python | 3.12+ (opcional) | Apenas para debug/validação do modelo |
 
 ### Instalação do Qt 6.11.0
@@ -42,43 +42,43 @@ Se o caminho for diferente, edite a variável `QT_DIR` no início de `qt\scripts
 > Você só precisa **baixar um pacote** — o que corresponde à sua GPU.  
 > O código detecta a GPU automaticamente em runtime (via DXGI) e usa o melhor provider disponível.
 
-### Passo 1 — Baixe o pacote certo para sua GPU
+### Passo 1 — Configuração Automática (Recomendado)
 
-**NVIDIA:**
+O projeto inclui um script que baixa e organiza as DLLs e cabeçalhos automaticamente conforme sua GPU:
 
-Baixe [`onnxruntime-win-x64-gpu-1.24.4.zip`](https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip) em [github.com/microsoft/onnxruntime/releases/tag/v1.24.4](https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4).
+1. Abra o terminal na pasta `qt/`.
+2. Execute o comando:
+   ```cmd
+   powershell -ExecutionPolicy Bypass -File scripts\setup_onnx.ps1
+   ```
+3. Escolha entre **DML** (AMD ou Intel) ou **CUDA** (NVIDIA).
 
-Providers ativos em runtime: **CUDA → CPU fallback**
+> **Atenção:** O `build.bat` também detectará se o SDK está faltando e oferecerá rodar este script automaticamente no primeiro build.
 
-> Requer drivers NVIDIA com suporte a CUDA instalados.
+---
 
-**AMD / Intel / outra:**
+### Passo 2 — Configuração Manual (Fallback)
 
-Baixe [`onnxruntime-win-x64-1.24.4.zip`](https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-1.24.4.zip) no mesmo link acima.
+Se o script falhar ou você preferir controle manual, organize os arquivos conforme abaixo:
 
-Providers ativos em runtime: **DirectML (DirectX 12) → CPU fallback**
+#### Para AMD / Intel (DirectML):
+1.  **Baixe o Motor:** [`Microsoft.ML.OnnxRuntime.DirectML.1.24.4.nupkg`](https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/1.24.4)
+2.  **Baixe a Base:** [`Microsoft.AI.DirectML.1.15.4.nupkg`](https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.15.4)
+3.  Renomeie para `.zip` e extraia DLLs de `runtimes/win-x64/native/` para `onnxruntime_sdk/lib/`.
+4.  Extraia `DirectML.dll` (do segundo pacote) para `onnxruntime_sdk/lib/`.
+5.  Extraia headers de `build/native/include/` para `onnxruntime_sdk/include/`.
 
-> Funciona em qualquer placa com suporte a DirectX 12 (AMD, Intel, inclusive NVIDIA se preferir).
+#### Para NVIDIA (CUDA):
+1.  Baixe [`onnxruntime-win-x64-gpu-1.24.4.zip`](https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip).
+2.  Extraia e renomeie a pasta para `onnxruntime_sdk/` na raiz do projeto.
 
-### Passo 2 — Extraia e renomeie para `onnxruntime_sdk`
-
-Após extrair o `.zip`, você verá uma pasta com o nome original (ex.: `onnxruntime-win-x64-1.24.4`).  
-**Renomeie** essa pasta para `onnxruntime_sdk` e coloque-a na **raiz do projeto** — ou seja, **um nível acima** da pasta `qt/`:
-
+**Estrutura Final Esperada:**
 ```
-MindTrace/                  ← raiz do projeto (aqui fica o onnxruntime_sdk)
-├── onnxruntime_sdk/        ← coloque aqui, NÃO dentro de qt/
-│   ├── include/
-│   │   └── onnxruntime_cxx_api.h
-│   ├── lib/
-│   │   ├── onnxruntime.lib
-│   │   ├── onnxruntime.dll
-│   │   └── onnxruntime_providers_shared.dll
-│   └── ...
-└── qt/                     ← pasta de código-fonte (NÃO coloque o SDK aqui)
-    ├── CMakeLists.txt
-    └── scripts/
-        └── build.bat
+MindTrace/
+├── onnxruntime_sdk/        ← Raiz do SDK
+│   ├── include/            ← Cabeçalhos (.h)
+│   └── lib/                ← DLLs e .lib
+└── qt/                     ← Código-fonte
 ```
 
 > **Atenção:** a pasta `qt/` contém o código-fonte. O `onnxruntime_sdk` deve ficar na raiz (`MindTrace/`), não dentro de `qt/`.

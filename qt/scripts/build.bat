@@ -68,6 +68,45 @@ call %VCVARS%
 :: ── Cria a pasta de build ─────────────────────────────────────
 if not exist build mkdir build
 
+:: ── Verifica SDK ONNX (Obrigatório para CMake) ───────────────
+for %%i in ("%~dp0..\..\onnxruntime_sdk") do set "ONNX_SDK=%%~fi"
+
+if exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" goto :SDK_OK
+
+:SDK_MISSING
+echo.
+echo [AVISO] ONNX Runtime SDK nao encontrado em: %ONNX_SDK%
+echo.
+echo Gostaria de baixar e configurar as dependencias automaticamente agora?
+echo [1] Sim, para GPU AMD ou Intel (DirectML^)
+echo [2] Sim, para GPU NVIDIA ^(CUDA^)
+echo [3] Nao, sair
+echo.
+set /p CHOICE="Opcao [1-3]: "
+
+if "%CHOICE%"=="1" (
+    powershell -ExecutionPolicy Bypass -File "%~dp0setup_onnx.ps1" -GpuType DML
+) else if "%CHOICE%"=="2" (
+    powershell -ExecutionPolicy Bypass -File "%~dp0setup_onnx.ps1" -GpuType CUDA
+) else (
+    echo [INFO] Por favor, instale o SDK manualmente conforme o README.md e tente novamente.
+    pause & exit /b 1
+)
+
+if errorlevel 1 (
+    echo.
+    echo [ERRO] Ocorreu uma falha critica durante o setup das dependencias.
+    echo        Verifique sua conexao com a internet e tente novamente.
+    pause & exit /b 1
+)
+
+rem Verifica se funcionou apos o script
+if not exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" (
+    echo [ERRO] O setup falhou ou nao foi concluido corretamente (arquivos ausentes^).
+    pause & exit /b 1
+)
+
+:SDK_OK
 :: ── Configura com CMake ───────────────────────────────────────
 echo.
 echo [1/3] Configurando CMake...
@@ -100,20 +139,16 @@ set EXE=build\MindTrace.exe
 
 :: ── Copia ONNX Runtime DLLs (motor nativo C++) ───────────────
 echo.
-set ONNX_SDK=..\onnxruntime_sdk
-if not exist "%ONNX_SDK%\lib\onnxruntime.dll" (
-    echo [ERRO] ONNX Runtime SDK nao encontrado em: %ONNX_SDK%\lib\
-    echo        Baixe o pacote adequado para sua GPU (ver README.md Secao 2^)
-    echo        e renomeie a pasta extraida para 'onnxruntime_sdk' na raiz do projeto.
-    pause & exit /b 1
-)
-for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
+
+:: Copia DLLs necessárias para a pasta build
+echo [INFO] Copiando binarios do ORT...
+for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll DirectML.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
     if exist "%ONNX_SDK%\lib\%%D" (
         copy /y "%ONNX_SDK%\lib\%%D" "build\" >nul
-        echo [OK] ONNX DLL copiada: %%D
+        echo [OK] DLL copiada: %%D
     )
 )
-echo [INFO] Prioridade GPU: CUDA (NVIDIA) -^> DirectML (AMD/Intel) -^> CPU
+echo [INFO] Prioridade GPU: CUDA (NVIDIA) -> DirectML (AMD/Intel) -> CPU
 
 :: Copia modelo ONNX para build\
 for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml) do (
@@ -123,7 +158,17 @@ for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml) do (
     )
 )
 
-:: ── Executa ───────────────────────────────────────────────────
+echo [4/4] Finalizando build...
+if not exist "build\MindTrace.exe" (
+    echo [ERRO] Falha na geracao do executavel.
+    pause & exit /b 1
+)
+
 echo.
-echo Iniciando MindTrace...
+echo ==========================================
+echo [SUCESSO] Build concluido com sucesso!
+echo Local: qt\build\MindTrace.exe
+echo ==========================================
+echo.
+pause
 "%EXE%"

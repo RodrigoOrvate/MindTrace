@@ -56,12 +56,17 @@ static void applyZonesFromJson(const QJsonObject &root, QString &arenaPoints, QS
 }
 
 void ArenaConfigModel::loadConfig(const QString &context, const QString &expName) {
+    QString path = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+                 + "/MindTrace_Data/Experimentos/" + context + "/" + expName;
+    loadConfigFromPath(path);
+}
+
+void ArenaConfigModel::loadConfigFromPath(const QString &folderPath) {
     m_pairId = QString(); m_imageUrl = QString(); m_arenaPoints = QString(); m_floorPoints = QString();
     m_configured = false; m_zones.clear();
     for (int i = 0; i < 6; ++i) m_zones.append(defaultZone(i));
 
-    QString path = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
-                 + "/MindTrace_Data/Experimentos/" + context + "/" + expName + "/arena_config.json";
+    QString path = folderPath + "/arena_config.json";
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -86,8 +91,15 @@ void ArenaConfigModel::loadConfig(const QString &context, const QString &expName
 bool ArenaConfigModel::saveConfig(const QString &context, const QString &expName, const QString &pairId,
                                   const QString &imageUrl, const QVariantList &zones,
                                   const QString &arenaPointsJson, const QString &floorPointsJson) {
-    QString rootPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
-                     + "/MindTrace_Data/Experimentos/" + context + "/" + expName;
+    QString folderPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+                       + "/MindTrace_Data/Experimentos/" + context + "/" + expName;
+    return saveConfigToPath(folderPath, pairId, imageUrl, zones, arenaPointsJson, floorPointsJson);
+}
+
+bool ArenaConfigModel::saveConfigToPath(const QString &folderPath, const QString &pairId,
+                                      const QString &imageUrl, const QVariantList &zones,
+                                      const QString &arenaPointsJson, const QString &floorPointsJson) {
+    QString rootPath = folderPath;
 
     QDir().mkpath(rootPath);
     QJsonArray zArr;

@@ -5,9 +5,26 @@
 
 // GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU
 // CUDA:     requires onnxruntime-win-x64-gpu build + NVIDIA CUDA drivers.
-// DirectML: requires onnxruntime-win-x64 standard build + DirectX 12 (Windows 10+).
-// Note: dml_provider_factory.h not needed — uses generic GetExecutionProviderApi("DML") API.
+// DirectML: requires onnxruntime-directml + DirectML.dll (from NuGet).
+// Definimos a interface manualmente para evitar erro de cabeçalho ausente.
+#include <d3d12.h>
 #include <dxgi.h>
+
+// Estrutura binária exata da OrtDmlApi para ONNX Runtime 1.24.4
+// A ordem dos membros é crítica para o mapeamento correto na DLL.
+typedef struct OrtDmlApi {
+    OrtStatus* (ORT_API_CALL* SessionOptionsAppendExecutionProvider_DML)(_In_ OrtSessionOptions* options, int device_id);
+    OrtStatus* (ORT_API_CALL* SessionOptionsAppendExecutionProvider_DML1)(_In_ OrtSessionOptions* options, _In_ void* dml_device, _In_ void* cmd_queue);
+    OrtStatus* (ORT_API_CALL* CreateGPUAllocationFromD3DResource)(_In_ ID3D12Resource* d3d_resource, _Out_ void** dml_resource);
+    OrtStatus* (ORT_API_CALL* FreeGPUAllocation)(_In_ void* dml_resource);
+    OrtStatus* (ORT_API_CALL* GetD3D12ResourceFromAllocation)(_In_ OrtAllocator* provider, _In_ void* dml_resource, _Out_ ID3D12Resource** d3d_resource);
+    OrtStatus* (ORT_API_CALL* SessionOptionsAppendExecutionProvider_DML2)(_In_ OrtSessionOptions* options, const void* device_opts);
+    OrtStatus* (ORT_API_CALL* GetDMLDevice)(_In_ OrtSessionOptions* options, _Out_ void** dmlDevice);
+    OrtStatus* (ORT_API_CALL* GetDMLCommandQueue)(_In_ OrtSessionOptions* options, _Out_ ID3D12CommandQueue** dmlCommandQueue);
+} OrtDmlApi;
+
+// Declaração do helper que o ORT exporta para obter as APIs dos providers
+// Já declarado em onnxruntime_c_api.h
 
 // ── GPU vendor detection via DXGI ─────────────────────────────────────────────
 // Enumerates the first discrete (non-software) adapter to identify the vendor.
@@ -51,19 +68,46 @@ static bool try_add_cuda_provider(Ort::SessionOptions& opts) {
 }
 
 // Returns true if DirectML EP was successfully registered (AMD/Intel/NVIDIA, DX12).
-// Uses the generic AppendExecutionProvider("DML", {}) API available in ORT 1.20+.
+// Tenta primeiro a API específica (via GetExecutionProviderApi) e cai para a genérica.
 static bool try_add_dml_provider(Ort::SessionOptions& opts) {
     try {
-        // DirectML requer estas opções obrigatoriamente
+        qDebug() << "[ORT] Tentando ativar DirectML (GPU AMD/Intel)...";
+        
+        // Opções obrigatórias para DirectML
         opts.DisableMemPattern();
         opts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
+        // 1. Tenta obter a API específica do DirectML via OrtApi
+        const OrtDmlApi* dml_api = nullptr;
+        const OrtApi* api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+        
+        OrtStatus* status = api->GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&dml_api));
+        if (status == nullptr && dml_api != nullptr) {
+            qDebug() << "[ORT] OrtDmlApi encontrada. Chamando AppendExecutionProvider_DML(device_id: 0)...";
+            OrtStatus* add_status = dml_api->SessionOptionsAppendExecutionProvider_DML(opts, 0);
+            if (add_status == nullptr) {
+                qDebug() << "[ORT] DirectML ativado via OrtDmlApi!";
+                return true; 
+            } else {
+                qDebug() << "[ORT] Falha ao registrar DML via API específica.";
+            }
+        } else {
+            qDebug() << "[ORT] GetExecutionProviderApi('DML') falhou ou retornou nulo. A DLL onnxruntime.dll pode ser a versão de CPU.";
+        }
+
+        // 2. Fallback para API genérica de configuração via string
+        qDebug() << "[ORT] Tentando fallback para API genérica de strings...";
         std::unordered_map<std::string, std::string> dml_options;
         dml_options["device_id"] = "0";
         opts.AppendExecutionProvider("DML", dml_options);
+        qDebug() << "[ORT] DirectML ativado via API genérica!";
         return true;
-    } catch (const Ort::Exception&) {
-        return false;  // DirectML EP not available or failed to initialize
+    } catch (const Ort::Exception& e) {
+        qDebug() << "[ORT] Erro ao carregar DirectML:" << e.what();
+        return false;
+    } catch (...) {
+        qDebug() << "[ORT] Erro desconhecido ao carregar DirectML.";
+        return false;
     }
 }
 

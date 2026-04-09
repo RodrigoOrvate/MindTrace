@@ -20,16 +20,21 @@ public:
     bool    configured() const;
 
     // ── API invocável pelo QML ──────────────────────────────────────────
-    // Adicionado 'context' aqui para bater com o C++
+    // Carrega a configuração da arena (zonas, pontos) conforme o contexto e nome (pasta padrão)
     Q_INVOKABLE void loadConfig(const QString &context, const QString &expName);
+    
+    // NOVO: Carrega a partir de um caminho de pasta absoluto (Desktop, HD Externo, etc)
+    Q_INVOKABLE void loadConfigFromPath(const QString &folderPath);
 
-    Q_INVOKABLE bool saveConfig(const QString &context,
-                                const QString &expName,
-                                const QString &pairId,
-                                const QString &imageUrl,
-                                const QVariantList &zones,
-                                const QString &arenaPointsJson = "",
-                                const QString &floorPointsJson = "");
+    // Salva a configuração atual
+    Q_INVOKABLE bool saveConfig(const QString &context, const QString &expName, const QString &pairId,
+                                const QString &imageUrl, const QVariantList &zones,
+                                const QString &arenaPointsJson, const QString &floorPointsJson);
+                                
+    // NOVO: Salva em um caminho de pasta absoluto
+    Q_INVOKABLE bool saveConfigToPath(const QString &folderPath, const QString &pairId,
+                                      const QString &imageUrl, const QVariantList &zones,
+                                      const QString &arenaPointsJson, const QString &floorPointsJson);
 
     Q_INVOKABLE QString     getArenaPoints() const;
     Q_INVOKABLE QString     getFloorPoints() const;

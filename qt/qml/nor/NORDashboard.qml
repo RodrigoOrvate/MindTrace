@@ -64,9 +64,8 @@ Item {
             // 1. Seleciona automaticamente na lista lateral
             experimentList.selectExperimentByName(name)
 
-            // 2. Carrega a configuração da arena do novo local em Documentos
-            // Passamos o contexto atual e o nome para bater com o C++
-            ArenaConfigModel.loadConfig(root.context, name)
+            // 2. Carrega a configuração da arena do novo local
+            ArenaConfigModel.loadConfigFromPath(path)
 
             // 3. Pula direto para a aba 0 (Arena)
             innerTabs.currentIndex = 0 
@@ -234,12 +233,8 @@ Item {
                                     id: trashArea; anchors.fill: parent
                                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        // Extrai e avisa o C++ qual é o contexto ANTES de tentar deletar
-                                        if (root.searchMode) {
-                                            var parts = model.path.replace(/\\/g, "/").split("/")
-                                            var ctx = parts.length >= 2 ? parts[parts.length - 2] : ""
-                                            ExperimentManager.setActiveContext(ctx)
-                                        }
+                                        // Usa o contexto real vinculado ao item (sem precisar "adivinhar" pelo path)
+                                        ExperimentManager.setActiveContext(model.context)
                                         
                                         root.pendingDeleteName = model.name
                                         deleteStep1Popup.open()
@@ -330,34 +325,30 @@ Item {
                 }
 
                 function loadExperiment(name, path) {
-                    // Em search mode extrai o contexto do path para que
-                    // insertSessionResult e readMetadata usem o contexto correto.
-                    if (root.searchMode) {
-                        var parts = path.replace(/\\/g, "/").split("/")
-                        var ctx = parts.length >= 2 ? parts[parts.length - 2] : ""
-                        ExperimentManager.setActiveContext(ctx)
-                    }
-
                     selectedName = name
                     selectedPath = path
                     tableModel.loadCsv(path + "/tracking_data.csv")
                     workStack.currentIndex = 1
 
-                    // Carrega pares e flag droga a partir do path completo
+                    // Carrega metadata primeiro para saber o CONTEXTO real
                     var meta = ExperimentManager.readMetadataFromPath(path)
+                    var ctx = meta.context || ""
+
+                    // Define o contexto ativo (usado pelo tracker/sessions)
+                    // Se estivermos em searchMode, a sidebar NÃO será limpa (graças ao m_inSearchMode no C++)
+                    ExperimentManager.setActiveContext(ctx)
+
                     pair1       = meta.pair1 || ""
                     pair2       = meta.pair2 || ""
                     pair3       = meta.pair3 || ""
                     includeDrug = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
 
-                    // Carrega configuração da arena (extrai context/expName do path)
-                    var parts = path.replace(/\\/g, "/").split("/")
-                    var ctx  = parts.length >= 2 ? parts[parts.length - 2] : ""
-                    var expN = parts[parts.length - 1]
-                    ArenaConfigModel.loadConfig(ctx, expN)
-                    innerTabs.currentIndex = ArenaConfigModel.configured ? 1 : 0
+                    // Carrega configuração da arena usando o path direto (já atualizado no C++)
+                    ArenaConfigModel.loadConfigFromPath(path)
 
+                    // Se a arena já foi configurada (tem parId), pula para aba Gravação
+                    innerTabs.currentIndex = ArenaConfigModel.configured ? 1 : 0
                 }
 
                 ExperimentTableModel { id: tableModel }
@@ -809,7 +800,8 @@ Item {
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent
-        width: 420; height: 230
+        width: 420
+        height: step2Layout.implicitHeight + 56
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: deleteNameField.forceActiveFocus()
@@ -824,15 +816,38 @@ Item {
         }
 
         ColumnLayout {
-            anchors { fill: parent; margins: 24 }
+            id: step2Layout
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
             Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
-                text: "Digite o nome do experimento para confirmar a exclusão:"
+                text: "Para confirmar, digite o nome do experimento:"
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
+            }
+
+            // Nome em destaque — igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            Rectangle {
+                Layout.fillWidth: true
+                height: nameLabel.implicitHeight + 10
+                radius: 5
+                color: ThemeManager.surfaceDim
+                border.color: ThemeManager.borderLight; border.width: 1
+                Behavior on color { ColorAnimation { duration: 200 } }
+
+                Text {
+                    id: nameLabel
+                    anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; margins: 10 }
+                    text: root.pendingDeleteName
+                    color: ThemeManager.textPrimary
+                    font.pixelSize: 13
+                    font.family: "Consolas, monospace"
+                    font.weight: Font.Medium
+                    wrapMode: Text.WrapAnywhere
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
             }
 
             TextField {

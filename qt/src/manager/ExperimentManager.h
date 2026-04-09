@@ -21,6 +21,7 @@ public:
     enum Roles {
         NameRole = Qt::UserRole + 1,
         PathRole,
+        ContextRole,
     };
 
     explicit ExperimentListModel(QObject *parent = nullptr);
@@ -29,7 +30,7 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void setSourceData(const QStringList &names, const QStringList &paths);
+    void setSourceData(const QStringList &names, const QStringList &paths, const QStringList &contexts);
     void applyFilter(const QString &query);
 
 signals:
@@ -38,8 +39,10 @@ signals:
 private:
     QStringList m_allNames;
     QStringList m_allPaths;
+    QStringList m_allContexts;
     QStringList m_names;   // lista filtrada — exposta ao QML
     QStringList m_paths;
+    QStringList m_contexts;
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +125,9 @@ public:
     // Retorna true se a pasta do experimento já existe no contexto dado.
     Q_INVOKABLE bool experimentExists(const QString &context, const QString &name) const;
 
+    // Re-varre o disco e atualiza o modelo (útil após exclusão externa de pasta).
+    Q_INVOKABLE void refreshModel();
+
 signals:
     void activeContextChanged();
     void experimentCreated(const QString &name, const QString &path);
@@ -133,6 +139,7 @@ signals:
 private:
     QString basePath() const;
     void    scanAndUpdateModel();      // varre o disco e atualiza o modelo
+    void    removeFromRegistry(const QString &name); // remove entrada do registry.json
     void    writeMetadata(const QString &folderPath,
                           const QString &name,
                           int            animalCount,
@@ -148,4 +155,5 @@ private:
 
     ExperimentListModel *m_model;
     QString              m_activeContext;
+    bool                 m_inSearchMode;
 };

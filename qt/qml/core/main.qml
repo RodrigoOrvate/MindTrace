@@ -34,6 +34,12 @@ ApplicationWindow {
     property string pendingPair3:       ""
     property bool   pendingIncludeDrug: true
 
+    // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
+    onActiveChanged: {
+        if (active)
+            ExperimentManager.refreshModel()
+    }
+
     // ── Conexão global: quando ExperimentManager cria um experimento
     //    via NORSetupScreen, navega para o dashboard.
     //    (Criações vindas do botão interno do dashboard são geridas lá.)

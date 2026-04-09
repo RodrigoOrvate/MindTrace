@@ -83,9 +83,7 @@ Item {
 
     onExperimentPathChanged: {
         if (experimentPath !== "") {
-            var expName = experimentPath.split('/').pop().split('\\').pop();
-
-            ArenaConfigModel.loadConfig(root.context, expName);
+            ArenaConfigModel.loadConfigFromPath(experimentPath);
 
             var meta = ExperimentManager.readMetadataFromPath(experimentPath);
             
@@ -456,11 +454,9 @@ Item {
                     var arenaStr = JSON.stringify(root.arenaPoints)
                     var floorStr = JSON.stringify(root.floorPoints)
 
-                    var expName = experimentPath.split('/').pop().split('\\').pop();
-
                     var pairId = pair1 + "/" + pair2 + "/" + pair3
-                    if (ArenaConfigModel.saveConfig(root.context, expName, pairId, "", allZones, arenaStr, floorStr))
-                        saveToast.show("Configuração salva em Documentos/MindTrace_Data!");
+                    if (ArenaConfigModel.saveConfigToPath(experimentPath, pairId, "", allZones, arenaStr, floorStr))
+                        saveToast.show("Configuração salva com sucesso!");
                 }
                 background: Rectangle {
                     radius: 7
