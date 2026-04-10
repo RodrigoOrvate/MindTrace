@@ -26,6 +26,11 @@ Item {
     property string analysisMode: ""
     property string saveDirectory: ""
 
+    // CA mode: hides pair selectors, uses borda/centro or plat/grande zone labels
+    property string aparato:   "nor"
+    property bool   caMode:    aparato === "campo_aberto"
+    property int    numCampos: 3
+
     signal pairsEdited(string p1, string p2, string p3)
     signal analysisModeChangedExternally(string mode)
 
@@ -52,6 +57,9 @@ Item {
         [{x: 0.15, y: 0.15}, {x: 0.85, y: 0.15}, {x: 0.85, y: 0.85}, {x: 0.15, y: 0.85}],
         [{x: 0.15, y: 0.15}, {x: 0.85, y: 0.15}, {x: 0.85, y: 0.85}, {x: 0.15, y: 0.85}]
     ]
+
+    // Razão do quadrado central no Campo Aberto (relativo aos floorPoints)
+    property real centroRatio: 0.5
 
     function zoneIdsForPair(pair) {
         if (!pair || pair.length < 2) return ["—", "—"]
@@ -90,6 +98,7 @@ Item {
             root.pair1 = meta.pair1 || "";
             root.pair2 = meta.pair2 || "";
             root.pair3 = meta.pair3 || "";
+            root.centroRatio = meta.centroRatio || 0.5;
             
             var savedArena = ArenaConfigModel.getArenaPoints();
             var savedFloor = ArenaConfigModel.getFloorPoints();
@@ -365,6 +374,7 @@ Item {
             Button {
                 id: editPairsBtn
                 text: "✏ Editar Pares"
+                visible: !root.caMode
                 onClicked: editPairsPopup.open()
                 
                 background: Rectangle {
@@ -441,7 +451,7 @@ Item {
             // ── Salvar Configuração ──────────────────────────────────────────
             Button {
                 text: "💾 Salvar Configuração"
-                enabled: experimentPath !== "" && pair1 !== ""
+                enabled: experimentPath !== "" && (root.caMode || pair1 !== "")
                 onClicked: {
                     var allZones = []
                     for (var i = 0; i < 6; i++) {
@@ -454,9 +464,13 @@ Item {
                     var arenaStr = JSON.stringify(root.arenaPoints)
                     var floorStr = JSON.stringify(root.floorPoints)
 
-                    var pairId = pair1 + "/" + pair2 + "/" + pair3
-                    if (ArenaConfigModel.saveConfigToPath(experimentPath, pairId, "", allZones, arenaStr, floorStr))
+                    var pairId = root.caMode ? "" : (pair1 + "/" + pair2 + "/" + pair3)
+                    if (ArenaConfigModel.saveConfigToPath(experimentPath, pairId, "", allZones, arenaStr, floorStr)) {
+                        if (root.caMode) {
+                            ExperimentManager.updateCentroRatio(experimentPath, root.centroRatio)
+                        }
                         saveToast.show("Configuração salva com sucesso!");
+                    }
                 }
                 background: Rectangle {
                     radius: 7
@@ -478,7 +492,7 @@ Item {
 
             // ── 3 Campos ─────────────────────────────────────────────────────
             Repeater {
-                model: 3
+                model: root.numCampos
                 delegate: Item {
                     id: campoCell
                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -503,7 +517,7 @@ Item {
                                 font.pixelSize: 11; font.weight: Font.Bold
                             }
                             Rectangle {
-                                visible: campoCell.campoPair !== ""
+                                visible: !root.caMode && campoCell.campoPair !== ""
                                 radius: 3; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
                                 border.color: ThemeManager.accent; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
                                 implicitWidth: pairTxt.implicitWidth + 10; implicitHeight: 16
@@ -570,73 +584,87 @@ Item {
                                         onArenaPointsChanged: arenaCanvas.requestPaint()
                                         onFloorPointsChanged: arenaCanvas.requestPaint()
                                         onDevModeChanged:     arenaCanvas.requestPaint()
+                                        onCaModeChanged:      arenaCanvas.requestPaint()
+                                        onNumCamposChanged:   arenaCanvas.requestPaint()
                                     }
 
                                     onPaint: {
-                                        var ctx = getContext("2d");
-                                        ctx.clearRect(0, 0, width, height);
-
-                                        // Puxa as 8 variáveis de pontos
-                                        var ap = root.arenaPoints[campoCell.campoIndex]; // <-- Novos pontos externos
-                                        var fp = root.floorPoints[campoCell.campoIndex]; // <-- Pontos internos
-                                        if (!ap || !fp) return;
-
-                                        var w = width, h = height;
-
-                                        // Borda Externa (Topo das paredes - Quadrilátero Livre)
-                                        var oTL = {x: ap[0].x*w, y: ap[0].y*h}, oTR = {x: ap[1].x*w, y: ap[1].y*h};
-                                        var oBR = {x: ap[2].x*w, y: ap[2].y*h}, oBL = {x: ap[3].x*w, y: ap[3].y*h};
-                                        
-                                        // Borda Interna (Chão - Quadrilátero Livre)
-                                        var iTL = {x: fp[0].x*w, y: fp[0].y*h}, iTR = {x: fp[1].x*w, y: fp[1].y*h};
-                                        var iBR = {x: fp[2].x*w, y: fp[2].y*h}, iBL = {x: fp[3].x*w, y: fp[3].y*h};
-
-                                        function drawPoly(pts, fill, stroke) {
-                                            ctx.beginPath();
-                                            ctx.moveTo(pts[0].x, pts[0].y);
-                                            for(var i=1; i<pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-                                            ctx.closePath();
-                                            ctx.fillStyle = fill; ctx.fill();
-                                            ctx.lineWidth = 1; ctx.strokeStyle = stroke; ctx.stroke();
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+                                        var ci = campoCell.campoIndex
+                                        if (!root.arenaPoints || !root.floorPoints) return
+                                        var ap = root.arenaPoints[ci]
+                                        var fp = root.floorPoints[ci]
+                                        if (!ap || !fp) return
+                                        var w = width, h = height
+                                        var oTL={x:ap[0].x*w,y:ap[0].y*h}, oTR={x:ap[1].x*w,y:ap[1].y*h}
+                                        var oBR={x:ap[2].x*w,y:ap[2].y*h}, oBL={x:ap[3].x*w,y:ap[3].y*h}
+                                        var iTL={x:fp[0].x*w,y:fp[0].y*h}, iTR={x:fp[1].x*w,y:fp[1].y*h}
+                                        var iBR={x:fp[2].x*w,y:fp[2].y*h}, iBL={x:fp[3].x*w,y:fp[3].y*h}
+                                        function poly(pts,f,s){
+                                            ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y)
+                                            for(var k=1;k<pts.length;k++) ctx.lineTo(pts[k].x,pts[k].y)
+                                            ctx.closePath(); ctx.fillStyle=f; ctx.fill()
+                                            ctx.lineWidth=1; ctx.strokeStyle=s; ctx.stroke()
                                         }
 
-                                        // 3. DESENHA Paredes e Chão (na ordem correta de transparência)
-                                        // Chão (Magenta)
-                                        drawPoly([iTL, iTR, iBR, iBL], "rgba(255, 0, 255, 0.15)", "rgba(255, 0, 255, 0.6)");
-                                        // Parede Topo (Vermelho)
-                                        drawPoly([oTL, oTR, iTR, iTL], "rgba(255, 0, 0, 0.15)", "rgba(255, 0, 0, 0.6)");
-                                        // Parede Fundo (Verde)
-                                        drawPoly([iBL, iBR, oBR, oBL], "rgba(0, 255, 0, 0.15)", "rgba(0, 255, 0, 0.6)");
-                                        // Parede Esquerda (Ciano)
-                                        drawPoly([oTL, iTL, iBL, oBL], "rgba(0, 255, 255, 0.15)", "rgba(0, 255, 255, 0.6)");
-                                        // Parede Direita (Amarelo)
-                                        drawPoly([iTR, oTR, oBR, iBR], "rgba(255, 255, 0, 0.15)", "rgba(255, 255, 0, 0.6)");
-                                        
-                                        // Borda externa Laranja viva para referência
-                                        ctx.strokeStyle = "rgba(255, 170, 0, 0.8)";
-                                        ctx.lineWidth = 2;
-                                        ctx.beginPath();
-                                        ctx.moveTo(oTL.x, oTL.y); ctx.lineTo(oTR.x, oTR.y); ctx.lineTo(oBR.x, oBR.y); ctx.lineTo(oBL.x, oBL.y);
-                                        ctx.closePath(); ctx.stroke();
+                                        if (root.caMode) {
+                                            // --- MODO CAMPO ABERTO (CA) ---
+                                            // 1. Centro (dinâmico via centroRatio)
+                                            var midX = (iTL.x + iBR.x)/2, midY = (iTL.y + iBR.y)/2
+                                            var halfW = (iTR.x - iTL.x) * (root.centroRatio / 2)
+                                            var halfH = (iBL.y - iTL.y) * (root.centroRatio / 2)
+                                            var cTL={x:midX-halfW, y:midY-halfH}, cTR={x:midX+halfW, y:midY-halfH}
+                                            var cBR={x:midX+halfW, y:midY+halfH}, cBL={x:midX-halfW, y:midY+halfH}
+                                            
+                                            poly([cTL,cTR,cBR,cBL], "rgba(255,0,255,0.2)", "rgba(255,0,255,0.8)")
+                                            
+                                            // 2. Borda (área entre Centro e Parede)
+                                            ctx.globalCompositeOperation = "destination-over"
+                                            poly([iTL,iTR,iBR,iBL], "rgba(0,255,255,0.15)", "rgba(0,255,255,0.6)")
+                                            ctx.globalCompositeOperation = "source-over"
 
-                                        // 4. DESENHA Alças (bolinhas brancas) apenas em dev mode
-                                        if (root.devMode) {
-                                            ctx.fillStyle = "#ffffff";
-                                            ctx.strokeStyle = "#000000";
-                                            ctx.lineWidth = 1;
-                                            var allPts = [iTL, iTR, iBR, iBL, oTL, oTR, oBR, oBL];
-                                            for(var j=0; j<8; j++) {
-                                                ctx.beginPath();
-                                                ctx.arc(allPts[j].x, allPts[j].y, 4, 0, 2*Math.PI);
-                                                ctx.fill(); ctx.stroke();
-                                            }
+                                            // 3. Paredes (Borda externa até base)
+                                            poly([oTL,oTR,iTR,iTL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)") 
+                                            poly([iBL,iBR,oBR,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)") 
+                                            poly([oTL,iTL,iBL,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
+                                            poly([iTR,oTR,oBR,iBR],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
+
+                                            // Labels CA
+                                            ctx.font = "bold 10px Inter"; ctx.fillStyle = "white"
+                                            ctx.fillText("Centro", midX - 15, midY + 4)
+                                            ctx.fillStyle = "rgba(255,255,255,0.7)"
+                                            ctx.fillText("Borda", (iTL.x + cTL.x)/2 - 15, midY + 4)
+                                            ctx.fillText("Parede", (oTL.x + iTL.x)/2 - 15, midY + 4)
+                                        } else {
+                                            // --- MODO RECONHECIMENTO (NOR/RO) ---
+                                            // Chão
+                                            poly([iTL,iTR,iBR,iBL], "rgba(255,0,255,0.12)", "rgba(255,0,255,0.5)") 
+                                            // Paredes coloridas
+                                            poly([oTL,oTR,iTR,iTL],"rgba(255,0,0,0.12)",  "rgba(255,0,0,0.5)") 
+                                            poly([iBL,iBR,oBR,oBL],"rgba(0,255,0,0.12)",  "rgba(0,255,0,0.5)") 
+                                            poly([oTL,iTL,iBL,oBL],"rgba(0,255,255,0.12)","rgba(0,255,255,0.5)")
+                                            poly([iTR,oTR,oBR,iBR],"rgba(255,255,0,0.12)","rgba(255,255,0,0.5)")
+
+                                            // Labels NOR
+                                            ctx.font = "bold 10px Inter"; ctx.fillStyle = "rgba(255,0,255,0.8)"
+                                            ctx.fillText("Chão", (iTL.x+iBR.x)/2 - 15, (iTL.y+iBR.y)/2)
+                                            ctx.fillStyle = "rgba(255,255,255,0.6)"
+                                            ctx.fillText("Parede", (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
                                         }
+
+                                        // Borda da arena total
+                                        ctx.strokeStyle="rgba(255,170,0,0.8)"; ctx.lineWidth=2
+                                        ctx.beginPath(); ctx.moveTo(oTL.x,oTL.y)
+                                        ctx.lineTo(oTR.x,oTR.y); ctx.lineTo(oBR.x,oBR.y); ctx.lineTo(oBL.x,oBL.y)
+                                        ctx.closePath(); ctx.stroke()
                                     }
                                 }
 
                                 // ── Zona A (vinho) ────────────────────────────
                                 Rectangle {
                                     id: zoneA
+                                    visible: !root.caMode
                                     property var zd: root.zones[campoCell.campoIndex * 2]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -667,6 +695,7 @@ Item {
                                 // ── Zona B (azul) ─────────────────────────────
                                 Rectangle {
                                     id: zoneB
+                                    visible: !root.caMode
                                     property var zd: root.zones[campoCell.campoIndex * 2 + 1]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -691,6 +720,45 @@ Item {
                                             font.pixelSize: Math.max(6, zoneB.width * 0.16)
                                             horizontalAlignment: Text.AlignHCenter
                                         }
+                                    }
+                                }
+
+                                // ── Pontos Interativos (Dev Mode) ───────────────
+                                Repeater {
+                                    model: root.devMode ? 4 : 0
+                                    Rectangle {
+                                        id: apPt
+                                        z: 20; width: 8; height: 8; radius: 4
+                                        color: "#ff5500" // Laranja para Parede (Outer)
+                                        border.color: "white"; border.width: 1
+                                        property var pt: root.arenaPoints[campoCell.campoIndex][index]
+                                        x: arenaRect.width * pt.x - 4
+                                        y: arenaRect.height * pt.y - 4
+                                    }
+                                }
+
+                                Repeater {
+                                    model: root.devMode ? 4 : 0
+                                    Rectangle {
+                                        id: fpPt
+                                        z: 21; width: 8; height: 8; radius: 1
+                                        color: "#00ccff" // Cyan/Blue para Chão (Floor)
+                                        border.color: "white"; border.width: 1
+                                        property var pt: root.floorPoints[campoCell.campoIndex][index]
+                                        x: arenaRect.width * pt.x - 4
+                                        y: arenaRect.height * pt.y - 4
+                                    }
+                                }
+
+                                // Ponto central para ajuste de escala (CA)
+                                Rectangle {
+                                    visible: root.devMode && root.caMode
+                                    z: 22; width: 10; height: 10; radius: 5
+                                    color: "#ff00ff"; border.color: "white"; border.width: 1
+                                    anchors.centerIn: parent
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "C"; color: "white"; font.pixelSize: 7; font.weight: Font.Bold
                                     }
                                 }
 
@@ -815,6 +883,13 @@ Item {
                                             var nz = root.zones.slice()
                                             nz[ti] = { x: nz[ti].x, y: nz[ti].y, r: Math.max(0.04, Math.min(0.48, nz[ti].r * stepObj)) }
                                             root.zones = nz
+                                        } else if (wheel.modifiers & Qt.AltModifier) {
+                                            // -- Redimensionar Zonas de Contexto (CA/Centro) --
+                                            var stepCtx = wheel.angleDelta.y > 0 ? 1.05 : 0.952
+                                            root.centroRatio = Math.max(0.1, Math.min(0.9, root.centroRatio * stepCtx))
+                                            arenaCanvas.requestPaint()
+                                            // Opcional: Salvar em tempo real ou apenas no botão salvar?
+                                            // Por enquanto, salvamos no botão salvar para evitar IO excessivo.
                                         }
                                     }
                                 }
@@ -822,9 +897,9 @@ Item {
                                 // Placeholder quando par não definido e sem vídeo
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: campoCell.campoPair === "" && root.videoPath === ""
+                                    visible: !root.caMode && campoCell.campoPair === "" && root.videoPath === ""
                                     text: "Par não definido"
-                                    color: ThemeManager.border; font.pixelSize: 10
+                                    color: "white"; opacity: 0.3; font.pixelSize: 10
                                 }
                             }
                         }
@@ -993,8 +1068,9 @@ Item {
                 }
             }
             RowLayout {
-                spacing: 10
-                Text { text: "Campo 3:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                spacing: 16; Layout.fillWidth: true
+                visible: root.numCampos >= 3
+                Text { text: "C3"; color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold; Layout.preferredWidth: 20 }
                 TextField {
                     id: editP3; Layout.fillWidth: true
                     color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: CC"

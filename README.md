@@ -1,6 +1,6 @@
 # MindTrace — MemoryLab / UFRN
 
-Sistema de tracking comportamental de ratos em arenas NOR, rodando **nativamente em C++** com ONNX Runtime. Sem subprocesso Python — toda inferência ocorre dentro do `MindTrace.exe`.
+Sistema de tracking comportamental de ratos para paradigmas **NOR (Novel Object Recognition)** e **Campo Aberto (Open Field)**, rodando **nativamente em C++** com ONNX Runtime. Sem subprocesso Python — toda inferência ocorre dentro do `MindTrace.exe`.
 
 > **Sistema operacional:** Windows 10 ou 11 (64-bit) — obrigatório (usa DirectX 12 / DirectML)
 
@@ -235,7 +235,8 @@ MindTrace/
     ├── qml/
     │   ├── core/           — Navegação e componentes base (main.qml, GhostButton, Theme/)
     │   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
-    │   └── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
+    │   ├── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
+    │   └── ca/             — CADashboard, CAArenaSelection, CASetup, CAMetadataDialog
     ├── data/               — arenas.json, arena_config_referencia.json
     ├── scripts/            — build.bat, setup_onnx.ps1
     ├── CMakeLists.txt
@@ -256,11 +257,16 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 
 ## 11. Funcionalidades Principais
 
+- **Paradigma NOR:** Reconhecimento de objetos com zonas de exploração, índice de discriminação (DI) e suporte a até 2 ou 3 campos por sessão.
+- **Paradigma Campo Aberto (CA):** Tracking de distância total e velocidade média em 2 ou 3 campos simultâneos. Layout dinâmico com ajuste de zona central (`centroRatio`) via `Alt + MouseWheel`.
+- **Métricas de CA (Body Tracking):** Ocupação de zona (Centro/Borda), visitas e tempo agora calculados via body-tracking para maior estabilidade.
 - **Registry System:** Salve experimentos em qualquer HD/Partição; o MindTrace gerencia o atalho no `registry.json`.
 - **Session Codes:** Use `TR` (Treino), `RA` (Reativação) e `TT` (Teste). O sistema calcula o dia e valida a configuração automaticamente.
 - **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
 - **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
 - **Velocidade:** Análise offline em 1x, 2x ou 4x com sincronização automática entre display e inferência.
+- **Busca Universal:** Ponto de entrada único para experimentos; o sistema detecta se é NOR ou CA e abre o dashboard correto. Agora com suporte a exclusão direta no browser.
+- **Navegação Inteligente:** Reset automático de filtros ao navegar entre Dashboards e Busca.
 
 ---
 
@@ -279,3 +285,13 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo; removido do `Component.onCompleted` |
 | Três SDKs na raiz | Unificado para um único `onnxruntime_sdk/` — usuário baixa só o que precisa |
 | NVIDIA sem CUDA Toolkit caía em erro fatal | `tryCreateSessions()` por provider — CUDA falha → tenta DirectML → CPU (cascata automática) |
+| Dupla navegação ao criar experimento CA | Flag `pendingCaFlow` em `main.qml` + remoção do Connections interno em `caSetupComponent` |
+| 5 cards de aparato overflow na janela | Cards reduzidos para 160×250 e spacing para 14px (total 856px ≤ 980px) |
+| Integração Arena CA | `ArenaSetup.qml` unificado. Em modo CA, oculta edição de pares e permite salvar sem objetos configurados |
+| Navegação Unificada | `SearchBrowser.qml` adicionado aos recursos e configurado como rota principal de pesquisa em `main.qml` |
+| Style & Performance | Estilo QML alterado para `Basic` para eliminar avisos de customização e melhorar renderização no Windows |
+| Correção de Contexto CA | Escolha de contexto ("Padrão" vs "Contextual") restringida ao layout de 2 campos |
+| Padronização de Layouts | Remoção do layout de 1 campo; NOR e CA unificados em 2 ou 3 arenas simultâneas |
+| Escalonamento CA | Implementado `Alt + MouseWheel` para ajuste dinâmico da zona central (Centro/Borda) |
+| Precisão CA | Transição para tracking de corpo (body) para métricas de área em Campo Aberto |
+| Navegação & Busca | Reset automático de filtros e adição de botão excluir na Busca Universal |

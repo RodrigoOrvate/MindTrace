@@ -12,6 +12,7 @@ import QtQuick.Controls
 import MindTrace.Backend 1.0
 import "../nor"
 import "../shared"
+import "../ca"
 import "Theme"
 
 ApplicationWindow {
@@ -26,13 +27,20 @@ ApplicationWindow {
     
     Behavior on color { ColorAnimation { duration: 200 } }
 
-    // ── Estado acumulado durante o fluxo de criação ───────────────────────
+    // ── Estado acumulado durante o fluxo de criação NOR ──────────────────
     property string pendingContext:     ""
     property string pendingArenaId:     ""
+    property int    pendingNorNumCampos: 3
     property string pendingPair1:       ""
     property string pendingPair2:       ""
     property string pendingPair3:       ""
     property bool   pendingIncludeDrug: true
+
+    // ── Estado acumulado durante o fluxo de criação CA ───────────────────
+    property int    pendingCaNumCampos: 3
+    property string pendingCaContext:   "Padrão"
+    property string pendingCaArenaId:   "ca_3campos"
+    property bool   pendingCaFlow:      false   // distingue NOR vs CA no onExperimentCreated
 
     // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
     onActiveChanged: {
@@ -49,13 +57,25 @@ ApplicationWindow {
     Connections {
         target: ExperimentManager
         function onExperimentCreated(name, path) {
-            if (root.awaitingCreation) {
-                root.awaitingCreation = false
+            if (!root.awaitingCreation) return
+            root.awaitingCreation = false
+
+            if (root.pendingCaFlow) {
+                root.pendingCaFlow = false
+                stack.push(caDashboardComponent, {
+                    "context":               root.pendingCaContext,
+                    "arenaId":               root.pendingCaArenaId,
+                    "numCampos":             root.pendingCaNumCampos,
+                    "searchMode":            false,
+                    "initialExperimentName": name
+                })
+            } else {
                 stack.push(dashboardComponent, {
-                    "context":      root.pendingContext,
-                    "arenaId":      root.pendingArenaId,
-                    "searchMode":   false,
-                    "currentTabIndex": 1,
+                    "context":               root.pendingContext,
+                    "arenaId":               root.pendingArenaId,
+                    "numCampos":             root.pendingNorNumCampos,
+                    "searchMode":            false,
+                    "currentTabIndex":       1,
                     "initialExperimentName": name
                 })
             }
@@ -109,7 +129,7 @@ ApplicationWindow {
     // ── Settings Modal Overlay ─────────────────────────────────────────────
     SettingsScreen {
         id: settingsOverlay
-        parent: root
+        parent: root.contentItem
     }
 
     // ── Componentes de tela ───────────────────────────────────────────────
@@ -118,7 +138,7 @@ ApplicationWindow {
         id: landingComponent
         LandingScreen {
             onCreateSelected: stack.push(homeScreenComponent)
-            onSearchSelected: stack.push(dashboardComponent, { "searchMode": true, "context": "" })
+            onSearchSelected: stack.push(searchBrowserComponent)
         }
     }
 
@@ -126,6 +146,7 @@ ApplicationWindow {
         id: homeScreenComponent
         HomeScreen {
             onNorSelected:    stack.push(arenaSelectionComponent)
+            onCaSelected:     stack.push(caArenaSelectionComponent)
             onBackRequested:  stack.pop()
         }
     }
@@ -133,12 +154,14 @@ ApplicationWindow {
     Component {
         id: arenaSelectionComponent
         ArenaSelection {
-            onSelectionConfirmed: function(context, arenaId) {
+            onSelectionConfirmed: function(numCampos, context, arenaId) {
+                root.pendingNorNumCampos = numCampos
                 root.pendingContext = context
                 root.pendingArenaId = arenaId
                 stack.push(norSetupComponent, {
-                    "context": context,
-                    "arenaId": arenaId
+                    "context":   context,
+                    "arenaId":   arenaId,
+                    "numCampos": numCampos
                 })
             }
             onBackRequested: stack.pop()
@@ -148,10 +171,6 @@ ApplicationWindow {
     Component {
         id: norSetupComponent
         NORSetupScreen {
-            // Passa o laboratório e arena atuais para a tela de criação
-            context: root.currentContext
-            arenaId: root.currentArenaId
-
             onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath) {
                 ExperimentManager.loadContext(root.pendingContext)
                 root.pendingPair1       = pair1
@@ -159,9 +178,9 @@ ApplicationWindow {
                 root.pendingPair3       = pair3
                 root.pendingIncludeDrug = includeDrug
                 root.awaitingCreation   = true
-                
-                // Cria o experimento com os dados e salva no diretorio customizado se houver
-                ExperimentManager.createExperimentFull(name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath)
+                ExperimentManager.createExperimentFull(
+                    name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath,
+                    "nor", root.pendingNorNumCampos)
             }
             onBackRequested: stack.pop()
         }
@@ -170,7 +189,79 @@ ApplicationWindow {
     Component {
         id: dashboardComponent
         NORDashboard {
+            onBackRequested: {
+                ExperimentManager.clearFilter()
+                stack.pop()
+            }
+        }
+    }
+
+    // ── Fluxo CA ─────────────────────────────────────────────────────────
+
+    Component {
+        id: caArenaSelectionComponent
+        CAArenaSelection {
+            onSelectionConfirmed: function(numCampos, context, arenaId) {
+                root.pendingCaNumCampos = numCampos
+                root.pendingCaContext   = context
+                root.pendingCaArenaId   = arenaId
+                stack.push(caSetupComponent, {
+                    "numCampos": numCampos,
+                    "context":   context,
+                    "arenaId":   arenaId
+                })
+            }
             onBackRequested: stack.pop()
+        }
+    }
+
+    Component {
+        id: caSetupComponent
+        CASetup {
+            onExperimentReady: function(name, cols, includeDrug, hasReactivation, savePath) {
+                ExperimentManager.loadContext(root.pendingCaContext)
+                root.awaitingCreation = true
+                root.pendingCaFlow    = true
+                ExperimentManager.createExperimentFull(
+                    name, cols, "", "", "", includeDrug, hasReactivation, savePath,
+                    "campo_aberto", root.pendingCaNumCampos)
+            }
+            onBackRequested: stack.pop()
+        }
+    }
+
+    Component {
+        id: caDashboardComponent
+        CADashboard {
+            onBackRequested: {
+                ExperimentManager.clearFilter()
+                stack.pop()
+            }
+        }
+    }
+
+    Component {
+        id: searchBrowserComponent
+        SearchBrowser {
+            onBackRequested: {
+                ExperimentManager.clearFilter()
+                stack.pop()
+            }
+            aparatoFilter: "" // Mostra todos por padrão no browser universal
+            onOpenExperiment: function(aparato, numCampos, expName, expPath) {
+                if (aparato === "campo_aberto") {
+                    stack.push(caDashboardComponent, {
+                        "searchMode": true,
+                        "numCampos":  numCampos
+                    })
+                } else {
+                    stack.push(dashboardComponent, {
+                        "searchMode": true,
+                        "numCampos":  numCampos,
+                        "context":    ""
+                    })
+                }
+            }
         }
     }
 }

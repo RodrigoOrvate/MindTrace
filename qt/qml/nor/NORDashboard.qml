@@ -12,18 +12,19 @@ import MindTrace.Backend 1.0
 Item {
     id: root
     
-    property string context: ""
-    property string arenaId: ""
+    property string context:   ""
+    property string arenaId:   ""
+    property int    numCampos: 3
     property bool   searchMode: false
-    
-    property int    currentTabIndex: 0 
-    
+
+    property int    currentTabIndex: 0
+
     // Propriedade para o novo experimento
     property string initialExperimentName: ""
 
     Component.onCompleted: {
         if (root.searchMode) {
-            ExperimentManager.loadAllContexts()
+            ExperimentManager.loadAllContexts("nor")
         }
 
         // Nova lógica para abrir o experimento recém-criado
@@ -47,7 +48,7 @@ Item {
     // Em modo Procurar: context permanece "" → loadAllContexts é chamado em onCompleted.
     onContextChanged: {
         if (!root.searchMode && context !== "")
-            ExperimentManager.loadContext(context)
+            ExperimentManager.loadContext(context, "nor")
     }
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -306,6 +307,7 @@ Item {
                 property int    colCount:     0
 
                 // ── Dados do experimento carregados do metadata.json ──────
+                property int    activeNumCampos: root.numCampos
                 property string pair1:       ""
                 property string pair2:       ""
                 property string pair3:       ""
@@ -338,11 +340,12 @@ Item {
                     // Se estivermos em searchMode, a sidebar NÃO será limpa (graças ao m_inSearchMode no C++)
                     ExperimentManager.setActiveContext(ctx)
 
-                    pair1       = meta.pair1 || ""
-                    pair2       = meta.pair2 || ""
-                    pair3       = meta.pair3 || ""
-                    includeDrug = meta.includeDrug !== false
+                    pair1          = meta.pair1 || ""
+                    pair2          = meta.pair2 || ""
+                    pair3          = meta.pair3 || ""
+                    includeDrug    = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
+                    activeNumCampos = meta.numCampos || 3
 
                     // Carrega configuração da arena usando o path direto (já atualizado no C++)
                     ArenaConfigModel.loadConfigFromPath(path)
@@ -467,6 +470,8 @@ Item {
                                     workArea.pair3 = p3
                                     ExperimentManager.updatePairs(workArea.selectedPath, p1, p2, p3)
                                 }
+                                numCampos: workArea.activeNumCampos
+                                aparato: "nor"
                             }
 
                             // Tab 1: Gravação
@@ -474,14 +479,16 @@ Item {
                                 id: liveRecordingTab
                                 videoPath: tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                numCampos: workArea.activeNumCampos
+                                aparato: "nor"
 
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
                                 pair3: workArea.pair3
 
-                                zones:       tabArenaSetup.zones
-                                arenaPoints: tabArenaSetup.arenaPoints
-                                floorPoints: tabArenaSetup.floorPoints
+                                zones:       ArenaConfigModel.zones
+                                arenaPoints: JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                floorPoints: JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
 
                                 // Timer de 300 s zerou → injeta dados de tracking e abre o diálogo
                                 onSessionEnded: {

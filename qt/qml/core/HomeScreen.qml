@@ -10,6 +10,7 @@ Item {
     id: root
 
     signal norSelected()
+    signal caSelected()
     signal backRequested()
 
     Rectangle { 
@@ -72,10 +73,10 @@ Item {
         // ── Cards ────────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
-            spacing: 20
+            spacing: 14
 
             NORCard {
-                width: 210; height: 270
+                width: 160; height: 250
                 icon: "🧠"
                 title: "Reconhecimento\nde Objetos"
                 description: "Paradigma NOR dependente ou\nindependente de contexto"
@@ -83,15 +84,23 @@ Item {
             }
 
             NORCard {
-                width: 210; height: 270
+                width: 160; height: 250
                 icon: "🐀"
-                title: "Campo Aberto\n/ Habituação"
+                title: "Campo\nAberto"
                 description: "Exploração em campo aberto\ne habituação ao aparato"
+                onClicked: root.caSelected()
+            }
+
+            NORCard {
+                width: 160; height: 250
+                icon: "🧩"
+                title: "Comportamento\nComplexo"
+                description: "Labirinto, sociabilidade\ne paradigmas avançados"
                 locked: true
             }
 
             NORCard {
-                width: 210; height: 270
+                width: 160; height: 250
                 icon: "⚡"
                 title: "Esquiva\nInibitória"
                 description: "Memória aversiva passiva\n(step-through)"
@@ -99,7 +108,7 @@ Item {
             }
 
             NORCard {
-                width: 210; height: 270
+                width: 160; height: 250
                 icon: "📡"
                 title: "Registro\nEletrofisiológico"
                 description: "Canais, taxa de amostragem\ne sincronização com vídeo"

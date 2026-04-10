@@ -13,8 +13,9 @@ import MindTrace.Backend 1.0
 Item {
     id: root
 
-    property string context: ""
-    property string arenaId: ""
+    property string context:   ""
+    property string arenaId:   ""
+    property int    numCampos: 3
 
     // name, cols, par por campo, flag droga, hasReativação, savePath
     signal experimentReady(string name, var cols, string pair1, string pair2, string pair3, bool includeDrug, bool hasReactivation, string savePath)
@@ -26,9 +27,12 @@ Item {
     property string campo3Id: camposMulti.pair3
     property string selectedPath: ""
 
-    property bool allPairsSelected: campo1Id.length === 2
-                                  && campo2Id.length === 2
-                                  && campo3Id.length === 2
+    property bool allPairsSelected: {
+        if (campo1Id.length !== 2) return false
+        if (root.numCampos >= 2 && campo2Id.length !== 2) return false
+        if (root.numCampos >= 3 && campo3Id.length !== 2) return false
+        return true
+    }
 
     function doCreate() {
         var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos"]
@@ -158,8 +162,9 @@ Item {
                     Layout.fillWidth: true; spacing: 16
 
                     CampoSelector {
-                    id: camposMulti
-                    Layout.fillWidth: true
+                        id: camposMulti
+                        Layout.fillWidth: true
+                        numCampos: root.numCampos
                     }
                 }
             }

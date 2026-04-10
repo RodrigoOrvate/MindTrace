@@ -32,6 +32,7 @@ QVariant ExperimentListModel::data(const QModelIndex &index, int role) const
     case NameRole:    return m_names.at(index.row());
     case PathRole:    return m_paths.at(index.row());
     case ContextRole: return m_contexts.at(index.row());
+    case AparatoRole: return m_aparatos.at(index.row());
     default:          return QVariant();
     }
 }
@@ -42,20 +43,24 @@ QHash<int, QByteArray> ExperimentListModel::roleNames() const
     roles[NameRole]    = "name";
     roles[PathRole]    = "path";
     roles[ContextRole] = "context";
+    roles[AparatoRole] = "aparato";
     return roles;
 }
 
 void ExperimentListModel::setSourceData(const QStringList &names,
                                         const QStringList &paths,
-                                        const QStringList &contexts)
+                                        const QStringList &contexts,
+                                        const QStringList &aparatos)
 {
     beginResetModel();
     m_allNames    = names;
     m_allPaths    = paths;
     m_allContexts = contexts;
+    m_allAparatos = aparatos;
     m_names       = names;
     m_paths       = paths;
     m_contexts    = contexts;
+    m_aparatos    = aparatos;
     endResetModel();
     emit countChanged();
 }
@@ -66,12 +71,14 @@ void ExperimentListModel::applyFilter(const QString &query)
     m_names.clear();
     m_paths.clear();
     m_contexts.clear();
+    m_aparatos.clear();
 
     for (int i = 0; i < m_allNames.size(); ++i) {
         if (m_allNames.at(i).contains(query, Qt::CaseInsensitive)) {
             m_names.append(m_allNames.at(i));
             m_paths.append(m_allPaths.at(i));
             m_contexts.append(m_allContexts.at(i));
+            m_aparatos.append(m_allAparatos.at(i));
         }
     }
     endResetModel();
@@ -100,9 +107,23 @@ QString ExperimentManager::basePath() const
 }
 
 // Varre o diretório do contexto ativo e atualiza o modelo — sempre executa.
-void ExperimentManager::scanAndUpdateModel()
+void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
 {
-    QStringList names, paths, contexts;
+    QStringList names, paths, contexts, aparatos;
+
+    auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
+        if (paths.contains(path, Qt::CaseInsensitive)) return;
+
+        QVariantMap meta = readMetadataFromPath(path);
+        QString apa = meta["aparato"].toString();
+        
+        if (aparatoFilter.isEmpty() || apa == aparatoFilter) {
+            names << name;
+            paths << path;
+            contexts << ctx;
+            aparatos << apa;
+        }
+    };
 
     // 1. Pastas do diretório padrão
     const QString contextPath = basePath() + QLatin1Char('/') + m_activeContext;
@@ -110,9 +131,7 @@ void ExperimentManager::scanAndUpdateModel()
     if (dir.exists()) {
         const QFileInfoList entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const QFileInfo &info : entries) {
-            names << info.fileName();
-            paths << info.absoluteFilePath();
-            contexts << m_activeContext;
+            checkAndAdd(info.fileName(), info.absoluteFilePath(), m_activeContext);
         }
     }
 
@@ -123,25 +142,25 @@ void ExperimentManager::scanAndUpdateModel()
         for (const auto& v : arr) {
             QJsonObject obj = v.toObject();
             if (obj["context"].toString() == m_activeContext) {
-                QString path = obj["path"].toString();
-                // Evita duplicar se o experimento já foi achado na varredura de pastas
-                if (!paths.contains(path, Qt::CaseInsensitive)) {
-                    names << obj["name"].toString();
-                    paths << path;
-                    contexts << m_activeContext;
-                }
+                checkAndAdd(obj["name"].toString(), obj["path"].toString(), m_activeContext);
             }
         }
     }
 
-    m_model->setSourceData(names, paths, contexts);
+    m_model->setSourceData(names, paths, contexts, aparatos);
 }
 
-void ExperimentManager::loadContext(const QString &context)
+void ExperimentManager::scanAndUpdateModel()
+{
+    scanAndUpdateModel(m_aparatoFilter);
+}
+
+void ExperimentManager::loadContext(const QString &context, const QString &aparatoFilter)
 {
     m_inSearchMode = false;
+    m_aparatoFilter = aparatoFilter;
     setActiveContext(context);
-    scanAndUpdateModel();
+    scanAndUpdateModel(m_aparatoFilter);
 }
 
 bool ExperimentManager::createExperiment(const QString &name)
@@ -297,7 +316,10 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
                                               const QString     &pair3,
                                               bool               includeDrug,
                                               bool               hasReactivation,
-                                              const QString     &savePath)
+                                              const QString     &savePath,
+                                              const QString     &aparato,
+                                              int                numCampos,
+                                              double             centroRatio)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
         emit errorOccurred(QStringLiteral("Contexto ou nome inválido."));
@@ -340,7 +362,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
         return false;
     }
 
-    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation);
+    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio);
     writeCsv(folderPath, columns, 0);
 
     scanAndUpdateModel();
@@ -348,21 +370,35 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
     return true;
 }
 
-void ExperimentManager::loadAllContexts()
+void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
 {
+    m_aparatoFilter = aparatoFilter;
     QString rootPath = basePath();
     QDir base(rootPath);
     base.mkpath(rootPath);
 
     QStringList ctxFolders = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    QStringList names, paths, contexts;
+    QStringList names, paths, contexts, aparatos;
+
+    auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
+        if (paths.contains(path, Qt::CaseInsensitive)) return;
+
+        QVariantMap meta = readMetadataFromPath(path);
+        QString apa = meta["aparato"].toString();
+        
+        if (aparatoFilter.isEmpty() || apa == aparatoFilter) {
+            names << name;
+            paths << path;
+            contexts << ctx;
+            aparatos << apa;
+        }
+    };
+
     for (const QString &ctx : ctxFolders) {
         QDir ctxDir(rootPath + "/" + ctx);
         QFileInfoList entries = ctxDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const QFileInfo &info : entries) {
-            names << info.fileName();
-            paths << info.absoluteFilePath();
-            contexts << ctx;
+            checkAndAdd(info.fileName(), info.absoluteFilePath(), ctx);
         }
     }
 
@@ -372,18 +408,23 @@ void ExperimentManager::loadAllContexts()
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
         for (const auto& v : arr) {
             QJsonObject obj = v.toObject();
-            QString path = obj["path"].toString();
-            // Evita duplicar experimentos que estão no registro e também na árvore de diretórios
-            if (!paths.contains(path, Qt::CaseInsensitive)) {
-                names << obj["name"].toString();
-                paths << path;
-                contexts << obj["context"].toString();
-            }
+            checkAndAdd(obj["name"].toString(), obj["path"].toString(), obj["context"].toString());
         }
     }
 
     m_inSearchMode = true;
-    m_model->setSourceData(names, paths, contexts);
+    m_aparatoFilter = aparatoFilter;
+    m_model->setSourceData(names, paths, contexts, aparatos);
+}
+
+void ExperimentManager::clearFilter()
+{
+    m_aparatoFilter = "";
+    if (m_inSearchMode) {
+        loadAllContexts("");
+    } else {
+        scanAndUpdateModel("");
+    }
 }
 
 void ExperimentManager::setActiveContext(const QString &context)
@@ -412,12 +453,15 @@ bool ExperimentManager::experimentExists(const QString &context, const QString &
 QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) const
 {
     QVariantMap result;
-    result[QStringLiteral("pair1")]       = QString();
-    result[QStringLiteral("pair2")]       = QString();
-    result[QStringLiteral("pair3")]       = QString();
-    result[QStringLiteral("includeDrug")] = true;
+    result[QStringLiteral("pair1")]           = QString();
+    result[QStringLiteral("pair2")]           = QString();
+    result[QStringLiteral("pair3")]           = QString();
+    result[QStringLiteral("includeDrug")]     = true;
     result[QStringLiteral("hasReactivation")] = false;
-    result[QStringLiteral("context")]     = QString();
+    result[QStringLiteral("context")]         = QString();
+    result[QStringLiteral("aparato")]         = QStringLiteral("nor");
+    result[QStringLiteral("numCampos")]       = 3;
+    result[QStringLiteral("centroRatio")]     = 0.5;
 
     QFile file(folderPath + QStringLiteral("/metadata.json"));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -428,25 +472,36 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
         return result;
 
     const QJsonObject obj = doc.object();
-    result[QStringLiteral("pair1")]       = obj[QStringLiteral("pair1")].toString();
-    result[QStringLiteral("pair2")]       = obj[QStringLiteral("pair2")].toString();
-    result[QStringLiteral("pair3")]       = obj[QStringLiteral("pair3")].toString();
-    result[QStringLiteral("includeDrug")] = obj[QStringLiteral("includeDrug")].toBool(true);
+    result[QStringLiteral("pair1")]           = obj[QStringLiteral("pair1")].toString();
+    result[QStringLiteral("pair2")]           = obj[QStringLiteral("pair2")].toString();
+    result[QStringLiteral("pair3")]           = obj[QStringLiteral("pair3")].toString();
+    result[QStringLiteral("includeDrug")]     = obj[QStringLiteral("includeDrug")].toBool(true);
     result[QStringLiteral("hasReactivation")] = obj[QStringLiteral("hasReactivation")].toBool(false);
-    result[QStringLiteral("context")]     = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("context")]         = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("aparato")]         = obj.contains(QStringLiteral("aparato"))
+                                                ? obj[QStringLiteral("aparato")].toString()
+                                                : QStringLiteral("nor");
+    result[QStringLiteral("numCampos")]       = obj.contains(QStringLiteral("numCampos"))
+                                                ? obj[QStringLiteral("numCampos")].toInt(3)
+                                                : 3;
+    result[QStringLiteral("centroRatio")]     = obj.contains(QStringLiteral("centroRatio"))
+                                                ? obj[QStringLiteral("centroRatio")].toDouble(0.5)
+                                                : 0.5;
     return result;
 }
 
 QVariantMap ExperimentManager::readMetadata(const QString &name) const
 {
-    // Valores padrão caso o arquivo não exista ou não tenha os campos
     QVariantMap result;
-    result[QStringLiteral("pair1")]       = QString();
-    result[QStringLiteral("pair2")]       = QString();
-    result[QStringLiteral("pair3")]       = QString();
-    result[QStringLiteral("includeDrug")] = true;
+    result[QStringLiteral("pair1")]           = QString();
+    result[QStringLiteral("pair2")]           = QString();
+    result[QStringLiteral("pair3")]           = QString();
+    result[QStringLiteral("includeDrug")]     = true;
     result[QStringLiteral("hasReactivation")] = false;
-    result[QStringLiteral("context")]     = QString();
+    result[QStringLiteral("context")]         = QString();
+    result[QStringLiteral("aparato")]         = QStringLiteral("nor");
+    result[QStringLiteral("numCampos")]       = 3;
+    result[QStringLiteral("centroRatio")]     = 0.5;
 
     const QString path = experimentPath(name.trimmed())
                          + QStringLiteral("/metadata.json");
@@ -459,12 +514,21 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
         return result;
 
     const QJsonObject obj = doc.object();
-    result[QStringLiteral("pair1")]       = obj[QStringLiteral("pair1")].toString();
-    result[QStringLiteral("pair2")]       = obj[QStringLiteral("pair2")].toString();
-    result[QStringLiteral("pair3")]       = obj[QStringLiteral("pair3")].toString();
-    result[QStringLiteral("includeDrug")] = obj[QStringLiteral("includeDrug")].toBool(true);
+    result[QStringLiteral("pair1")]           = obj[QStringLiteral("pair1")].toString();
+    result[QStringLiteral("pair2")]           = obj[QStringLiteral("pair2")].toString();
+    result[QStringLiteral("pair3")]           = obj[QStringLiteral("pair3")].toString();
+    result[QStringLiteral("includeDrug")]     = obj[QStringLiteral("includeDrug")].toBool(true);
     result[QStringLiteral("hasReactivation")] = obj[QStringLiteral("hasReactivation")].toBool(false);
-    result[QStringLiteral("context")]     = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("context")]         = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("aparato")]         = obj.contains(QStringLiteral("aparato"))
+                                                 ? obj[QStringLiteral("aparato")].toString()
+                                                 : QStringLiteral("nor");
+    result[QStringLiteral("numCampos")]       = obj.contains(QStringLiteral("numCampos"))
+                                                ? obj[QStringLiteral("numCampos")].toInt(3)
+                                                : 3;
+    result[QStringLiteral("centroRatio")]     = obj.contains(QStringLiteral("centroRatio"))
+                                                ? obj[QStringLiteral("centroRatio")].toDouble(0.5)
+                                                : 0.5;
     return result;
 }
 
@@ -495,6 +559,23 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
         emit errorOccurred(QStringLiteral("Não foi possível salvar metadata.json: ") + metaPath);
         return false;
     }
+    file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+    return true;
+}
+
+bool ExperimentManager::updateCentroRatio(const QString &folderPath, double ratio)
+{
+    const QString metaPath = folderPath + QStringLiteral("/metadata.json");
+    QFile file(metaPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (!doc.isObject()) return false;
+
+    QJsonObject obj = doc.object();
+    obj[QStringLiteral("centroRatio")] = ratio;
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
     file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
     return true;
 }
@@ -583,7 +664,10 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        const QString     &pair2,
                                        const QString     &pair3,
                                        bool               includeDrug,
-                                       bool               hasReactivation) const
+                                       bool               hasReactivation,
+                                       const QString     &aparato,
+                                       int                numCampos,
+                                       double             centroRatio) const
 {
     QJsonArray colArray;
     for (const QString &col : columns)
@@ -599,9 +683,12 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
     meta[QStringLiteral("pair3")]       = pair3;
     meta[QStringLiteral("includeDrug")] = includeDrug;
     meta[QStringLiteral("hasReactivation")] = hasReactivation;
+    meta[QStringLiteral("aparato")]     = aparato;
+    meta[QStringLiteral("numCampos")]   = numCampos;
+    meta[QStringLiteral("centroRatio")] = centroRatio;
     meta[QStringLiteral("createdAt")]   =
         QDateTime::currentDateTime().toString(Qt::ISODate);
-    meta[QStringLiteral("version")]     = QStringLiteral("1.1");
+    meta[QStringLiteral("version")]     = QStringLiteral("1.2");
 
     QFile file(folderPath + QStringLiteral("/metadata.json"));
     if (file.open(QIODevice::WriteOnly | QIODevice::Text))

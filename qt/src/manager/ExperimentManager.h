@@ -22,6 +22,7 @@ public:
         NameRole = Qt::UserRole + 1,
         PathRole,
         ContextRole,
+        AparatoRole,
     };
 
     explicit ExperimentListModel(QObject *parent = nullptr);
@@ -30,7 +31,7 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void setSourceData(const QStringList &names, const QStringList &paths, const QStringList &contexts);
+    void setSourceData(const QStringList &names, const QStringList &paths, const QStringList &contexts, const QStringList &aparatos);
     void applyFilter(const QString &query);
 
 signals:
@@ -40,9 +41,11 @@ private:
     QStringList m_allNames;
     QStringList m_allPaths;
     QStringList m_allContexts;
+    QStringList m_allAparatos;
     QStringList m_names;   // lista filtrada — exposta ao QML
     QStringList m_paths;
     QStringList m_contexts;
+    QStringList m_aparatos;
 };
 
 // ---------------------------------------------------------------------------
@@ -62,7 +65,7 @@ public:
     QString              activeContext() const;
 
     // ── API invocável pelo QML ──────────────────────────────────────────────
-    Q_INVOKABLE void    loadContext(const QString &context);
+    Q_INVOKABLE void    loadContext(const QString &context, const QString &aparatoFilter = QString());
 
     // Criação simples (sem configuração de colunas — mantido por compatibilidade)
     Q_INVOKABLE bool    createExperiment(const QString &name);
@@ -91,7 +94,12 @@ public:
                                              const QString &pair3,
                                              bool includeDrug,
                                              bool hasReactivation,
-                                             const QString &savePath);
+                                             const QString &savePath,
+                                             const QString &aparato = QStringLiteral("nor"),
+                                             int numCampos = 3,
+                                             double centroRatio = 0.5);
+
+    Q_INVOKABLE bool    updateCentroRatio(const QString &folderPath, double ratio);
 
     // Lê metadata.json e retorna pair1/pair2/pair3/includeDrug/hasReactivation para o dashboard.
     Q_INVOKABLE QVariantMap readMetadata(const QString &name) const;
@@ -115,8 +123,10 @@ public:
                                          const QString &jsonData,
                                          const QString &nameHint = QString());
 
-    // Varre TODOS os contextos e popula o modelo — usado pelo modo Procurar.
-    Q_INVOKABLE void loadAllContexts();
+    Q_INVOKABLE void    loadAllContexts(const QString &aparatoFilter = QString());
+
+    // Limpa o filtro de aparato e re-sincroniza o modelo.
+    Q_INVOKABLE void    clearFilter();
 
     // Define m_activeContext sem disparar scan — usado quando o dashboard
     // em search mode seleciona um experimento de um contexto específico.
@@ -138,7 +148,8 @@ signals:
 
 private:
     QString basePath() const;
-    void    scanAndUpdateModel();      // varre o disco e atualiza o modelo
+    void    scanAndUpdateModel(const QString &aparatoFilter); 
+    void    scanAndUpdateModel();
     void    removeFromRegistry(const QString &name); // remove entrada do registry.json
     void    writeMetadata(const QString &folderPath,
                           const QString &name,
@@ -148,12 +159,16 @@ private:
                           const QString &pair2 = QString(),
                           const QString &pair3 = QString(),
                           bool           includeDrug = true,
-                          bool           hasReactivation = false) const;
+                          bool           hasReactivation = false,
+                          const QString &aparato = QStringLiteral("nor"),
+                          int            numCampos = 3,
+                          double         centroRatio = 0.5) const;
     void    writeCsv(const QString &folderPath,
                      const QStringList &columns,
                      int animalCount) const;
 
     ExperimentListModel *m_model;
     QString              m_activeContext;
+    QString              m_aparatoFilter;
     bool                 m_inSearchMode;
 };

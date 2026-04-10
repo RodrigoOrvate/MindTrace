@@ -1,5 +1,7 @@
-// qml/nor/ArenaSelection.qml
-// Passo 2 do fluxo NOR: seleção de número de campos e contexto.
+// qml/ca/CAArenaSelection.qml
+// Passo 2 do fluxo CA: seleção do layout de campos e contexto.
+//
+// Regras de layout:
 // 2 campos → Padrão ou Contextual
 // 3 campos → Sem contexto (fixo)
 
@@ -15,14 +17,12 @@ Item {
     property int    selectedNumCampos: 3
     property string selectedContext:   "Padrão"
 
-    // Contexto forçado para 3 campos
-    readonly property bool contextForced: selectedNumCampos !== 2
-    readonly property string resolvedContext: contextForced ? "Padrão" : selectedContext
-
     readonly property string selectedArenaId:
-        "sq_" + (resolvedContext === "Padrão" ? "padrao" : "contextual")
+        "ca_" + selectedNumCampos + "campos"
 
-    // signal: numCampos, context, arenaId
+    // Apenas 2 campos permitem escolha de contexto
+    readonly property bool contextForced: selectedNumCampos !== 2
+
     signal selectionConfirmed(int numCampos, string context, string arenaId)
     signal backRequested()
 
@@ -43,12 +43,12 @@ Item {
 
             GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
             Item { width: 8 }
-            Text { text: "🎨"; font.pixelSize: 28; color: "#ab3d4c" }
+            Text { text: "🐀"; font.pixelSize: 28; color: "#3d7aab" }
 
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: "Reconhecimento de Objetos"
+                    text: "Campo Aberto"
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -109,7 +109,7 @@ Item {
                             width: grid.cellW; height: grid.cellH
                             radius: 6
                             color: grid.fieldDefs[0].active ? "#0d0d22" : "#0a0a18"
-                            border.color: grid.fieldDefs[0].active ? "#ab3d4c" : "#1a1a2e"
+                            border.color: grid.fieldDefs[0].active ? "#3d7aab" : "#1a1a2e"
                             border.width: 1; clip: true
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -124,7 +124,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: grid.fieldDefs[0].active ? "Campo 1" : "—"
-                                color: grid.fieldDefs[0].active ? "#ab3d4c" : "#1a1a2e"
+                                color: grid.fieldDefs[0].active ? "#3d7aab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -137,7 +137,7 @@ Item {
                             width: grid.cellW; height: grid.cellH
                             radius: 6
                             color: grid.fieldDefs[1].active ? "#0d0d22" : "#0a0a18"
-                            border.color: grid.fieldDefs[1].active ? "#ab3d4c" : "#1a1a2e"
+                            border.color: grid.fieldDefs[1].active ? "#3d7aab" : "#1a1a2e"
                             border.width: 1; clip: true
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -152,7 +152,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: grid.fieldDefs[1].active ? "Campo 2" : "—"
-                                color: grid.fieldDefs[1].active ? "#ab3d4c" : "#1a1a2e"
+                                color: grid.fieldDefs[1].active ? "#3d7aab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -165,7 +165,7 @@ Item {
                             width: grid.cellW; height: grid.cellH
                             radius: 6
                             color: grid.fieldDefs[2].active ? "#0d0d22" : "#0a0a18"
-                            border.color: grid.fieldDefs[2].active ? "#ab3d4c" : "#1a1a2e"
+                            border.color: grid.fieldDefs[2].active ? "#3d7aab" : "#1a1a2e"
                             border.width: 1; clip: true
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -180,7 +180,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: grid.fieldDefs[2].active ? "Campo 3" : "—"
-                                color: grid.fieldDefs[2].active ? "#ab3d4c" : "#1a1a2e"
+                                color: grid.fieldDefs[2].active ? "#3d7aab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -226,13 +226,14 @@ Item {
                         delegate: Rectangle {
                             Layout.fillWidth: true; height: 56; radius: 10
                             property bool isSelected: root.selectedNumCampos === modelData.n
-                            color: isSelected ? ThemeManager.accentDim : (ma.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
-                            border.color: isSelected ? ThemeManager.accent : ThemeManager.border; border.width: isSelected ? 2 : 1
+                            color:        isSelected ? ThemeManager.accentDim : (layoutMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                            border.color: isSelected ? "#3d7aab" : ThemeManager.border
+                            border.width: isSelected ? 2 : 1
                             Behavior on color        { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             ColumnLayout {
-                                anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 10; bottomMargin: 10 }
+                                anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 8; bottomMargin: 8 }
                                 spacing: 2
                                 Text {
                                     text: modelData.label
@@ -246,70 +247,74 @@ Item {
                                 }
                             }
                             MouseArea {
-                                id: ma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                id: layoutMa; anchors.fill: parent
+                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: root.selectedNumCampos = modelData.n
                             }
                         }
                     }
                 }
 
-                // Contexto (apenas para 2 campos)
+                // ── Contexto ──────────────────────────────────────────────
                 ColumnLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    opacity: root.contextForced ? 0.35 : 1.0
+                    Layout.fillWidth: true
+                    spacing: 10
+                    opacity: root.contextForced ? 0.45 : 1.0
                     Behavior on opacity { NumberAnimation { duration: 200 } }
 
                     Text {
                         text: "CONTEXTO"
-                        color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                        color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
 
+                    // Info badge para 3 campos
                     Rectangle {
-                        Layout.fillWidth: true; height: 48; radius: 10
-                        property bool isSelected: root.resolvedContext === "Padrão"
-                        color: isSelected ? ThemeManager.accentDim : (std2.containsMouse && !root.contextForced ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
-                        border.color: isSelected ? ThemeManager.accent : ThemeManager.border; border.width: isSelected ? 2 : 1
-                        Behavior on color        { ColorAnimation { duration: 150 } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Text {
-                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                            text: "Sem contexto  (Padrão)"
-                            color: parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
-                            font.pixelSize: 13; font.weight: Font.Bold
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                        MouseArea {
-                            id: std2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            enabled: !root.contextForced
-                            onClicked: root.selectedContext = "Padrão"
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true; height: 48; radius: 10
-                        property bool isSelected: root.resolvedContext === "Contextual"
-                        color: isSelected ? ThemeManager.accentDim : (ctx2.containsMouse && !root.contextForced ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
-                        border.color: isSelected ? ThemeManager.accent : ThemeManager.border; border.width: isSelected ? 2 : 1
-                        Behavior on color        { ColorAnimation { duration: 150 } }
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Text {
-                            anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                            text: "Com contexto  (Contextual)"
-                            color: parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
-                            font.pixelSize: 13; font.weight: Font.Bold
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                        MouseArea {
-                            id: ctx2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            enabled: !root.contextForced
-                            onClicked: root.selectedContext = "Contextual"
-                        }
-                    }
-
-                    Text {
+                        Layout.fillWidth: true; height: 32; radius: 8
                         visible: root.contextForced
-                        text: "Contexto fixo em Padrão para 3 campos"
-                        color: ThemeManager.textTertiary; font.pixelSize: 10; font.italic: true
+                        color: "#1a1a30"; border.color: "#3a3a5c"; border.width: 1
+                        Text {
+                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                            text: "Contexto fixo em Padrão para 3 campos"
+                            color: "#666688"; font.pixelSize: 11
+                        }
+                    }
+
+                    Repeater {
+                        model: [
+                            { ctx: "Padrão",     label: "Sem Contexto",  desc: "Paredes uniformes — arena neutra." },
+                            { ctx: "Contextual", label: "Com Contexto",  desc: "Paredes coloridas — pistas visuais distintas." }
+                        ]
+                        delegate: Rectangle {
+                            Layout.fillWidth: true; height: 52; radius: 10
+                            property bool isSelected: root.selectedContext === modelData.ctx
+                            enabled: !root.contextForced
+                            color:        isSelected ? ThemeManager.accentDim : (ctxMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                            border.color: isSelected ? "#3d7aab" : ThemeManager.border
+                            border.width: isSelected ? 2 : 1
+                            Behavior on color        { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            ColumnLayout {
+                                anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 8; bottomMargin: 8 }
+                                spacing: 2
+                                Text {
+                                    text: modelData.label
+                                    color: parent.parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
+                                    font.pixelSize: 13; font.weight: Font.Bold
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+                                Text {
+                                    text: modelData.desc
+                                    color: ThemeManager.textTertiary; font.pixelSize: 10; wrapMode: Text.WordWrap
+                                }
+                            }
+                            MouseArea {
+                                id: ctxMa; anchors.fill: parent
+                                enabled: !root.contextForced
+                                hoverEnabled: true; cursorShape: root.contextForced ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                onClicked: if (!root.contextForced) root.selectedContext = modelData.ctx
+                            }
+                        }
                     }
                 }
 
@@ -323,14 +328,15 @@ Item {
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
-            Text { text: "Passo 2  —  Campos e Contexto"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+            Text { text: "Passo 2  —  Layout da Arena"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
 
             Button {
                 text: "Próximo →"
-                onClicked: root.selectionConfirmed(root.selectedNumCampos, root.resolvedContext, root.selectedArenaId)
+                onClicked: root.selectionConfirmed(root.selectedNumCampos, root.selectedContext, root.selectedArenaId)
 
                 background: Rectangle {
-                    radius: 8; color: parent.hovered ? "#8a2e3b" : "#ab3d4c"
+                    radius: 8
+                    color: parent.hovered ? "#2d5f8a" : "#3d7aab"
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {

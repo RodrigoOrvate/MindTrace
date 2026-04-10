@@ -15,10 +15,13 @@ Item {
     property string pair2: ""
     property string pair3: ""
     property string analysisMode: "offline"  // "offline" ou "ao_vivo"
+    property string aparato:      "nor"
+    property int    numCampos:    3           // 1, 2 ou 3 campos ativos
 
     property var zones
     property var arenaPoints
     property var floorPoints
+    property double centroRatio: 0.5
 
     // ── Controle de velocidade (análise offline) ────────────────────────────────
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
@@ -232,6 +235,18 @@ Item {
         timesRemaining   = [300, 300, 300]
         timerStarted     = [false, false, false]
         fieldFinished    = [false, false, false]
+        // Marca campos além de numCampos como já concluídos (1 ou 2 campos ativos)
+        if (numCampos < 3) {
+            var _ff = fieldFinished.slice()
+            var _ts = timerStarted.slice()
+            var _tr = timesRemaining.slice()
+            for (var _pi = numCampos; _pi < 3; _pi++) {
+                _ff[_pi] = true; _ts[_pi] = true; _tr[_pi] = 0
+            }
+            fieldFinished  = _ff
+            timerStarted   = _ts
+            timesRemaining = _tr
+        }
         explorationTimes = [0, 0, 0, 0, 0, 0]
         explorationBouts = [[], [], [], [], [], []]
         _inZone          = [false, false, false, false, false, false]
@@ -285,6 +300,21 @@ Item {
         logView.positionViewAtEnd()
     }
 
+    function isPointInPoly(pt, poly) {
+        if (!poly || poly.length < 3) return false
+        var x = pt.x, y = pt.y
+        var inside = false
+        for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            var xi = poly[i].x, yi = poly[i].y
+            var xj = poly[j].x, yj = poly[j].y
+            var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+            if (intersect) inside = !inside
+        }
+        return inside
+    }
+
+
+
     function accumulateExploration() {
         if (!zones || zones.length < 6) return
         var ox    = [0,   0.5, 0  ]
@@ -297,9 +327,18 @@ Item {
         for (var i = 0; i < 6; i++) newBouts.push(explorationBouts[i].slice())
         var boutsChanged = false
         for (var campo = 0; campo < 3; campo++) {
-            var rx = recordingRoot.ratNormX[campo]
-            var ry = recordingRoot.ratNormY[campo]
-            if (rx < 0 || recordingRoot.ratLikelihood[campo] < 0.5) {
+            var rx, ry, rli;
+            if (recordingRoot.aparato === "campo_aberto") {
+                rx  = recordingRoot.bodyNormX[campo]
+                ry  = recordingRoot.bodyNormY[campo]
+                rli = recordingRoot.bodyLikelihood[campo]
+            } else {
+                rx  = recordingRoot.ratNormX[campo]
+                ry  = recordingRoot.ratNormY[campo]
+                rli = recordingRoot.ratLikelihood[campo]
+            }
+
+            if (rx < 0 || rli < 0.5) {
                 for (var ob2 = 0; ob2 < 2; ob2++) {
                     var zi2 = campo * 2 + ob2
                     if (_inZone[zi2]) {
@@ -310,23 +349,62 @@ Item {
                 }
                 continue
             }
-            for (var obj = 0; obj < 2; obj++) {
-                var zi = campo * 2 + obj
-                var z  = zones[zi]
-                if (!z) continue
-                var zx   = ox[campo] + z.x * cellW
-                var zy   = oy[campo] + z.y * cellH
-                var zr   = z.r * cellW
-                var dx   = rx - zx
-                var dy   = ry - zy
-                var inZ  = (Math.sqrt(dx*dx + dy*dy) < zr)
-                if (inZ) {
-                    newTimes[zi] += 0.1
-                    if (!_inZone[zi]) { _inZone[zi] = true; _entryTime[zi] = now }
-                } else if (_inZone[zi]) {
-                    var dur = (now - _entryTime[zi]) / 1000.0
-                    if (dur > 0.1) { newBouts[zi].push(parseFloat(dur.toFixed(1))); boutsChanged = true }
-                    _inZone[zi] = false
+
+            if (recordingRoot.aparato === "campo_aberto") {
+                // -- Lógica Campo Aberto: Centro vs Borda (Body Tracking) --
+                if (!floorPoints || !floorPoints[campo]) continue
+                var fp = floorPoints[campo]
+                var cr = recordingRoot.centroRatio
+                
+                // Representação local 0..1 dentro do campo (normalizado pelo VideoOutput)
+                // Para CA, usamos BODY em vez de NOSE
+                var lx = bodyLocalX(campo)
+                var ly = bodyLocalY(campo)
+                var pt = { x: lx, y: ly }
+
+                // Calcula Centro
+                var cTL = { x: fp[0].x + (fp[2].x - fp[0].x)*(1-cr)/2, y: fp[0].y + (fp[2].y - fp[0].y)*(1-cr)/2 }
+                var cTR = { x: fp[1].x + (fp[3].x - fp[1].x)*(1-cr)/2, y: fp[1].y + (fp[3].y - fp[1].y)*(1-cr)/2 }
+                var cBR = { x: fp[2].x - (fp[2].x - fp[0].x)*(1-cr)/2, y: fp[2].y - (fp[2].y - fp[0].y)*(1-cr)/2 }
+                var cBL = { x: fp[3].x - (fp[3].x - fp[1].x)*(1-cr)/2, y: fp[3].y - (fp[3].y - fp[1].y)*(1-cr)/2 }
+                var centroPoly = [cTL, cTR, cBR, cBL]
+
+                var inCentro = isPointInPoly(pt, centroPoly)
+                var inBorda  = !inCentro && isPointInPoly(pt, fp)
+
+                // Mapeia Zone 0 -> Centro, Zone 1 -> Borda
+                var zonesCA = [inCentro, inBorda]
+                for (var zca = 0; zca < 2; zca++) {
+                    var ziCA = campo * 2 + zca
+                    if (zonesCA[zca]) {
+                        newTimes[ziCA] += 0.1
+                        if (!_inZone[ziCA]) { _inZone[ziCA] = true; _entryTime[ziCA] = now }
+                    } else if (_inZone[ziCA]) {
+                        var durCA = (now - _entryTime[ziCA]) / 1000.0
+                        if (durCA > 0.1) { newBouts[ziCA].push(parseFloat(durCA.toFixed(1))); boutsChanged = true }
+                        _inZone[ziCA] = false
+                    }
+                }
+            } else {
+                // -- Lógica NOR: Zonas Circulares --
+                for (var obj = 0; obj < 2; obj++) {
+                    var zi = campo * 2 + obj
+                    var z  = zones[zi]
+                    if (!z) continue
+                    var zx   = ox[campo] + z.x * cellW
+                    var zy   = oy[campo] + z.y * cellH
+                    var zr   = z.r * cellW
+                    var dx   = rx - zx
+                    var dy   = ry - zy
+                    var inZ  = (Math.sqrt(dx*dx + dy*dy) < zr)
+                    if (inZ) {
+                        newTimes[zi] += 0.1
+                        if (!_inZone[zi]) { _inZone[zi] = true; _entryTime[zi] = now }
+                    } else if (_inZone[zi]) {
+                        var dur = (now - _entryTime[zi]) / 1000.0
+                        if (dur > 0.1) { newBouts[zi].push(parseFloat(dur.toFixed(1))); boutsChanged = true }
+                        _inZone[zi] = false
+                    }
                 }
             }
         }
@@ -524,12 +602,13 @@ Item {
                     spacing: 24
                     Repeater {
                         model: [
-                            { label: "Campo 1", pair: recordingRoot.pair1 },
-                            { label: "Campo 2", pair: recordingRoot.pair2 },
-                            { label: "Campo 3", pair: recordingRoot.pair3 }
+                            { label: "Campo 1", pair: recordingRoot.pair1, visible: true },
+                            { label: "Campo 2", pair: recordingRoot.pair2, visible: recordingRoot.numCampos >= 2 },
+                            { label: "Campo 3", pair: recordingRoot.pair3, visible: recordingRoot.numCampos >= 3 }
                         ]
                         delegate: RowLayout {
                             spacing: 6
+                            visible: modelData.visible
                             Text { text: modelData.label; color: ThemeManager.textSecondary; font.pixelSize: 11 }
                             Rectangle {
                                 radius: 4; color: ThemeManager.accentDim
@@ -538,7 +617,8 @@ Item {
                                 implicitWidth: cpTxt.implicitWidth + 16; implicitHeight: 20
                                 Text {
                                     id: cpTxt; anchors.centerIn: parent
-                                    text: modelData.pair !== "" ? "Par " + modelData.pair : "—"
+                                    text: (recordingRoot.aparato === "campo_aberto") ? "CA" 
+                                           : (modelData.pair !== "" ? "Par " + modelData.pair : "—")
                                     color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold
                                 }
                             }
@@ -563,7 +643,7 @@ Item {
 
                     // ── 3 campos (top-left, top-right, bottom-left) ───────────
                     Repeater {
-                        model: 3
+                        model: recordingRoot.numCampos
                         delegate: Item {
                             id: campoCell
                             Layout.fillWidth: true; Layout.fillHeight: true
@@ -624,7 +704,20 @@ Item {
                                             ctx.closePath(); ctx.fillStyle=f; ctx.fill()
                                             ctx.lineWidth=1; ctx.strokeStyle=s; ctx.stroke()
                                         }
-                                        poly([iTL,iTR,iBR,iBL],"rgba(255,0,255,0.12)","rgba(255,0,255,0.5)")
+
+                                        if (recordingRoot.aparato === "campo_aberto") {
+                                            var cr = recordingRoot.centroRatio
+                                            var cTL = { x: iTL.x + (iBR.x - iTL.x)*(1-cr)/2, y: iTL.y + (iBR.y - iTL.y)*(1-cr)/2 }
+                                            var cTR = { x: iTR.x + (iBL.x - iTR.x)*(1-cr)/2, y: iTR.y + (iBL.y - iTR.y)*(1-cr)/2 }
+                                            var cBR = { x: iBR.x - (iBR.x - iTL.x)*(1-cr)/2, y: iBR.y - (iBR.y - iTL.y)*(1-cr)/2 }
+                                            var cBL = { x: iBL.x - (iBL.x - iTR.x)*(1-cr)/2, y: iBL.y - (iBL.y - iTR.y)*(1-cr)/2 }
+
+                                            poly([iTL,iTR,iBR,iBL],"rgba(0,255,255,0.1)","rgba(0,255,255,0.5)") // Borda (Cyan)
+                                            poly([cTL,cTR,cBR,cBL],"rgba(255,0,255,0.18)","rgba(255,0,255,0.7)") // Centro (Magenta)
+                                        } else {
+                                            poly([iTL,iTR,iBR,iBL],"rgba(255,0,255,0.12)","rgba(255,0,255,0.5)")
+                                        }
+
                                         poly([oTL,oTR,iTR,iTL],"rgba(255,0,0,0.12)",  "rgba(255,0,0,0.5)")
                                         poly([iBL,iBR,oBR,oBL],"rgba(0,255,0,0.12)",  "rgba(0,255,0,0.5)")
                                         poly([oTL,iTL,iBL,oBL],"rgba(0,255,255,0.12)","rgba(0,255,255,0.5)")
@@ -633,6 +726,15 @@ Item {
                                         ctx.beginPath(); ctx.moveTo(oTL.x,oTL.y)
                                         ctx.lineTo(oTR.x,oTR.y); ctx.lineTo(oBR.x,oBR.y); ctx.lineTo(oBL.x,oBL.y)
                                         ctx.closePath(); ctx.stroke()
+
+                                        // Labels
+                                        ctx.font = "bold 9px Inter"; ctx.fillStyle = "rgba(255,0,255,0.7)"
+                                        if (recordingRoot.aparato === "campo_aberto") {
+                                            ctx.fillStyle = "rgba(255,255,255,0.7)"
+                                            ctx.fillText("Centro", (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
+                                        } else {
+                                            ctx.fillText("Chão", (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
+                                        }
                                     }
                                 }
 
@@ -922,7 +1024,7 @@ Item {
                     }
 
                     Text {
-                        text: "EXPLORAÇÃO DE OBJETOS"
+                        text: recordingRoot.aparato === "campo_aberto" ? "EXPLORAÇÃO DE CAMPO" : "EXPLORAÇÃO DE OBJETOS"
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -999,101 +1101,114 @@ Item {
 
                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
-                                        // ── OBJ A (familiar / esquerda) ───────
-                                        RowLayout {
+                                        // ── MÉTRICAS ESPECÍFICAS (NOR vs CA) ──
+                                        ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
-                                            Rectangle { width: 8; height: 8; radius: 4; color: "#ab3d4c" }
-                                            Text {
-                                                text: "OBJ " + campoCard.la + "  (familiar)"
-                                                color: "#cc5566"; font.pixelSize: 10; font.weight: Font.Bold
-                                            }
-                                            Item { Layout.fillWidth: true }
-                                            Text {
-                                                text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"
-                                                color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas"
-                                            }
-                                        }
-                                        // Bout live OBJ A
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 18; radius: 4
-                                            visible: recordingRoot._inZone[campoCard.zi0]
-                                            color: ThemeManager.accentDim
-                                            border.color: ThemeManager.accent; border.width: 1
-                                            Text {
-                                                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
-                                                text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi0).toFixed(1) + " s"
-                                                color: ThemeManager.accent; font.pixelSize: 9; font.bold: true
-                                            }
-                                        }
+                                            visible: recordingRoot.aparato !== "campo_aberto"
 
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
-
-                                        // ── OBJ B (novo / direita) ────────────
-                                        RowLayout {
-                                            Layout.fillWidth: true; spacing: 5
-                                            Rectangle { width: 8; height: 8; radius: 4; color: "#4466aa" }
-                                            Text {
-                                                text: "OBJ " + campoCard.lb + "  (novo)"
-                                                color: "#5577bb"; font.pixelSize: 10; font.weight: Font.Bold
-                                            }
-                                            Item { Layout.fillWidth: true }
-                                            Text {
-                                                text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"
-                                                color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas"
-                                            }
-                                        }
-                                        // Bout live OBJ B
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 18; radius: 4
-                                            visible: recordingRoot._inZone[campoCard.zi1]
-                                            color: ThemeManager.surfaceDim
-                                            border.color: ThemeManager.borderLight; border.width: 1
-                                            Text {
-                                                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
-                                                text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi1).toFixed(1) + " s"
-                                                color: "#6688cc"; font.pixelSize: 9; font.bold: true
-                                            }
-                                        }
-
-                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
-
-                                        // ── Índice de Discriminação ───────────
-                                        Rectangle {
-                                            Layout.fillWidth: true; height: 26; radius: 4
-                                            property real diVal: recordingRoot.discriminationIndex(campoCard.ci)
-                                            color: isNaN(diVal) ? ThemeManager.surfaceDim
-                                                 : diVal > 0    ? ThemeManager.surfaceDim
-                                                 : ThemeManager.surfaceDim
-                                            border.color: isNaN(diVal) ? ThemeManager.border
-                                                        : diVal > 0    ? ThemeManager.success
-                                                        : ThemeManager.accent
-                                            border.width: 1
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
-
+                                            // OBJ A (familiar)
                                             RowLayout {
-                                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-                                                Text {
-                                                    text: "DI"
-                                                    color: ThemeManager.textTertiary; font.pixelSize: 9; font.weight: Font.Bold
-                                                }
+                                                Layout.fillWidth: true; spacing: 5
+                                                Rectangle { width: 8; height: 8; radius: 4; color: "#ab3d4c" }
+                                                Text { text: "OBJ " + campoCard.la + "  (familiar)"; color: "#cc5566"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
+                                            }
+                                            // Bout live OBJ A
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 18; radius: 4; visible: recordingRoot._inZone[campoCard.zi0]
+                                                color: ThemeManager.accentDim; border.color: ThemeManager.accent; border.width: 1
                                                 Text {
-                                                    property real dv: recordingRoot.discriminationIndex(campoCard.ci)
-                                                    text: isNaN(dv) ? "—" : (dv >= 0 ? "+" : "") + dv.toFixed(3)
-                                                    color: isNaN(dv) ? "#444466"
-                                                         : dv > 0   ? "#5aaa70"
-                                                         : "#ff5566"
-                                                    font.pixelSize: 12; font.bold: true; font.family: "Consolas"
+                                                    anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
+                                                    text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi0).toFixed(1) + " s"
+                                                    color: ThemeManager.accent; font.pixelSize: 9; font.bold: true
                                                 }
+                                            }
+
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+
+                                            // OBJ B (novo)
+                                            RowLayout {
+                                                Layout.fillWidth: true; spacing: 5
+                                                Rectangle { width: 8; height: 8; radius: 4; color: "#4466aa" }
+                                                Text { text: "OBJ " + campoCard.lb + "  (novo)"; color: "#5577bb"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
+                                            }
+                                            // Bout live OBJ B
+                                            Rectangle {
+                                                Layout.fillWidth: true; height: 18; radius: 4; visible: recordingRoot._inZone[campoCard.zi1]
+                                                color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
                                                 Text {
-                                                    property real dv: recordingRoot.discriminationIndex(campoCard.ci)
-                                                    text: isNaN(dv) ? "" : (dv > 0 ? "↑ novo" : dv < 0 ? "↓ fam" : "=")
-                                                    color: isNaN(dv) ? "#444466"
-                                                         : dv > 0   ? "#5aaa70"
-                                                         : "#ff5566"
-                                                    font.pixelSize: 9
+                                                    anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
+                                                    text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi1).toFixed(1) + " s"
+                                                    color: "#6688cc"; font.pixelSize: 9; font.bold: true
                                                 }
+                                            }
+
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+
+                                            // Discriminação (DI)
+                                            Rectangle {
+                                                id: diBox
+                                                Layout.fillWidth: true; height: 26; radius: 4
+                                                property real dv: recordingRoot.discriminationIndex(campoCard.ci)
+                                                color: ThemeManager.surfaceDim; border.color: isNaN(diBox.dv) ? ThemeManager.border : (diBox.dv > 0 ? ThemeManager.success : ThemeManager.accent); border.width: 1
+                                                RowLayout {
+                                                    anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                                    Text { text: "DI"; color: ThemeManager.textTertiary; font.pixelSize: 9; font.weight: Font.Bold }
+                                                    Item { Layout.fillWidth: true }
+                                                    Text {
+                                                        text: isNaN(diBox.dv) ? "—" : (diBox.dv >= 0 ? "+" : "") + diBox.dv.toFixed(3)
+                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0 ? "#5aaa70" : "#ff5566")
+                                                        font.pixelSize: 12; font.bold: true; font.family: "Consolas"
+                                                    }
+                                                    Text {
+                                                        text: isNaN(diBox.dv) ? "" : (diBox.dv > 0 ? "↑ novo" : diBox.dv < 0 ? "↓ fam" : "=")
+                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0 ? "#5aaa70" : "#ff5566")
+                                                        font.pixelSize: 9
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // ── MÉTRICAS CAMPO ABERTO (CA) ──────────
+                                        ColumnLayout {
+                                            Layout.fillWidth: true; spacing: 5
+                                            visible: recordingRoot.aparato === "campo_aberto"
+
+                                            // Visitas Centro
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Text { text: "Visitas ao centro:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationBouts[campoCard.zi0].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
+                                            }
+
+                                            // Visitas Borda
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Text { text: "Visitas nas bordas:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationBouts[campoCard.zi1].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
+                                            }
+
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+
+                                            // Tempo Centro
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Text { text: "Tempo no centro:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold }
+                                            }
+
+                                            // Tempo Borda
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Text { text: "Tempo nas bordas:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
                                         }
 

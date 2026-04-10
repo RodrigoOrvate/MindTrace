@@ -9,6 +9,8 @@ import "../core/Theme"
 Item {
     id: root
 
+    property int numCampos: 3
+
     // Variáveis de estado individuais (blindadas contra bugs de reatividade do Qt)
     property string c1o1: ""
     property string c1o2: ""
@@ -21,6 +23,9 @@ Item {
     property string pair1: c1o1 !== "" && c1o2 !== "" ? c1o1 + c1o2 : ""
     property string pair2: c2o1 !== "" && c2o2 !== "" ? c2o1 + c2o2 : ""
     property string pair3: c3o1 !== "" && c3o2 !== "" ? c3o1 + c3o2 : ""
+
+    // Número máximo de steps baseado em numCampos (2 slots por campo)
+    readonly property int maxStep: root.numCampos * 2 - 1
 
     // Sequência atual: 0=C1O1, 1=C1O2, 2=C2O1, 3=C2O2, 4=C3O1, 5=C3O2
     property int activeStep: 0
@@ -106,7 +111,7 @@ Item {
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 root.setLetter(root.activeStep, modelData)
-                                if (root.activeStep < 5) {
+                                if (root.activeStep < root.maxStep) {
                                     root.activeStep++
                                 } else {
                                     letterPicker.close()
@@ -184,6 +189,7 @@ Item {
         // ════════ CAMPO 2 ════════
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
+            visible: root.numCampos >= 2
 
             Rectangle {
                 Layout.fillWidth: true; height: 32; radius: 6
@@ -239,6 +245,7 @@ Item {
         // ════════ CAMPO 3 ════════
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
+            visible: root.numCampos >= 3
 
             Rectangle {
                 Layout.fillWidth: true; height: 32; radius: 6
