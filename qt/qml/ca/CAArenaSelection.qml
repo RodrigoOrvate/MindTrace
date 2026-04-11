@@ -20,7 +20,7 @@ Item {
     readonly property string selectedArenaId:
         "ca_" + selectedNumCampos + "campos"
 
-    // Apenas 2 campos permitem escolha de contexto
+    // 1 e 3 campos não permitem escolha de contexto
     readonly property bool contextForced: selectedNumCampos !== 2
 
     signal selectionConfirmed(int numCampos, string context, string arenaId)
@@ -102,8 +102,6 @@ Item {
                             { cx: cellW + 6,     cy: 0,             active: root.selectedNumCampos >= 2 },
                             { cx: 0,             cy: cellH + 6,     active: root.selectedNumCampos >= 3 }
                         ]
-
-                        // Campo 1 (topo-esq)
                         Rectangle {
                             x: 0; y: 0
                             width: grid.cellW; height: grid.cellH
@@ -220,6 +218,7 @@ Item {
 
                     Repeater {
                         model: [
+                            { n: 1, label: "1 Campo",  desc: "Um campo — sem contexto" },
                             { n: 2, label: "2 Campos", desc: "Dois campos — contexto selecionável" },
                             { n: 3, label: "3 Campos", desc: "Três campos — sem contexto" }
                         ]
@@ -267,14 +266,14 @@ Item {
                         color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
 
-                    // Info badge para 3 campos
+                    // Info badge para 1 ou 3 campos
                     Rectangle {
                         Layout.fillWidth: true; height: 32; radius: 8
                         visible: root.contextForced
                         color: "#1a1a30"; border.color: "#3a3a5c"; border.width: 1
                         Text {
                             anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                            text: "Contexto fixo em Padrão para 3 campos"
+                            text: "Contexto fixo em Padrão para " + root.selectedNumCampos + " campo" + (root.selectedNumCampos > 1 ? "s" : "")
                             color: "#666688"; font.pixelSize: 11
                         }
                     }

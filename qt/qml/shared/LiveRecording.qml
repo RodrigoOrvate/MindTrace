@@ -22,6 +22,7 @@ Item {
     property var arenaPoints
     property var floorPoints
     property double centroRatio: 0.5
+    property bool   isReactivation: false  // quando em fase de Reativação ou Teste (RO)
 
     // ── Controle de velocidade (análise offline) ────────────────────────────────
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
@@ -650,7 +651,10 @@ Item {
                             property int ci: index
 
                             Rectangle {
-                                anchors.fill: parent
+                                id: campoRect
+                                width: Math.min(parent.width, parent.height)
+                                height: width
+                                anchors.centerIn: parent
                                 color: "#0a0a16"
                                 border.color: recordingRoot.fieldFinished[campoCell.ci] ? "#3a8a50" : "#2d2d4a"
                                 border.width: 1
@@ -664,7 +668,7 @@ Item {
                                         if (!framePreviewMaster || framePreviewMaster.width === 0)
                                             return Qt.rect(0, 0, 0, 0)
                                         var cr = framePreviewMaster.contentRect
-                                        var cw = cr.width  / 2
+                                        var cw = cr.width / 2
                                         var ch = cr.height / 2
                                         if (campoCell.ci === 0) return Qt.rect(cr.x,      cr.y,      cw, ch)
                                         if (campoCell.ci === 1) return Qt.rect(cr.x + cw, cr.y,      cw, ch)
@@ -683,16 +687,33 @@ Item {
                                     Component.onCompleted: requestPaint()
                                     Connections {
                                         target: recordingRoot
-                                        onArenaPointsChanged: arenaCanv.requestPaint()
-                                        onFloorPointsChanged: arenaCanv.requestPaint()
+                                        function onArenaPointsChanged() { arenaCanv.requestPaint() }
+                                        function onFloorPointsChanged() { arenaCanv.requestPaint() }
                                     }
                                     onPaint: {
                                         var ctx = getContext("2d")
                                         ctx.clearRect(0, 0, width, height)
-                                        if (!recordingRoot.arenaPoints || !recordingRoot.floorPoints) return
+                                        
+                                        // Debug: verifica se dados existem
+                                        console.log("ArenaPaint:", JSON.stringify({
+                                            arenaPoints: recordingRoot.arenaPoints ? "ok" : "null",
+                                            floorPoints: recordingRoot.floorPoints ? "ok" : "null",
+                                            ci: ci,
+                                            aparato: recordingRoot.aparato
+                                        }))
+                                        
+                                        if (!recordingRoot.arenaPoints || !recordingRoot.floorPoints) {
+                                            ctx.fillStyle = "red"
+                                            ctx.fillText("SEM ARENA", 10, 20)
+                                            return
+                                        }
                                         var ap = recordingRoot.arenaPoints[ci]
                                         var fp = recordingRoot.floorPoints[ci]
-                                        if (!ap || !fp) return
+                                        if (!ap || !fp) {
+                                            ctx.fillStyle = "orange"
+                                            ctx.fillText("SEM AP/FP", 10, 20)
+                                            return
+                                        }
                                         var w = width, h = height
                                         var oTL={x:ap[0].x*w,y:ap[0].y*h}, oTR={x:ap[1].x*w,y:ap[1].y*h}
                                         var oBR={x:ap[2].x*w,y:ap[2].y*h}, oBL={x:ap[3].x*w,y:ap[3].y*h}
@@ -724,37 +745,44 @@ Item {
                                         poly([iTR,oTR,oBR,iBR],"rgba(255,255,0,0.12)","rgba(255,255,0,0.5)")
                                         ctx.strokeStyle="rgba(255,170,0,0.8)"; ctx.lineWidth=2
                                         ctx.beginPath(); ctx.moveTo(oTL.x,oTL.y)
-                                        ctx.lineTo(oTR.x,oTR.y); ctx.lineTo(oBR.x,oBR.y); ctx.lineTo(oBL.x,oBL.y)
+                                        ctx.lineTo(oTR.x,oTR.y); ctx.lineTo(oBR.x,oTR.y); ctx.lineTo(oBL.x,oTR.y)
                                         ctx.closePath(); ctx.stroke()
 
-                                        // Labels
-                                        ctx.font = "bold 9px Inter"; ctx.fillStyle = "rgba(255,0,255,0.7)"
+                                        // Labels (apenas no CA, nunca no RO)
                                         if (recordingRoot.aparato === "campo_aberto") {
-                                            ctx.fillStyle = "rgba(255,255,255,0.7)"
+                                            ctx.font = "bold 9px Inter"; ctx.fillStyle = "rgba(255,255,255,0.7)"
                                             ctx.fillText("Centro", (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
-                                        } else {
-                                            ctx.fillText("Chão", (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
                                         }
                                     }
                                 }
 
-                                // Zona A (vinho)
+                                // Zona A (vinho) - visível quando não é CA
                                 Rectangle {
+                                    id: zoneA
+                                    visible: recordingRoot.aparato !== "campo_aberto"
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
-                                                     ? recordingRoot.zones[campoCell.ci*2] : {x:0,y:0,r:0}
-                                    width:  parent.width  * zd.r * 2; height: width; radius: width/2
-                                    x: parent.width  * zd.x - width/2
-                                    y: parent.height * zd.y - height/2
-                                    color: "#40ab3d4c"; border.color: "#ab3d4c"; border.width: 2
+                                                     ? recordingRoot.zones[campoCell.ci*2] : {x:0.3,y:0.5,r:0.12}
+                                    width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
+                                    height: width
+                                    radius: width / 2
+                                    x: parent.width  * (zd.x > 0 ? zd.x : 0.3) - width/2
+                                    y: parent.height * (zd.y > 0 ? zd.y : 0.5) - height/2
+                                    color: "#40ab3d4c"; border.width: 2
+                                    opacity: 0.7
                                 }
-                                // Zona B (azul)
+                                // Zona B (azul) - visível quando não é CA
                                 Rectangle {
+                                    id: zoneB
+                                    visible: recordingRoot.aparato !== "campo_aberto"
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
-                                                     ? recordingRoot.zones[campoCell.ci*2+1] : {x:0,y:0,r:0}
-                                    width:  parent.width  * zd.r * 2; height: width; radius: width/2
-                                    x: parent.width  * zd.x - width/2
-                                    y: parent.height * zd.y - height/2
-                                    color: "#404466aa"; border.color: "#4466aa"; border.width: 2
+                                                     ? recordingRoot.zones[campoCell.ci*2+1] : {x:0.7,y:0.5,r:0.12}
+                                    width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
+                                    height: width
+                                    radius: width / 2
+                                    x: parent.width  * (zd.x > 0 ? zd.x : 0.7) - width/2
+                                    y: parent.height * (zd.y > 0 ? zd.y : 0.5) - height/2
+                                    color: "#404466aa"; border.width: 2
+                                    opacity: 0.7
                                 }
 
                                 // Esqueleto: linha body→nose + pontos

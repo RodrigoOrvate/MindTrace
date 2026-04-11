@@ -90,6 +90,44 @@ MindTrace/
 
 > **Atenção:** a pasta `qt/` contém o código-fonte. O `onnxruntime_sdk` deve ficar na raiz (`MindTrace/`), não dentro de `qt/`.
 
+### Aviso para usuários NVIDIA (CUDA)
+
+O pacote `onnxruntime-win-x64-gpu` **não inclui** os drivers CUDA — apenas o motor de inferência.  
+Para que o provider CUDA funcione, você precisa instalar separadamente:
+
+| Dependência | Versão recomendada | Download |
+|---|---|---|
+| CUDA Toolkit | 12.6.3 | [Baixar CUDA 12.6.3](https://developer.nvidia.com/cuda-12-6-3-download-archive) · [Arquivo completo](https://developer.nvidia.com/cuda-toolkit-archive) |
+| cuDNN | 9.x (para CUDA 12) | [Baixar cuDNN](https://developer.nvidia.com/cudnn-downloads) · [Arquivo completo](https://developer.nvidia.com/rdp/cudnn-archive) |
+
+#### Instalando o cuDNN (passo obrigatório após o download)
+
+A partir do **cuDNN 8**, o instalador **não copia mais os arquivos para dentro da pasta do CUDA** — ele instala em um diretório separado. Você precisa copiar as DLLs manualmente.
+
+**1. Localize a pasta do cuDNN instalado:**
+```
+C:\Program Files\NVIDIA\CUDNN\v9.x\bin\
+```
+Dentro de `bin\` haverá uma subpasta com a versão do CUDA correspondente (ex: `12.6\`). Use a que bater com a versão do seu CUDA Toolkit.
+
+**2. Copie todas as DLLs dessa subpasta para o `bin\` do CUDA:**
+
+| Origem | Destino |
+|---|---|
+| `C:\Program Files\NVIDIA\CUDNN\v9.x\bin\12.6\*.dll` | `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\` |
+
+> Se instalou CUDA 13.x em vez de 12.x, o procedimento é o mesmo — use a subpasta `13.x\` do cuDNN e copie para o `bin\` do CUDA 13.
+
+**3. Verifique** que o arquivo `cudnn64_9.dll` está em:
+```
+C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\cudnn64_9.dll
+```
+
+Após copiar, rode `scripts\build.bat` e o log do app deve exibir `"Modo GPU: CUDA ativo (NVIDIA)"`.
+
+> **Sem esses drivers, o CUDA falha silenciosamente e o app cai automaticamente para DirectML (DirectX 12).** O comportamento é idêntico ao de placas AMD/Intel — sem perda de funcionalidade, apenas menor desempenho de inferência comparado ao CUDA nativo.  
+> Você verá no log: `"Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"` em vez de `"Modo GPU: CUDA ativo (NVIDIA)"`.
+
 ---
 
 ## 3. Modelo ONNX
@@ -132,44 +170,6 @@ O código detecta automaticamente a GPU via **DXGI** na inicialização e tenta 
 
 O status é exibido na área de log durante o carregamento do modelo, ex.:  
 `"Modo GPU: CUDA ativo (NVIDIA)"` ou `"Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"`.
-
-### Aviso para usuários NVIDIA (CUDA)
-
-O pacote `onnxruntime-win-x64-gpu` **não inclui** os drivers CUDA — apenas o motor de inferência.  
-Para que o provider CUDA funcione, você precisa instalar separadamente:
-
-| Dependência | Versão recomendada | Download |
-|---|---|---|
-| CUDA Toolkit | 12.6.3 | [Baixar CUDA 12.6.3](https://developer.nvidia.com/cuda-12-6-3-download-archive) · [Arquivo completo](https://developer.nvidia.com/cuda-toolkit-archive) |
-| cuDNN | 9.x (para CUDA 12) | [Baixar cuDNN](https://developer.nvidia.com/cudnn-downloads) · [Arquivo completo](https://developer.nvidia.com/rdp/cudnn-archive) |
-
-#### Instalando o cuDNN (passo obrigatório após o download)
-
-A partir do **cuDNN 8**, o instalador **não copia mais os arquivos para dentro da pasta do CUDA** — ele instala em um diretório separado. Você precisa copiar as DLLs manualmente.
-
-**1. Localize a pasta do cuDNN instalado:**
-```
-C:\Program Files\NVIDIA\CUDNN\v9.x\bin\
-```
-Dentro de `bin\` haverá uma subpasta com a versão do CUDA correspondente (ex: `12.6\`). Use a que bater com a versão do seu CUDA Toolkit.
-
-**2. Copie todas as DLLs dessa subpasta para o `bin\` do CUDA:**
-
-| Origem | Destino |
-|---|---|
-| `C:\Program Files\NVIDIA\CUDNN\v9.x\bin\12.6\*.dll` | `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\` |
-
-> Se instalou CUDA 13.x em vez de 12.x, o procedimento é o mesmo — use a subpasta `13.x\` do cuDNN e copie para o `bin\` do CUDA 13.
-
-**3. Verifique** que o arquivo `cudnn64_9.dll` está em:
-```
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin\cudnn64_9.dll
-```
-
-Após copiar, rode `scripts\build.bat` e o log do app deve exibir `"Modo GPU: CUDA ativo (NVIDIA)"`.
-
-> **Sem esses drivers, o CUDA falha silenciosamente e o app cai automaticamente para DirectML (DirectX 12).** O comportamento é idêntico ao de placas AMD/Intel — sem perda de funcionalidade, apenas menor desempenho de inferência comparado ao CUDA nativo.  
-> Você verá no log: `"Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"` em vez de `"Modo GPU: CUDA ativo (NVIDIA)"`.
 
 ---
 
@@ -257,16 +257,11 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 
 ## 11. Funcionalidades Principais
 
-- **Paradigma NOR:** Reconhecimento de objetos com zonas de exploração, índice de discriminação (DI) e suporte a até 2 ou 3 campos por sessão.
-- **Paradigma Campo Aberto (CA):** Tracking de distância total e velocidade média em 2 ou 3 campos simultâneos. Layout dinâmico com ajuste de zona central (`centroRatio`) via `Alt + MouseWheel`.
-- **Métricas de CA (Body Tracking):** Ocupação de zona (Centro/Borda), visitas e tempo agora calculados via body-tracking para maior estabilidade.
 - **Registry System:** Salve experimentos em qualquer HD/Partição; o MindTrace gerencia o atalho no `registry.json`.
 - **Session Codes:** Use `TR` (Treino), `RA` (Reativação) e `TT` (Teste). O sistema calcula o dia e valida a configuração automaticamente.
 - **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
 - **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
 - **Velocidade:** Análise offline em 1x, 2x ou 4x com sincronização automática entre display e inferência.
-- **Busca Universal:** Ponto de entrada único para experimentos; o sistema detecta se é NOR ou CA e abre o dashboard correto. Agora com suporte a exclusão direta no browser.
-- **Navegação Inteligente:** Reset automático de filtros ao navegar entre Dashboards e Busca.
 
 ---
 
@@ -285,13 +280,3 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo; removido do `Component.onCompleted` |
 | Três SDKs na raiz | Unificado para um único `onnxruntime_sdk/` — usuário baixa só o que precisa |
 | NVIDIA sem CUDA Toolkit caía em erro fatal | `tryCreateSessions()` por provider — CUDA falha → tenta DirectML → CPU (cascata automática) |
-| Dupla navegação ao criar experimento CA | Flag `pendingCaFlow` em `main.qml` + remoção do Connections interno em `caSetupComponent` |
-| 5 cards de aparato overflow na janela | Cards reduzidos para 160×250 e spacing para 14px (total 856px ≤ 980px) |
-| Integração Arena CA | `ArenaSetup.qml` unificado. Em modo CA, oculta edição de pares e permite salvar sem objetos configurados |
-| Navegação Unificada | `SearchBrowser.qml` adicionado aos recursos e configurado como rota principal de pesquisa em `main.qml` |
-| Style & Performance | Estilo QML alterado para `Basic` para eliminar avisos de customização e melhorar renderização no Windows |
-| Correção de Contexto CA | Escolha de contexto ("Padrão" vs "Contextual") restringida ao layout de 2 campos |
-| Padronização de Layouts | Remoção do layout de 1 campo; NOR e CA unificados em 2 ou 3 arenas simultâneas |
-| Escalonamento CA | Implementado `Alt + MouseWheel` para ajuste dinâmico da zona central (Centro/Borda) |
-| Precisão CA | Transição para tracking de corpo (body) para métricas de área em Campo Aberto |
-| Navegação & Busca | Reset automático de filtros e adição de botão excluir na Busca Universal |

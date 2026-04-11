@@ -24,11 +24,17 @@
     <file>qml/nor/CampoSelector.qml</file>
     <file>qml/nor/ArenaSetup.qml</file>
     <file>qml/nor/NORDashboard.qml</file>
+    <file>qml/nor/qmldir</file>
 
     <file>qml/ca/CAArenaSelection.qml</file>
     <file>qml/ca/CASetup.qml</file>
     <file>qml/ca/CADashboard.qml</file>
     <file>qml/ca/CAMetadataDialog.qml</file>
+    <file>qml/ca/qmldir</file>
+
+    <file>qml/shared/LiveRecording.qml</file>
+    <file>qml/shared/SessionResultDialog.qml</file>
+    <file>qml/shared/qmldir</file>
 
     <file alias="arenas.json">data/arenas.json</file>
     <file alias="arena_config_referencia.json">data/arena_config_referencia.json</file>

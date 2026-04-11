@@ -18,6 +18,7 @@ import "Theme"
 ApplicationWindow {
     id: root
     visible: true
+    visibility: Window.Maximized
     width:  980
     height: 700
     minimumWidth:  820
@@ -75,7 +76,7 @@ ApplicationWindow {
                     "arenaId":               root.pendingArenaId,
                     "numCampos":             root.pendingNorNumCampos,
                     "searchMode":            false,
-                    "currentTabIndex":       1,
+                    "currentTabIndex":       0,
                     "initialExperimentName": name
                 })
             }
@@ -107,7 +108,31 @@ ApplicationWindow {
         }
     }
 
-    // ── Settings Button in Chrome (top-right) ─────────────────────────────
+    // ── Home Button (antes da engrenagem) ───────────────────────────────────
+    Button {
+        id: homeButton
+        anchors { top: parent.top; right: settingsButton.left; margins: 12 }
+        width: 40
+        height: 40
+        text: "🏠"
+        font.pixelSize: 16
+        flat: true
+        visible: stack.currentItem !== landingComponent
+
+        background: Rectangle {
+            color: homeButton.hovered ? ThemeManager.surfaceAlt : "transparent"
+            radius: 6
+            Behavior on color { ColorAnimation { duration: 150 } }
+        }
+
+        onClicked: {
+            stack.clear()
+            stack.push(landingComponent)
+            ExperimentManager.clearFilter()
+        }
+    }
+
+    // ── Settings Button (top-right) ────────────────────────────────────────
     Button {
         id: settingsButton
         anchors { top: parent.top; right: parent.right; margins: 12 }
@@ -249,16 +274,21 @@ ApplicationWindow {
             }
             aparatoFilter: "" // Mostra todos por padrão no browser universal
             onOpenExperiment: function(aparato, numCampos, expName, expPath) {
-                if (aparato === "campo_aberto") {
+                var meta = ExperimentManager.readMetadataFromPath(expPath)
+                if (aparato === "campo_aberto" || meta.aparato === "campo_aberto") {
                     stack.push(caDashboardComponent, {
-                        "searchMode": true,
-                        "numCampos":  numCampos
+                        "searchMode":            true,
+                        "numCampos":             numCampos,
+                        "initialExperimentName": expName,
+                        "currentTabIndex":       0
                     })
                 } else {
                     stack.push(dashboardComponent, {
-                        "searchMode": true,
-                        "numCampos":  numCampos,
-                        "context":    ""
+                        "searchMode":            true,
+                        "numCampos":             numCampos,
+                        "context":               "",
+                        "initialExperimentName": expName,
+                        "currentTabIndex":       0
                     })
                 }
             }

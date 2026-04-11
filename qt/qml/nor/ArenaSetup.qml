@@ -33,6 +33,38 @@ Item {
 
     signal pairsEdited(string p1, string p2, string p3)
     signal analysisModeChangedExternally(string mode)
+    signal zonasEditadas()  // Emitido quando as zonas são editadas (tempo real)
+
+    Rectangle {
+        id: unsavedToast
+        visible: false
+        width: unsavedText.implicitWidth + 24; height: 32; radius: 6
+        color: "#1a0a0a"; border.color: "#ff4757"; border.width: 1
+        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 }
+        opacity: 0; z: 100
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+        Text {
+            id: unsavedText
+            anchors.centerIn: parent
+            text: "⚠️ Zonas editadas! Não esqueça de Salvar"
+            color: "#ff6b7a"; font.pixelSize: 11
+        }
+    }
+
+    function showUnsavedToast() {
+        unsavedToast.opacity = 1
+        unsavedToast.visible = true
+        unsavedToastTimer.restart()
+    }
+
+    Timer {
+        id: unsavedToastTimer
+        interval: 3000
+        onTriggered: {
+            unsavedToast.opacity = 0
+            unsavedToast.visible = false
+        }
+    }
 
     // Chamado pela aba Gravação quando o usuário quer carregar um novo vídeo
     function openVideoLoader() { analysisModePrompt.open() }
@@ -147,6 +179,7 @@ Item {
                 }
             }
             zones = nz
+            zonasEditadas()  // Avisa que as zonas mudaram (tempo real)
         }
     }
 
@@ -364,7 +397,8 @@ Item {
             }
             Item { Layout.fillWidth: true }
             Text {
-                text: "Shift: Objetos  |  Ctrl: Quinas da Parede  |  Alt: Quinas do Chão"
+                text: root.caMode ? "Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão  |  Alt + Scroll: +/- Centro"
+                                  : "Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão  |  Shift + Scroll: +/- Objetos"
                 color: ThemeManager.textTertiary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
@@ -610,12 +644,14 @@ Item {
 
                                         if (root.caMode) {
                                             // --- MODO CAMPO ABERTO (CA) ---
-                                            // 1. Centro (dinâmico via centroRatio)
-                                            var midX = (iTL.x + iBR.x)/2, midY = (iTL.y + iBR.y)/2
-                                            var halfW = (iTR.x - iTL.x) * (root.centroRatio / 2)
-                                            var halfH = (iBL.y - iTL.y) * (root.centroRatio / 2)
-                                            var cTL={x:midX-halfW, y:midY-halfH}, cTR={x:midX+halfW, y:midY-halfH}
-                                            var cBR={x:midX+halfW, y:midY+halfH}, cBL={x:midX-halfW, y:midY+halfH}
+                                            // 1. Centro (dinâmico via centroRatio - segue a perspectiva do chão)
+                                            var midX = (iTL.x + iTR.x + iBR.x + iBL.x) / 4
+                                            var midY = (iTL.y + iTR.y + iBR.y + iBL.y) / 4
+                                            
+                                            var cTL={ x: midX + (iTL.x - midX) * root.centroRatio, y: midY + (iTL.y - midY) * root.centroRatio }
+                                            var cTR={ x: midX + (iTR.x - midX) * root.centroRatio, y: midY + (iTR.y - midY) * root.centroRatio }
+                                            var cBR={ x: midX + (iBR.x - midX) * root.centroRatio, y: midY + (iBR.y - midY) * root.centroRatio }
+                                            var cBL={ x: midX + (iBL.x - midX) * root.centroRatio, y: midY + (iBL.y - midY) * root.centroRatio }
                                             
                                             poly([cTL,cTR,cBR,cBL], "rgba(255,0,255,0.2)", "rgba(255,0,255,0.8)")
                                             
@@ -631,7 +667,7 @@ Item {
                                             poly([iTR,oTR,oBR,iBR],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
 
                                             // Labels CA
-                                            ctx.font = "bold 10px Inter"; ctx.fillStyle = "white"
+                                            ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "white"
                                             ctx.fillText("Centro", midX - 15, midY + 4)
                                             ctx.fillStyle = "rgba(255,255,255,0.7)"
                                             ctx.fillText("Borda", (iTL.x + cTL.x)/2 - 15, midY + 4)
@@ -647,7 +683,7 @@ Item {
                                             poly([iTR,oTR,oBR,iBR],"rgba(255,255,0,0.12)","rgba(255,255,0,0.5)")
 
                                             // Labels NOR
-                                            ctx.font = "bold 10px Inter"; ctx.fillStyle = "rgba(255,0,255,0.8)"
+                                            ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "rgba(255,0,255,0.8)"
                                             ctx.fillText("Chão", (iTL.x+iBR.x)/2 - 15, (iTL.y+iBR.y)/2)
                                             ctx.fillStyle = "rgba(255,255,255,0.6)"
                                             ctx.fillText("Parede", (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
@@ -750,15 +786,27 @@ Item {
                                     }
                                 }
 
-                                // Ponto central para ajuste de escala (CA)
-                                Rectangle {
-                                    visible: root.devMode && root.caMode
-                                    z: 22; width: 10; height: 10; radius: 5
-                                    color: "#ff00ff"; border.color: "white"; border.width: 1
-                                    anchors.centerIn: parent
-                                    Text {
+                                // ── Pontos Interativos (Dev Mode) ───────────────
+                                Repeater {
+                                    model: root.devMode ? 4 : 0
+                                    Rectangle {
+                                        z: 20; width: 8; height: 8; radius: 4
+                                        color: "#ff5500" // Laranja para Parede (Outer)
+                                        border.color: "white"; border.width: 1
+                                        property var pt: root.arenaPoints[campoCell.campoIndex][index]
+                                        x: arenaRect.width * pt.x - 4
+                                        y: arenaRect.height * pt.y - 4
+                                    }
+                                }
+
+                                Repeater {
+                                    model: 0 // Removido
+                                    Rectangle {
+                                        visible: root.devMode && root.caMode
+                                        z: 21; width: 8; height: 8; radius: 1
+                                        color: "#00ccff" 
+                                        border.color: "white"; border.width: 1
                                         anchors.centerIn: parent
-                                        text: "C"; color: "white"; font.pixelSize: 7; font.weight: Font.Bold
                                     }
                                 }
 
@@ -779,118 +827,122 @@ Item {
 
                                 // ── Overlay de interação ──────────────────────
                                 MouseArea {
+                                    id: interactionMa
                                     anchors.fill: parent
+                                    z: 100
                                     acceptedButtons: Qt.LeftButton
+                                    hoverEnabled: true // Para o tracker de debug
                                     
                                     property int dragZoneIdx: -1
-                                    
-                                    // Variáveis de quina livre
-                                    property int dragOuterCorner: -1 // <-- Qual quina da PAREDE está a ser puxada (0 a 3)
-                                    property int dragFloorCorner: -1 // <-- Qual quina do CHÃO está a ser puxada (0 a 3)
+                                    property int dragOuterCorner: -1
+                                    property int dragFloorCorner: -1
 
-                                    onPressed: {
+                                    function onPressedHandler(mouse) {
                                         if (!root.devMode) return;
-
-                                        // Raio de captura de ~30 pixels (em ratio quadrado para otimizar)
                                         var capturingDist = 900;
+                                        var fp = root.floorPoints[campoCell.campoIndex]
+                                        var w = arenaRect.width, h = arenaRect.height
+                                        var iTL = { x: fp[0].x * w, y: fp[0].y * h }
+                                        var iBR = { x: fp[2].x * w, y: fp[2].y * h }
+                                        var midX = (iTL.x + iBR.x) / 2, midY = (iTL.y + iBR.y) / 2
 
                                         if (mouse.modifiers & Qt.ShiftModifier) {
-                                            // -- Mover Objetos --
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
-                                            var cx0 = root.zones[i0].x * arenaRect.width
-                                            var cy0 = root.zones[i0].y * arenaRect.height
-                                            var cx1 = root.zones[i1].x * arenaRect.width
-                                            var cy1 = root.zones[i1].y * arenaRect.height
+                                            var cx0 = root.zones[i0].x * w, cy0 = root.zones[i0].y * h
+                                            var cx1 = root.zones[i1].x * w, cy1 = root.zones[i1].y * h
                                             var d0 = (mouse.x-cx0)*(mouse.x-cx0)+(mouse.y-cy0)*(mouse.y-cy0)
                                             var d1 = (mouse.x-cx1)*(mouse.x-cx1)+(mouse.y-cy1)*(mouse.y-cy1)
                                             dragZoneIdx = d0 <= d1 ? i0 : i1
-                                            var nz = root.zones.slice()
-                                            nz[dragZoneIdx] = { x: mouse.x/arenaRect.width, y: mouse.y/arenaRect.height, r: root.zones[dragZoneIdx].r }
-                                            root.zones = nz
                                         } else if (mouse.modifiers & Qt.ControlModifier) {
-                                            // -- Puxar uma QUINA da PAREDE (Arena Externa) --
                                             var ap = root.arenaPoints[campoCell.campoIndex]
-                                            var minDistOuter = capturingDist
-                                            dragOuterCorner = -1
+                                            var minDistOuter = capturingDist; dragOuterCorner = -1
                                             for (var c=0; c<4; c++) {
-                                                var px = ap[c].x * arenaRect.width
-                                                var py = ap[c].y * arenaRect.height
+                                                var px = ap[c].x * w, py = ap[c].y * h
                                                 var dist = (mouse.x-px)*(mouse.x-px) + (mouse.y-py)*(mouse.y-py)
                                                 if (dist < minDistOuter) { minDistOuter = dist; dragOuterCorner = c }
                                             }
                                         } else if (mouse.modifiers & Qt.AltModifier) {
-                                            // -- Puxar uma QUINA do CHÃO --
-                                            var fp = root.floorPoints[campoCell.campoIndex]
-                                            var minDistFloor = capturingDist
-                                            dragFloorCorner = -1
+                                            var minDistFloor = capturingDist; dragFloorCorner = -1
                                             for (var c=0; c<4; c++) {
-                                                var px2 = fp[c].x * arenaRect.width
-                                                var py2 = fp[c].y * arenaRect.height
-                                                var dist2 = (mouse.x-px2)*(mouse.x-px2) + (mouse.y-py2)*(mouse.y-py2)
-                                                if (dist2 < minDistFloor) { minDistFloor = dist2; dragFloorCorner = c }
+                                                var fx = fp[c].x * w, fy = fp[c].y * h
+                                                var distF = (mouse.x-fx)*(mouse.x-fx) + (mouse.y-fy)*(mouse.y-fy)
+                                                if (distF < minDistFloor) { minDistFloor = distF; dragFloorCorner = c }
                                             }
                                         }
                                     }
 
-                                    onPositionChanged: {
+                                    onPressed: (mouse) => onPressedHandler(mouse)
+                                    onReleased: { dragZoneIdx = -1; dragOuterCorner = -1; dragFloorCorner = -1 }
+
+                                    onPositionChanged: (mouse) => {
                                         if (!root.devMode) return;
+                                        var w = arenaRect.width, h = arenaRect.height
+                                        
+                                        // Trava (clamp) para evitar que o ponto suma fora do quadrante
+                                        var mx = Math.max(0, Math.min(w, mouse.x))
+                                        var my = Math.max(0, Math.min(h, mouse.y))
+
                                         if (dragZoneIdx >= 0) {
                                             var nz = root.zones.slice()
-                                            nz[dragZoneIdx] = { x: mouse.x/arenaRect.width, y: mouse.y/arenaRect.height, r: root.zones[dragZoneIdx].r }
+                                            nz[dragZoneIdx] = { x: mx/w, y: my/h, r: root.zones[dragZoneIdx].r }
                                             root.zones = nz
+                                            root.zonasEditadas(); showUnsavedToast()
                                         } else if (dragOuterCorner >= 0) {
-                                            // -- Atualiza apenas a quina da PAREDE --
                                             var nap = root.arenaPoints.slice()
-                                            var ptsAp = [{x: nap[campoCell.campoIndex][0].x, y: nap[campoCell.campoIndex][0].y},
-                                                       {x: nap[campoCell.campoIndex][1].x, y: nap[campoCell.campoIndex][1].y},
-                                                       {x: nap[campoCell.campoIndex][2].x, y: nap[campoCell.campoIndex][2].y},
-                                                       {x: nap[campoCell.campoIndex][3].x, y: nap[campoCell.campoIndex][3].y}]
-                                            
-                                            ptsAp[dragOuterCorner] = { x: mouse.x / arenaRect.width, y: mouse.y / arenaRect.height }
+                                            var ptsAp = JSON.parse(JSON.stringify(nap[campoCell.campoIndex]))
+                                            ptsAp[dragOuterCorner] = { x: mx/w, y: my/h }
                                             nap[campoCell.campoIndex] = ptsAp
-                                            root.arenaPoints = nap // Triggers Connections requestPaint
+                                            root.arenaPoints = nap
+                                            root.zonasEditadas(); showUnsavedToast()
                                         } else if (dragFloorCorner >= 0) {
-                                            // -- Atualiza apenas a quina do CHÃO --
                                             var nfp = root.floorPoints.slice()
-                                            var ptsFp = [{x: nfp[campoCell.campoIndex][0].x, y: nfp[campoCell.campoIndex][0].y},
-                                                       {x: nfp[campoCell.campoIndex][1].x, y: nfp[campoCell.campoIndex][1].y},
-                                                       {x: nfp[campoCell.campoIndex][2].x, y: nfp[campoCell.campoIndex][2].y},
-                                                       {x: nfp[campoCell.campoIndex][3].x, y: nfp[campoCell.campoIndex][3].y}]
-                                            
-                                            ptsFp[dragFloorCorner] = { x: mouse.x / arenaRect.width, y: mouse.y / arenaRect.height }
+                                            var ptsFp = JSON.parse(JSON.stringify(nfp[campoCell.campoIndex]))
+                                            ptsFp[dragFloorCorner] = { x: mx/w, y: my/h }
                                             nfp[campoCell.campoIndex] = ptsFp
-                                            root.floorPoints = nfp // Triggers Connections requestPaint
+                                            root.floorPoints = nfp
+                                            root.zonasEditadas(); showUnsavedToast()
                                         }
                                     }
 
-                                    onReleased: { dragZoneIdx = -1; dragOuterCorner = -1; dragFloorCorner = -1 }
-
-                                    // (Mantenha o seu onWheel atual aqui embaixo igualzinho para os objetos)
-                                    onWheel: {
-                                        if (!root.devMode) return;
-                                        
+                                    onWheel: (wheel) => {
+                                        console.warn("[DEBUG] Wheel event detected inside ArenaSetup. Modifiers:", wheel.modifiers, "DeltaY:", wheel.angleDelta.y)
                                         if (wheel.modifiers & Qt.ShiftModifier) {
-                                            // -- Redimensionar Objeto --
+                                            if (!root.devMode) return;
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
-                                            var cx0 = root.zones[i0].x * arenaRect.width
-                                            var cy0 = root.zones[i0].y * arenaRect.height
-                                            var cx1 = root.zones[i1].x * arenaRect.width
-                                            var cy1 = root.zones[i1].y * arenaRect.height
-                                            var d0 = (wheel.x-cx0)*(wheel.x-cx0)+(wheel.y-cy0)*(wheel.y-cy0)
-                                            var d1 = (wheel.x-cx1)*(wheel.x-cx1)+(wheel.y-cy1)*(wheel.y-cy1)
-                                            var ti = d0 <= d1 ? i0 : i1
-                                            var stepObj = wheel.angleDelta.y > 0 ? 1.05 : 0.952
-                                            var nz = root.zones.slice()
-                                            nz[ti] = { x: nz[ti].x, y: nz[ti].y, r: Math.max(0.04, Math.min(0.48, nz[ti].r * stepObj)) }
-                                            root.zones = nz
+                                            var dx0 = wheel.x - root.zones[i0].x * arenaRect.width
+                                            var dy0 = wheel.y - root.zones[i0].y * arenaRect.height
+                                            var dx1 = wheel.x - root.zones[i1].x * arenaRect.width
+                                            var dy1 = wheel.y - root.zones[i1].y * arenaRect.height
+                                            var ti = (dx0*dx0+dy0*dy0) <= (dx1*dx1+dy1*dy1) ? i0 : i1
+                                            var step = wheel.angleDelta.y > 0 ? 1.05 : 0.952
+                                            var nzW = root.zones.slice()
+                                            nzW[ti] = { x: nzW[ti].x, y: nzW[ti].y, r: Math.max(0.04, Math.min(0.4, nzW[ti].r * step)) }
+                                            root.zones = nzW; root.zonasEditadas(); showUnsavedToast()
                                         } else if (wheel.modifiers & Qt.AltModifier) {
-                                            // -- Redimensionar Zonas de Contexto (CA/Centro) --
-                                            var stepCtx = wheel.angleDelta.y > 0 ? 1.05 : 0.952
-                                            root.centroRatio = Math.max(0.1, Math.min(0.9, root.centroRatio * stepCtx))
+                                            wheel.accepted = true
+                                            var step = 0.05
+                                            var old = root.centroRatio
+                                            if (wheel.angleDelta.y > 0) root.centroRatio = Math.min(0.95, root.centroRatio + step)
+                                            else if (wheel.angleDelta.y < 0) root.centroRatio = Math.max(0.05, root.centroRatio - step)
+                                            
+                                            console.warn("[DEBUG] CentroRatio changed from", old, "to", root.centroRatio)
                                             arenaCanvas.requestPaint()
-                                            // Opcional: Salvar em tempo real ou apenas no botão salvar?
-                                            // Por enquanto, salvamos no botão salvar para evitar IO excessivo.
+                                            root.zonasEditadas(); showUnsavedToast()
                                         }
+                                    }
+                                }
+
+                                // Tracker de mouse para debug visual (apenas em modo dev)
+                                Rectangle {
+                                    width: 14; height: 14; radius: 7; color: "#ff00ff"; opacity: 0.6; z: 110
+                                    x: interactionMa.mouseX - 7; y: interactionMa.mouseY - 7
+                                    visible: root.devMode && interactionMa.containsMouse
+                                    border.color: "white"; border.width: 1
+                                    
+                                    Text {
+                                        anchors.bottom: parent.top; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "X: " + Math.round(interactionMa.mouseX) + " Y: " + Math.round(interactionMa.mouseY)
+                                        color: "magenta"; font.pixelSize: 10; font.weight: Font.Bold
                                     }
                                 }
 
@@ -923,7 +975,7 @@ Item {
                     // Qt 6: sem propriedade "source"; o MediaPlayer referencia este item
                     VideoOutput {
                         id: framePreview
-                        anchors.fill: parent
+                        Layout.fillWidth: true; Layout.fillHeight: true
                         fillMode: VideoOutput.PreserveAspectFit
                         visible: root.videoPath !== ""
                         opacity: 0.5 // Deixa o fundo suave para desenhar as zonas por cima

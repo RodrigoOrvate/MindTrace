@@ -565,26 +565,88 @@ Item {
     // ── Popup delete — Passo 1 ────────────────────────────────────────────
     Popup {
         id: deleteStep1Popup
-        anchors.centerIn: parent; width: 380; height: 190
+        anchors.centerIn: parent
+        width: 400
+        height: step1Layout.implicitHeight + 56
         modal: true; focus: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: ThemeManager.accent; border.width: 1 }
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: ThemeManager.borderLight; border.width: 1 }
 
         ColumnLayout {
-            anchors { fill: parent; margins: 24 }
+            id: step1Layout
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Excluir experimento?"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
             Text {
                 Layout.fillWidth: true
-                text: "\"" + root.pendingDeleteName + "\" será excluído permanentemente."
-                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
+                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
                 GhostButton { text: "Cancelar"; onClicked: deleteStep1Popup.close() }
                 Button {
-                    text: "Excluir"
-                    onClicked: { deleteStep1Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    text: "Continuar"
+                    onClicked: { deleteStep1Popup.close(); deleteNameField.text = ""; deleteStep2Popup.open() }
                     background: Rectangle { radius: 7; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } } }
+                    contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
+                }
+            }
+        }
+    }
+
+    // ── Popup delete — Passo 2 (Confirmar digitando o nome) ─────────────
+    Popup {
+        id: deleteStep2Popup
+        anchors.centerIn: parent
+        width: 420
+        height: step2Layout.implicitHeight + 56
+        modal: true; focus: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        onOpened: deleteNameField.forceActiveFocus()
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: ThemeManager.accent; border.width: 1 }
+
+        ColumnLayout {
+            id: step2Layout
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+            spacing: 14
+            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text {
+                Layout.fillWidth: true
+                text: "Para confirmar, digite o nome do experimento:"
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            Rectangle {
+                Layout.fillWidth: true; height: nameLabel.implicitHeight + 10; radius: 5
+                color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
+                Text {
+                    id: nameLabel
+                    anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; margins: 10 }
+                    text: root.pendingDeleteName; color: ThemeManager.textPrimary; font.pixelSize: 13; font.family: "Consolas, monospace"; font.weight: Font.Medium; wrapMode: Text.WrapAnywhere
+                }
+            }
+            TextField {
+                id: deleteNameField; Layout.fillWidth: true; placeholderText: root.pendingDeleteName
+                color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textPlaceholder; font.pixelSize: 13
+                leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
+                background: Rectangle {
+                    radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: deleteNameField.activeFocus ? ThemeManager.accent : ThemeManager.borderLight; border.width: 1
+                }
+                Keys.onReturnPressed: {
+                    if (text === root.pendingDeleteName) { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
+                GhostButton { text: "Cancelar"; onClicked: deleteStep2Popup.close() }
+                Button {
+                    text: "Excluir Definitivamente"
+                    enabled: deleteNameField.text === root.pendingDeleteName
+                    onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    background: Rectangle {
+                        radius: 7; color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }

@@ -43,10 +43,9 @@ QMediaPlayer (headless)
 
 | Pasta / Arquivo | Responsabilidade |
 |---|---|
-| `qml/core/` | Navegação base (`main.qml`, `LandingScreen.qml`, `HomeScreen.qml`), busca universal (`SearchBrowser.qml`), componentes reutilizáveis (`GhostButton.qml`, `Toast.qml`) |
-| `qml/shared/` | Funcionalidades comuns: `LiveRecording.qml` (motor de análise + UI de gravação) e `SessionResultDialog.qml` (dados pós-sessão NOR) |
-| `qml/nor/` | Fluxo NOR: `NORDashboard.qml`, `ArenaSetup.qml` (zonas + polígonos), `NORSetupScreen.qml`, `ArenaSelection.qml` |
-| `qml/ca/` | Fluxo Campo Aberto: `CAArenaSelection.qml` (layout 2/3 campos), `CASetup.qml`, `CADashboard.qml`, `CAMetadataDialog.qml` |
+| `qml/core/` | Navegação base (`main.qml`, `LandingScreen.qml`), componentes reutilizáveis (`GhostButton.qml`, `Toast.qml`) |
+| `qml/shared/` | Funcionalidades comuns como `LiveRecording.qml` (Análise) e `SessionResultDialog.qml` (Dados pós-sessão) |
+| `qml/nor/` | Fluxo do Reconhecimento de Objetos: `NORDashboard.qml` (Antigo `MainDashboard`), `ArenaSetup.qml`, `NORSetupScreen.qml` |
 
 ## Modelo ONNX
 
@@ -129,12 +128,11 @@ Mudança de velocidade usa **stop → setRate → seek → play** no `displayPla
 
 - **Resolução:** 720×480
 - **FPS:** ~29.97
-- **Campos ativos:** 2 ou 3 (NOR e CA — configurável via `ArenaSelection` / `CAArenaSelection`)
+- **Campos ativos:** 3
   - Campo 0: `(0, 0)` — Topo-Esquerda
   - Campo 1: `(360, 0)` — Topo-Direita
   - Campo 2: `(0, 240)` — Baixo-Esquerda
-- **`numCampos` em CA:** Reutiliza a lógica de 2 ou 3 campos do NOR para consistência. Layout de 1 campo removido para padronizar o pipeline de 3 crops paralelos.
-- **Centro/Borda em CA:** O "Centro" é um quadrado central dinâmico definido por `centroRatio`. A "Borda" é a área do chão ao redor deste centro.
+- **Crop:** cada campo = 360×240 → resize para 360×240 do modelo
 
 ## Gestão de Experimentos e Fluxo
 
@@ -213,8 +211,8 @@ seekTo(ms)              — salta headless para posição (usado pelo positionSy
 O `LiveRecording` calcula velocidade e distância a partir das coordenadas locais do body point a cada 100 ms:
 - **`currentVelocity[campo]`** — m/s na última janela de 100 ms (filtrado: descarta >2 m/s como ruído)
 - **`totalDistance[campo]`** — metros acumulados desde o início da sessão
-- **`Corpo (Body Tracking)`** — Utilizado exclusivamente para todas as métricas de CA (distância, velocidade, visitas ao centro/borda) para maior estabilidade.
-- **`numCampos`** — propriedade que controla quantos campos são ativos (2 ou 3).
+- **`arenaWidthM / arenaHeightM`** — dimensões físicas de 1 campo (padrão 0.5 m; ajustar conforme arena real)
+- **`perMinuteData[campo]`** — snapshots por minuto: `{min, distM, expA_s, expB_s}`
 
 ## Metadados Ricos de Sessão
 
@@ -262,17 +260,3 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo anterior; removido de `Component.onCompleted` para garantir dark mode sempre |
 | NVIDIA sem CUDA Toolkit não iniciava análise | `try_add_cuda_provider` não valida CUDA em runtime — a sessão só falha em `Ort::Session(...)`. Resolvido com `tryCreateSessions()` por tentativa: CUDA → DirectML → CPU |
 | `setup_onnx.ps1` executado diretamente sem MSVC | Script deve ser chamado apenas pelo `build.bat`, que ativa o ambiente MSVC correto antes |
-| Dupla navegação ao criar experimento CA | `onExperimentCreated` global + Connections interno em `caSetupComponent` ambos disparavam. Corrigido com flag `pendingCaFlow` e remoção do Connections interno |
-| Repeater sem acesso a `id` de delegate | `CAMetadataDialog` usava Repeater com campos nomeados inacessíveis externamente. Corrigido com inline `component CampoDataRow` + sinais `animalChanged`/`drogaChanged` atualizando arrays `_animalTexts`/`_drogaTexts` no root |
-| 5 cards NOR overflow na janela | 5 × 210px + 4 × 20px = 1130px > 980px. Corrigido reduzindo para 160×250 e spacing 14 (856px total) |
-| Integração Arena CA | `ArenaSetup.qml` unificado para NOR e CA. Em CA, oculta edição de pares e ajusta rótulos ("Borda/Centro") |
-| Busca Universal | Novo `SearchBrowser.qml` roteia experimentos NOR/CA com base no metadado `aparato` |
-| Erro de escopo no SearchBrowser | Atribuição de propriedades de preview falhava por escopo (global property). Corrigido com `id: previewContainer` explícito |
-| Erro de Parent no main.qml | `SettingsScreen` (Popup) não suportava `parent: root` (ApplicationWindow). Corrigido para `root.contentItem` |
-| Style Customization Warning | Estilo `Default` no Windows restringe customização de botões/popups. Alterado para `Style=Basic` em `qtquickcontrols2.conf` |
-| Lógica de Contexto CA | Regra atualizada: Escolha de contexto ("Padrão" vs "Contextual") disponível **apenas** para o layout de 2 campos |
-| Padronização de Layouts | Campos de 1 layout removidos para consistência; NOR e CA suportam apenas 2 ou 3 campos |
-| Dynamic CA Scaling | Implementado `Alt + MouseWheel` em `ArenaSetup.qml` para ajustar `centroRatio` (persistido no backend) |
-| Tracking CA (Body) | Métricas de Campo Aberto migradas de nose para body tracking para maior precisão de ocupação de zona |
-| Navigation Filters | `clearFilter()` adicionado ao voltar de experimentos para resetar a busca universal |
-| Search Deletion | Adicionado suporte a exclusão (lixeira) diretamente no Universal Search Browser |

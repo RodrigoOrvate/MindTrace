@@ -76,8 +76,8 @@ public:
                                                    const QStringList &columns);
 
     Q_INVOKABLE void    setFilter(const QString &query);
-    Q_INVOKABLE QString experimentPath(const QString &name) const;
-    Q_INVOKABLE bool    deleteExperiment(const QString &name);
+    Q_INVOKABLE QString experimentPath(const QString &name, const QString &context = QString()) const;
+    Q_INVOKABLE bool    deleteExperiment(const QString &name, const QString &context = QString());
 
     // Chamado ao fim do timer de 300 s: insere N linhas de uma vez no CSV.
     // rows: lista de QStringList, uma por campo, valores na ordem das colunas do CSV.
@@ -150,7 +150,7 @@ private:
     QString basePath() const;
     void    scanAndUpdateModel(const QString &aparatoFilter); 
     void    scanAndUpdateModel();
-    void    removeFromRegistry(const QString &name); // remove entrada do registry.json
+    void    removeFromRegistry(const QString &name, const QString &context = QString()); // remove entrada do registry.json
     void    writeMetadata(const QString &folderPath,
                           const QString &name,
                           int            animalCount,

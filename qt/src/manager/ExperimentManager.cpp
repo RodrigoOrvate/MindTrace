@@ -222,9 +222,10 @@ void ExperimentManager::setFilter(const QString &query)
     m_model->applyFilter(query);
 }
 
-QString ExperimentManager::experimentPath(const QString &name) const
+QString ExperimentManager::experimentPath(const QString &name, const QString &context) const
 {
-    if (m_activeContext.isEmpty()) return QString();
+    QString effectiveContext = context.isEmpty() ? m_activeContext : context;
+    if (effectiveContext.isEmpty()) return QString();
     
     // Check registry first
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
@@ -232,26 +233,28 @@ QString ExperimentManager::experimentPath(const QString &name) const
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
         for (int i = 0; i < arr.size(); ++i) {
             QJsonObject obj = arr[i].toObject();
-            if (obj["context"].toString() == m_activeContext && obj["name"].toString() == name) {
+            if (obj["context"].toString() == effectiveContext && obj["name"].toString() == name) {
                 return obj["path"].toString();
             }
         }
     }
     
     // Default fallback
-    return basePath() + QLatin1Char('/') + m_activeContext + QLatin1Char('/') + name;
+    return basePath() + QLatin1Char('/') + effectiveContext + QLatin1Char('/') + name;
 }
 
-bool ExperimentManager::deleteExperiment(const QString &name)
+bool ExperimentManager::deleteExperiment(const QString &name, const QString &context)
 {
     const QString trimmed = name.trimmed();
-    if (m_activeContext.isEmpty() || trimmed.isEmpty()) {
+    QString effectiveContext = context.isEmpty() ? m_activeContext : context;
+
+    if (trimmed.isEmpty()) {
         emit errorOccurred(QStringLiteral("Nome inválido."));
         return false;
     }
 
     // Usa experimentPath() para encontrar o caminho real (padrão ou registry)
-    const QString folderPath = experimentPath(trimmed);
+    const QString folderPath = experimentPath(trimmed, effectiveContext);
     if (folderPath.isEmpty()) {
         emit errorOccurred(QStringLiteral("Experimento não encontrado: ") + trimmed);
         return false;
@@ -259,17 +262,17 @@ bool ExperimentManager::deleteExperiment(const QString &name)
     QDir dir(folderPath);
     if (!dir.exists()) {
         // Pasta já não existe (excluída externamente) — limpa o registry e atualiza
-        removeFromRegistry(trimmed);
-        scanAndUpdateModel();
+        removeFromRegistry(trimmed, effectiveContext);
+        refreshModel();
         emit experimentDeleted(trimmed);
         return true;
     }
     if (!dir.removeRecursively()) {
-        emit errorOccurred(QStringLiteral("Não foi possível excluir: ") + trimmed);
+        emit errorOccurred(QStringLiteral("Não foi possível excluir (pode estar em uso): ") + trimmed);
         return false;
     }
-    removeFromRegistry(trimmed);
-    scanAndUpdateModel();
+    removeFromRegistry(trimmed, effectiveContext);
+    refreshModel();
     emit experimentDeleted(trimmed);
     return true;
 }
@@ -627,11 +630,16 @@ void ExperimentManager::setExperimentReactivation(const QString &experimentName,
 
 void ExperimentManager::refreshModel()
 {
-    scanAndUpdateModel();
+    if (m_inSearchMode) {
+        loadAllContexts(m_aparatoFilter);
+    } else {
+        scanAndUpdateModel();
+    }
 }
 
-void ExperimentManager::removeFromRegistry(const QString &name)
+void ExperimentManager::removeFromRegistry(const QString &name, const QString &context)
 {
+    QString effectiveContext = context.isEmpty() ? m_activeContext : context;
     const QString regPath = basePath() + QStringLiteral("/registry.json");
     QFile regFile(regPath);
     if (!regFile.open(QIODevice::ReadOnly))
@@ -642,7 +650,7 @@ void ExperimentManager::removeFromRegistry(const QString &name)
     QJsonArray updated;
     for (int i = 0; i < arr.size(); ++i) {
         QJsonObject obj = arr[i].toObject();
-        if (obj["name"].toString() == name && obj["context"].toString() == m_activeContext)
+        if (obj["name"].toString() == name && obj["context"].toString() == effectiveContext)
             continue; // remove esta entrada
         updated.append(obj);
     }

@@ -11,6 +11,7 @@ class ArenaConfigModel : public QObject
     Q_PROPERTY(QString  pairId     READ pairId     NOTIFY configChanged)
     Q_PROPERTY(QString  imageUrl   READ imageUrl   NOTIFY configChanged)
     Q_PROPERTY(bool     configured READ configured NOTIFY configChanged)
+    Q_PROPERTY(QVariantList zones   READ zones     NOTIFY configChanged)
 
 public:
     explicit ArenaConfigModel(QObject *parent = nullptr);
@@ -18,6 +19,7 @@ public:
     QString pairId()     const;
     QString imageUrl()   const;
     bool    configured() const;
+    QVariantList zones()  const;
 
     // ── API invocável pelo QML ──────────────────────────────────────────
     // Carrega a configuração da arena (zonas, pontos) conforme o contexto e nome (pasta padrão)

@@ -23,6 +23,7 @@ ArenaConfigModel::ArenaConfigModel(QObject *parent) : QObject(parent) {
 QString ArenaConfigModel::pairId() const { return m_pairId; }
 QString ArenaConfigModel::imageUrl() const { return m_imageUrl; }
 bool ArenaConfigModel::configured() const { return m_configured; }
+QVariantList ArenaConfigModel::zones() const { return m_zones; }
 QString ArenaConfigModel::getArenaPoints() const { return m_arenaPoints; }
 QString ArenaConfigModel::getFloorPoints() const { return m_floorPoints; }
 

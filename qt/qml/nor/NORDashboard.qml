@@ -29,11 +29,10 @@ Item {
 
         // Nova lógica para abrir o experimento recém-criado
         if (initialExperimentName !== "") {
-            // Agora usamos o id correto do ListView
             experimentList.selectExperimentByName(initialExperimentName)
             
-            // Garante que a aba da Arena seja a primeira vista
-            innerTabs.currentIndex = 0 
+            // searchMode → abre na aba Dados (índice 2), criação → abre na Arena (índice 0)
+            innerTabs.currentIndex = root.currentTabIndex || 0
         }
     }
 
@@ -319,6 +318,7 @@ Item {
                 // ── Sessão de gravação ────────────────────────────────────
                 // Persistem entre rodadas (não pedem ao usuário novamente)
                 property string sessionType: "Treino"
+                readonly property bool isReactivationPhase: (sessionType === "Reativação") || (sessionType === "Teste D2") || (sessionType === "Teste D3")
                 readonly property string sessionDia: {
                     if (sessionType === "Reativação") return "2"
                     if (sessionType === "Teste D2")   return "2"
@@ -470,6 +470,11 @@ Item {
                                     workArea.pair3 = p3
                                     ExperimentManager.updatePairs(workArea.selectedPath, p1, p2, p3)
                                 }
+                                onZonasEditadas: {
+                                    // Atualiza zonas em tempo real na aba Gravação (sem salvar)
+                                    var z = tabArenaSetup.zones
+                                    liveRecordingTab.zones = z
+                                }
                                 numCampos: workArea.activeNumCampos
                                 aparato: "nor"
                             }
@@ -481,14 +486,59 @@ Item {
                                 analysisMode: workArea.analysisMode
                                 numCampos: workArea.activeNumCampos
                                 aparato: "nor"
+                                isReactivation: workArea.isReactivationPhase
+
+                                zones: (function() {
+                                    var src = ArenaConfigModel.zones || []
+                                    if (!src.length) return []
+                                    var converted = []
+                                    for (var i = 0; i < src.length; i++) {
+                                        var z = src[i]
+                                        converted.push({
+                                            x: z.xRatio !== undefined ? z.xRatio : 0.3,
+                                            y: z.yRatio !== undefined ? z.yRatio : 0.5,
+                                            r: z.radiusRatio !== undefined ? z.radiusRatio : 0.12
+                                        })
+                                    }
+                                    return converted
+                                })()
+
+                                arenaPoints: (function() {
+                                    var arr = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                    return arr
+                                })()
+
+                                floorPoints: (function() {
+                                    var arr = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                                    return arr
+                                })()
+
+                                Connections {
+                                    target: ArenaConfigModel
+                                    function onConfigChanged() {
+                                        var srcZ = ArenaConfigModel.zones || []
+                                        if (!srcZ.length) return
+                                        var converted = []
+                                        for (var i = 0; i < srcZ.length; i++) {
+                                            var z = srcZ[i]
+                                            converted.push({
+                                                x: z.xRatio !== undefined ? z.xRatio : 0.3,
+                                                y: z.yRatio !== undefined ? z.yRatio : 0.5,
+                                                r: z.radiusRatio !== undefined ? z.radiusRatio : 0.12
+                                            })
+                                        }
+                                        liveRecordingTab.zones = converted
+
+                                        var srcAP = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                        var srcFP = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                                        liveRecordingTab.arenaPoints = srcAP
+                                        liveRecordingTab.floorPoints = srcFP
+                                    }
+                                }
 
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
                                 pair3: workArea.pair3
-
-                                zones:       ArenaConfigModel.zones
-                                arenaPoints: JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
-                                floorPoints: JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
 
                                 // Timer de 300 s zerou → injeta dados de tracking e abre o diálogo
                                 onSessionEnded: {
