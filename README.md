@@ -279,4 +279,5 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | Toggle de tema não funcionava | `qmldir` ausente em `Theme/` — sem ele cada componente recebe instância separada |
 | App iniciava em tema claro | `loadThemePreference()` carregava valor salvo; removido do `Component.onCompleted` |
 | Três SDKs na raiz | Unificado para um único `onnxruntime_sdk/` — usuário baixa só o que precisa |
-| NVIDIA sem CUDA Toolkit caía em erro fatal | `tryCreateSessions()` por provider — CUDA falha → tenta DirectML → CPU (cascata automática) |
+| NVIDIA sem CUDA Toolkit caía em erro fatal | `tryCreateSessions()` por provider — CUDA falha → tenta DirectML → CPU (cascata automática) || Exclus�o no Browser global falhava | ExperimentManager::deleteExperiment aceita contexto; SearchBrowser passa contexto do item |
+| Pontos da arena sumiam ao arrastar | Implementado clamp (trava) de coordenadas [0, width/height] no onPositionChanged |
