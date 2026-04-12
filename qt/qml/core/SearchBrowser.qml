@@ -192,11 +192,12 @@ Item {
                                     experimentList.currentIndex = index
                                     var path = model.path
                                     var meta = ExperimentManager.readMetadataFromPath(path)
+                                    var appType = meta.aparato || "nor"
                                     previewName.text    = model.name
                                     previewContext.text = model.context
-                                    previewAparato.text = (meta.aparato || "nor") === "campo_aberto" ? "🐀 Campo Aberto" : "🧠 Rec. de Objetos"
+                                    previewAparato.text = appType === "comportamento_complexo" ? "🧩 Comp. Complexo" : (appType === "campo_aberto" ? "🐀 Campo Aberto" : "🧠 Rec. de Objetos")
                                     previewCampos.text  = (meta.numCampos || 3) + " campo(s)"
-                                    previewContainer.previewAparatoVal   = meta.aparato || "nor"
+                                    previewContainer.previewAparatoVal   = appType
                                     previewContainer.previewNumCamposVal = meta.numCampos || 3
                                     previewContainer.previewPathVal      = path
                                     previewPanel.visible = true

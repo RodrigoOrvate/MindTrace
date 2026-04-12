@@ -11,6 +11,7 @@ Item {
 
     signal norSelected()
     signal caSelected()
+    signal ccSelected()
     signal backRequested()
 
     Rectangle { 
@@ -96,7 +97,7 @@ Item {
                 icon: "🧩"
                 title: "Comportamento\nComplexo"
                 description: "Labirinto, sociabilidade\ne paradigmas avançados"
-                locked: true
+                onClicked: root.ccSelected()
             }
 
             NORCard {

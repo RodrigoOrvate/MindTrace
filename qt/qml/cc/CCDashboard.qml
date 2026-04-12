@@ -1,5 +1,5 @@
-// qml/ca/CADashboard.qml
-// Dashboard Campo Aberto: sidebar de experimentos + análise de habituação.
+// qml/cc/CCDashboard.qml
+// Dashboard Comportamento Complexo: sidebar + Arena + Gravação + Classificação + Dados.
 
 import QtQuick
 import QtQuick.Controls
@@ -26,7 +26,7 @@ Item {
 
     Component.onCompleted: {
         if (root.searchMode) {
-            ExperimentManager.loadAllContexts("campo_aberto")
+            ExperimentManager.loadAllContexts("comportamento_complexo")
         }
         if (initialExperimentName !== "") {
             experimentList.selectExperimentByName(initialExperimentName)
@@ -38,7 +38,7 @@ Item {
 
     onContextChanged: {
         if (!root.searchMode && context !== "")
-            ExperimentManager.loadContext(context, "campo_aberto")
+            ExperimentManager.loadContext(context, "comportamento_complexo")
     }
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -68,7 +68,7 @@ Item {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show("Sessão registrada!")
-                innerTabs.currentIndex = 1
+                innerTabs.currentIndex = 3  // aba Dados
             }
         }
     }
@@ -93,12 +93,12 @@ Item {
 
                 GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
 
-                Text { text: "🐀"; font.pixelSize: 20 }
+                Text { text: "🧩"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
-                          ? "Campo Aberto — Experimentos"
-                          : "Campo Aberto — Dashboard"
+                          ? "Comportamento Complexo — Experimentos"
+                          : "Comportamento Complexo — Dashboard"
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -106,14 +106,14 @@ Item {
                 Rectangle {
                     visible: root.numCampos > 0 && !root.searchMode
                     radius: 4; color: ThemeManager.surfaceHover
-                    border.color: "#3d7aab"; border.width: 1
+                    border.color: "#7a3dab"; border.width: 1
                     Behavior on color { ColorAnimation { duration: 200 } }
                     implicitWidth: numLabel.implicitWidth + 16; implicitHeight: 24
                     Text {
                         id: numLabel
                         anchors.centerIn: parent
                         text: root.numCampos + " campo" + (root.numCampos > 1 ? "s" : "")
-                        color: "#3d7aab"; font.pixelSize: 11; font.weight: Font.Bold
+                        color: "#7a3dab"; font.pixelSize: 11; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                 }
@@ -156,7 +156,7 @@ Item {
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
                             radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: searchField.activeFocus ? "#3d7aab" : ThemeManager.borderLight; border.width: 1
+                            border.color: searchField.activeFocus ? "#7a3dab" : ThemeManager.borderLight; border.width: 1
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
                         onTextChanged: ExperimentManager.setFilter(text)
@@ -188,7 +188,7 @@ Item {
                             width: experimentList.width; height: 36
                             property bool isSelected: experimentList.currentIndex === index
                             property bool isHovered: mainArea.containsMouse || trashArea.containsMouse
-                            color: isSelected ? "#3d7aab" : (isHovered ? ThemeManager.surfaceAlt : "transparent")
+                            color: isSelected ? "#7a3dab" : (isHovered ? ThemeManager.surfaceAlt : "transparent")
                             Behavior on color { ColorAnimation { duration: 120 } }
 
                             Text {
@@ -206,7 +206,7 @@ Item {
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
                                     anchors.centerIn: parent; text: "🗑"; font.pixelSize: 13
-                                    color: trashArea.containsMouse ? "#5590cc" : "#3d7aab"
+                                    color: trashArea.containsMouse ? "#9a5ddb" : "#7a3dab"
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
                                 MouseArea {
@@ -258,9 +258,9 @@ Item {
                 property string selectedPath: ""
                 property int    colCount:     0
                 property bool   includeDrug:      true
-                property bool   hasReactivation:  false
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  root.numCampos
+                property int    sessionMinutes:   5
 
                 function loadExperiment(name, path) {
                     selectedName = name
@@ -274,11 +274,15 @@ Item {
                     var ctx  = meta.context || ""
                     ExperimentManager.setActiveContext(ctx)
 
-                    includeDrug      = meta.includeDrug !== false
-                    hasReactivation  = meta.hasReactivation === true
-                    activeNumCampos  = meta.numCampos || root.numCampos
+                    includeDrug     = meta.includeDrug !== false
+                    activeNumCampos = meta.numCampos || root.numCampos
+                    sessionMinutes  = meta.sessionMinutes || 5
 
-                    innerTabs.currentIndex = 0
+                    // Propaga pontos de arena para aba Gravação
+                    liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                    liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+
+                    colCount = tableModel.columnCount()
                 }
 
                 ExperimentTableModel { id: tableModel }
@@ -289,41 +293,43 @@ Item {
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // 0: Placeholder
+                    // Índice 0: placeholder "selecione um experimento"
                     Item {
                         ColumnLayout {
-                            anchors.centerIn: parent; spacing: 12
-                            Text { Layout.alignment: Qt.AlignHCenter; text: "🐀"; font.pixelSize: 48; opacity: 0.3 }
+                            anchors.centerIn: parent; spacing: 14
+                            Text { text: "🧩"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
                             Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: "Selecione um experimento\nna barra lateral"
-                                color: ThemeManager.textSecondary; font.pixelSize: 14
+                                text: "Selecione um experimento"
+                                color: ThemeManager.textSecondary; font.pixelSize: 16
                                 Behavior on color { ColorAnimation { duration: 150 } }
-                                horizontalAlignment: Text.AlignHCenter
+                                Layout.alignment: Qt.AlignHCenter
                             }
                         }
                     }
 
-                    // 1: Experimento (tab bar + conteúdo)
+                    // Índice 1: painel com abas
                     ColumnLayout {
                         spacing: 0
 
+                        // ── Barra de abas interna ─────────────────────────
                         Rectangle {
-                            Layout.fillWidth: true; height: 40
+                            Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+                            border.color: ThemeManager.border; border.width: 0
+
                             Rectangle {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                 height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }
                             }
 
-                            Row {
-                                anchors { left: parent.left; leftMargin: 16; top: parent.top; bottom: parent.bottom }
+                            RowLayout {
+                                anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                                 spacing: 0
 
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
+                                    model: ["Arena", "Gravação", "Classificação", "Dados"]
 
                                     delegate: Item {
                                         id: tabItem
@@ -337,7 +343,7 @@ Item {
                                         Rectangle {
                                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                             height: parent.isActive ? 2 : (parent.isHovered ? 1 : 0)
-                                            color: parent.isActive ? "#3d7aab" : (parent.isHovered ? "#5590cc" : "transparent")
+                                            color: parent.isActive ? "#7a3dab" : (parent.isHovered ? "#9a5ddb" : "transparent")
                                             Behavior on color  { ColorAnimation { duration: 150 } }
                                             Behavior on height { NumberAnimation { duration: 150 } }
                                         }
@@ -357,13 +363,14 @@ Item {
                                         }
                                     }
                                 }
-                            }
 
-                            Text {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                text: workArea.selectedName
-                                color: ThemeManager.textTertiary; font.pixelSize: 12; elide: Text.ElideRight
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: workArea.selectedName
+                                    color: ThemeManager.textTertiary; font.pixelSize: 12; elide: Text.ElideRight
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
                             }
                         }
 
@@ -372,74 +379,58 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // ── Tab 0: Arena ──────────────────────────────────────
+                            // ── Tab 0: Arena ──────────────────────────────
                             ArenaSetup {
                                 id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
                                 context: root.context
                                 numCampos: workArea.activeNumCampos
-                                aparato: "campo_aberto"
-                                caMode: true
+                                aparato: "comportamento_complexo"
+                                caMode: true   // sem objetos NOR
+                                ccMode: true   // sem centro
 
-                                // Sincroniza a mudança de modo (offline/ao_vivo) com o resto do DASH
                                 onAnalysisModeChangedExternally: mode => {
                                     workArea.analysisMode  = mode
-                                    innerTabs.currentIndex = 1  // Pula para aba Gravação
+                                    innerTabs.currentIndex = 1
                                 }
 
-                                // Propaga arenaPoints/floorPoints/centroRatio ao vivo para aba Gravação
-                                // (sem necessidade de salvar — atualiza enquanto o usuário arrasta)
+                                // Propagação ao vivo Arena → Gravação
                                 onZonasEditadas: {
                                     liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
                                     liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
-                                    liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
-                                }
-                                onCentroRatioChanged: {
-                                    liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
                                 }
                             }
 
-                            // ── Tab 1: Gravação ───────────────────────────────────
+                            // ── Tab 1: Gravação ───────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
-                                videoPath: tabArenaSetup.videoPath
+                                videoPath:    tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
                                 numCampos:    workArea.activeNumCampos
-                                aparato: "campo_aberto"
+                                aparato:      "comportamento_complexo"
+                                sessionDurationMinutes: workArea.sessionMinutes
 
-                                // CA usa pontos para desenhar Centro/Borda
-                                zones:       ArenaConfigModel.zones
                                 arenaPoints: JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                                 floorPoints: JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
-                                centroRatio: (function() {
-                                    var m = ExperimentManager.readMetadataFromPath(workArea.selectedPath)
-                                    return m.centroRatio || 0.5
-                                })()
 
-                                // Atualiza zonas, arena e chão ao vivo quando a config é salva
                                 Connections {
                                     target: ArenaConfigModel
                                     function onConfigChanged() {
-                                        var srcAP = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
-                                        var srcFP = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
-                                        liveRecordingTab.arenaPoints = srcAP
-                                        liveRecordingTab.floorPoints = srcFP
-                                        var m = ExperimentManager.readMetadataFromPath(workArea.selectedPath)
-                                        liveRecordingTab.centroRatio = m.centroRatio || 0.5
+                                        liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                        liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
                                     }
                                 }
 
                                 onSessionEnded: {
-                                    caResultDialog.totalDistance   = liveRecordingTab.totalDistance
-                                    caResultDialog.avgVelocity     = liveRecordingTab.currentVelocity
-                                    caResultDialog.perMinuteData   = liveRecordingTab.perMinuteData
-                                    caResultDialog.includeDrug     = workArea.includeDrug
-                                    caResultDialog.hasReactivation = workArea.hasReactivation
-                                    caResultDialog.experimentName  = workArea.selectedName
-                                    caResultDialog.experimentPath  = workArea.selectedPath
-                                    caResultDialog.numCampos       = workArea.activeNumCampos
-                                    caResultDialog.videoPath       = tabArenaSetup.videoPath
-                                    caResultDialog.open()
+                                    ccResultDialog.totalDistance  = liveRecordingTab.totalDistance
+                                    ccResultDialog.avgVelocity    = liveRecordingTab.currentVelocity
+                                    ccResultDialog.perMinuteData  = liveRecordingTab.perMinuteData
+                                    ccResultDialog.includeDrug    = workArea.includeDrug
+                                    ccResultDialog.experimentName = workArea.selectedName
+                                    ccResultDialog.experimentPath = workArea.selectedPath
+                                    ccResultDialog.numCampos      = workArea.activeNumCampos
+                                    ccResultDialog.videoPath      = tabArenaSetup.videoPath
+                                    ccResultDialog.open()
                                 }
 
                                 onRequestVideoLoad: {
@@ -447,7 +438,118 @@ Item {
                                 }
                             }
 
-                            // ── Tab 2: Dados ──────────────────────────────────────
+                            // ── Tab 2: Classificação ──────────────────────
+                            Item {
+                                id: classificationTab
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: ThemeManager.background
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        width: Math.min(560, parent.width - 80)
+                                        spacing: 24
+
+                                        // Ícone
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "🧠"
+                                            font.pixelSize: 52
+                                            opacity: 0.6
+                                        }
+
+                                        // Título
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "Classificação de Comportamento"
+                                            color: ThemeManager.textPrimary
+                                            font.pixelSize: 20; font.weight: Font.Bold
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+
+                                        // Descrição
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: "Esta aba permitirá aplicar algoritmos de classificação automatizada sobre os vídeos e trajetórias gravados, identificando padrões comportamentais como grooming, exploração, imobilidade, sociabilidade e outros."
+                                            color: ThemeManager.textSecondary
+                                            font.pixelSize: 13
+                                            wrapMode: Text.WordWrap
+                                            horizontalAlignment: Text.AlignHCenter
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+
+                                        // Opções de algoritmo (informativo)
+                                        Rectangle {
+                                            Layout.fillWidth: true; radius: 12
+                                            color: ThemeManager.surfaceDim
+                                            border.color: "#7a3dab"; border.width: 1
+                                            implicitHeight: algoCol.implicitHeight + 24
+
+                                            ColumnLayout {
+                                                id: algoCol
+                                                anchors { fill: parent; margins: 16 }
+                                                spacing: 12
+
+                                                Text {
+                                                    text: "ALGORITMOS EM AVALIAÇÃO"
+                                                    color: ThemeManager.textSecondary
+                                                    font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.5
+                                                }
+
+                                                Repeater {
+                                                    model: [
+                                                        { name: "B-SOiD",     desc: "Pose-based unsupervised behavior segmentation (scikit-learn + UMAP)" },
+                                                        { name: "YOLO Pose",  desc: "Detecção de posturas em tempo real via keypoints" },
+                                                        { name: "Rede Custom",desc: "Modelo treinado sobre keypoints do MindTrace (a definir)" }
+                                                    ]
+                                                    delegate: RowLayout {
+                                                        spacing: 12
+                                                        Rectangle {
+                                                            width: 6; height: 6; radius: 3
+                                                            color: "#7a3dab"
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
+                                                        ColumnLayout {
+                                                            spacing: 1
+                                                            Text { text: modelData.name; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
+                                                            Text { text: modelData.desc;  color: ThemeManager.textTertiary; font.pixelSize: 11; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Botão desabilitado
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            height: 40; radius: 8
+                                            implicitWidth: classifyLbl.implicitWidth + 32
+                                            color: ThemeManager.surfaceDim
+                                            border.color: ThemeManager.border; border.width: 1
+
+                                            Text {
+                                                id: classifyLbl
+                                                anchors.centerIn: parent
+                                                text: "🔒  Classificar  (em breve)"
+                                                color: ThemeManager.textTertiary
+                                                font.pixelSize: 13; font.weight: Font.Bold
+                                            }
+                                        }
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "O algoritmo será definido em uma conversa separada antes da implementação."
+                                            color: ThemeManager.textTertiary; font.pixelSize: 11
+                                            horizontalAlignment: Text.AlignHCenter
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ── Tab 3: Dados ──────────────────────────────
                             Item {
                                 ColumnLayout {
                                     anchors { fill: parent; margins: 24 }
@@ -490,7 +592,7 @@ Item {
                                             text: "💾 Salvar"
                                             onClicked: { if (tableModel.saveCsv()) savedFeedback.show("Salvo!") }
                                             background: Rectangle {
-                                                radius: 7; color: parent.hovered ? "#2d5f8a" : "#3d7aab"
+                                                radius: 7; color: parent.hovered ? "#6a2d9a" : "#7a3dab"
                                                 Behavior on color { ColorAnimation { duration: 200 } }
                                             }
                                             contentItem: Text {
@@ -544,9 +646,9 @@ Item {
                                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
                                                 visible: column === 0 && rowDelMa.containsMouse
                                                 width: 20; height: 20; radius: 4
-                                                color: rowDelBtnMa.containsMouse ? "#2d5f8a" : "#0d1a30"; Behavior on color { ColorAnimation { duration: 200 } }
-                                                border.color: "#3d7aab"; border.width: 1
-                                                Text { anchors.centerIn: parent; text: "✕"; color: "#3d7aab"; font.pixelSize: 9; font.weight: Font.Bold }
+                                                color: rowDelBtnMa.containsMouse ? "#3d2d6a" : "#1a0d2e"; Behavior on color { ColorAnimation { duration: 200 } }
+                                                border.color: "#7a3dab"; border.width: 1
+                                                Text { anchors.centerIn: parent; text: "✕"; color: "#7a3dab"; font.pixelSize: 9; font.weight: Font.Bold }
                                                 MouseArea {
                                                     id: rowDelBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onClicked: { tableModel.removeRow(row); tableModel.saveCsv() }
@@ -575,9 +677,9 @@ Item {
         }
     }
 
-    // ── Diálogo de resultado CA ──────────────────────────────────────────
-    CAMetadataDialog {
-        id: caResultDialog
+    // ── Diálogo de resultado CC ──────────────────────────────────────────
+    CCMetadataDialog {
+        id: ccResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
     }
@@ -589,8 +691,7 @@ Item {
     // ── Popup delete — Passo 1 ────────────────────────────────────────────
     Popup {
         id: deleteStep1Popup
-        anchors.centerIn: parent
-        width: 400
+        anchors.centerIn: parent; width: 400
         height: step1Layout.implicitHeight + 56
         modal: true; focus: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: ThemeManager.borderLight; border.width: 1 }
@@ -599,11 +700,11 @@ Item {
             id: step1Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text {
                 Layout.fillWidth: true
                 text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
-                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
@@ -619,11 +720,10 @@ Item {
         }
     }
 
-    // ── Popup delete — Passo 2 (Confirmar digitando o nome) ─────────────
+    // ── Popup delete — Passo 2 ─────────────────────────────────────────
     Popup {
         id: deleteStep2Popup
-        anchors.centerIn: parent
-        width: 420
+        anchors.centerIn: parent; width: 420
         height: step2Layout.implicitHeight + 56
         modal: true; focus: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: deleteNameField.forceActiveFocus()
@@ -633,19 +733,15 @@ Item {
             id: step2Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-            Text {
-                Layout.fillWidth: true
-                text: "Para confirmar, digite o nome do experimento:"
-                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
-            }
+            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { Layout.fillWidth: true; text: "Para confirmar, digite o nome do experimento:"; color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             Rectangle {
                 Layout.fillWidth: true; height: nameLabel.implicitHeight + 10; radius: 5
                 color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
                 Text {
                     id: nameLabel
                     anchors { verticalCenter: parent.verticalCenter; left: parent.left; right: parent.right; margins: 10 }
-                    text: root.pendingDeleteName; color: ThemeManager.textPrimary; font.pixelSize: 13; font.family: "Consolas, monospace"; font.weight: Font.Medium; wrapMode: Text.WrapAnywhere
+                    text: root.pendingDeleteName; color: ThemeManager.textPrimary; font.pixelSize: 13; wrapMode: Text.WrapAnywhere
                 }
             }
             TextField {

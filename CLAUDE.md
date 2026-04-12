@@ -156,6 +156,13 @@ O módulo CA reutiliza o mesmo `ExperimentManager` do NOR. Diferenças:
 - CSV: `["Diretório do Vídeo", "Animal", "Campo", "Dia", "Distância Total (m)", "Velocidade Média (m/s)"]` + opcional "Droga"
 - JSON de sessão: `aparato: "campo_aberto"`, sem bouts de exploração, inclui `porMinuto` com distância e velocidade por minuto
 
+### Fluxo Comportamento Complexo (CC)
+Semelhante ao CA, porém voltado para rastreamento genérico de locomoção sem requerer desenho do centro ou objetos.
+- Usa a arquitetura de pasta e módulo `cc/`
+- JSON de sessão: `aparato: "comportamento_complexo"`, métricas puras de tracker de corpo
+- Interface LiveRecording esconde painéis laterais de tempos de zonas automaticamente e muda o título para "EXPLORAÇÃO GERAL"
+- Filtro de distância na análise é mais brando (< 10 m/s) para captar toda flutuação e tem toggle `Rastro ON/OFF` para visualização na UI
+
 ### Compatibilidade Excel
 Todos os CSVs são gravados com **UTF-8 BOM** (`\xEF\xBB\xBF`) garantindo visualização perfeita de acentos ("í", "ó") no Microsoft Excel.
 
@@ -262,3 +269,4 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | Exclusão no Browser global falhava | `ExperimentManager::deleteExperiment` aceita contexto; `SearchBrowser` passa contexto do item |
 | Pontos da arena sumiam ao arrastar | Implementado clamp (trava) de coordenadas [0, width/height] no `onPositionChanged` |
 | `setup_onnx.ps1` executado diretamente sem MSVC | Script deve ser chamado apenas pelo `build.bat`, que ativa o ambiente MSVC correto antes |
+| Distância e Tracking zerados em modos sem zonas | `accumulateExploration` abortava cedo em arranjos sem zonas. Reduzido para exigir `zones.length < 6` apenas no `nor`. Layout dinâmico dos botões ajustado. |

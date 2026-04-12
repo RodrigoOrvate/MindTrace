@@ -1,0 +1,5 @@
+module cc
+CCArenaSelection 1.0 CCArenaSelection.qml
+CCSetup          1.0 CCSetup.qml
+CCDashboard      1.0 CCDashboard.qml
+CCMetadataDialog 1.0 CCMetadataDialog.qml

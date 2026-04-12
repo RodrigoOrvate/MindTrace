@@ -32,6 +32,12 @@
     <file>qml/ca/CAMetadataDialog.qml</file>
     <file>qml/ca/qmldir</file>
 
+    <file>qml/cc/CCArenaSelection.qml</file>
+    <file>qml/cc/CCSetup.qml</file>
+    <file>qml/cc/CCDashboard.qml</file>
+    <file>qml/cc/CCMetadataDialog.qml</file>
+    <file>qml/cc/qmldir</file>
+
     <file>qml/shared/LiveRecording.qml</file>
     <file>qml/shared/SessionResultDialog.qml</file>
     <file>qml/shared/qmldir</file>

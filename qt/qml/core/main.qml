@@ -13,6 +13,7 @@ import MindTrace.Backend 1.0
 import "../nor"
 import "../shared"
 import "../ca"
+import "../cc"
 import "Theme"
 
 ApplicationWindow {
@@ -37,11 +38,18 @@ ApplicationWindow {
     property string pendingPair3:       ""
     property bool   pendingIncludeDrug: true
 
-    // ── Estado acumulado durante o fluxo de criação CA ───────────────────
+    // ── Estado acumulado durante o fluxo de criação CA ──────────────────────────────────
     property int    pendingCaNumCampos: 3
     property string pendingCaContext:   "Padrão"
     property string pendingCaArenaId:   "ca_3campos"
     property bool   pendingCaFlow:      false   // distingue NOR vs CA no onExperimentCreated
+
+    // ── Estado acumulado durante o fluxo de criação CC ──────────────────────────────────
+    property int    pendingCcNumCampos:    3
+    property string pendingCcContext:      "Padrão"
+    property string pendingCcArenaId:      "cc_3campos"
+    property int    pendingCcSessionMin:   5
+    property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
 
     // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
     onActiveChanged: {
@@ -61,7 +69,16 @@ ApplicationWindow {
             if (!root.awaitingCreation) return
             root.awaitingCreation = false
 
-            if (root.pendingCaFlow) {
+            if (root.pendingCcFlow) {
+                root.pendingCcFlow = false
+                stack.push(ccDashboardComponent, {
+                    "context":               root.pendingCcContext,
+                    "arenaId":               root.pendingCcArenaId,
+                    "numCampos":             root.pendingCcNumCampos,
+                    "searchMode":            false,
+                    "initialExperimentName": name
+                })
+            } else if (root.pendingCaFlow) {
                 root.pendingCaFlow = false
                 stack.push(caDashboardComponent, {
                     "context":               root.pendingCaContext,
@@ -172,6 +189,7 @@ ApplicationWindow {
         HomeScreen {
             onNorSelected:    stack.push(arenaSelectionComponent)
             onCaSelected:     stack.push(caArenaSelectionComponent)
+            onCcSelected:     stack.push(ccArenaSelectionComponent)
             onBackRequested:  stack.pop()
         }
     }
@@ -265,6 +283,53 @@ ApplicationWindow {
         }
     }
 
+    // ── Fluxo CC ──────────────────────────────────────────────────────────────────
+
+    Component {
+        id: ccArenaSelectionComponent
+        CCArenaSelection {
+            onSelectionConfirmed: function(numCampos, context, arenaId) {
+                root.pendingCcNumCampos = numCampos
+                root.pendingCcContext   = context
+                root.pendingCcArenaId   = arenaId
+                stack.push(ccSetupComponent, {
+                    "numCampos": numCampos,
+                    "context":   context,
+                    "arenaId":   arenaId
+                })
+            }
+            onBackRequested: stack.pop()
+        }
+    }
+
+    Component {
+        id: ccSetupComponent
+        CCSetup {
+            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, savePath) {
+                ExperimentManager.loadContext(root.pendingCcContext)
+                root.pendingCcSessionMin = sessionMinutes
+                root.awaitingCreation    = true
+                root.pendingCcFlow       = true
+                ExperimentManager.createExperimentFull(
+                    name, cols, "", "", "", includeDrug, false, savePath,
+                    "comportamento_complexo", root.pendingCcNumCampos)
+            }
+            onBackRequested: stack.pop()
+        }
+    }
+
+    Component {
+        id: ccDashboardComponent
+        CCDashboard {
+            onBackRequested: {
+                ExperimentManager.clearFilter()
+                stack.pop()
+            }
+        }
+    }
+
+    // ── SearchBrowser ────────────────────────────────────────────────────────────
+
     Component {
         id: searchBrowserComponent
         SearchBrowser {
@@ -275,7 +340,14 @@ ApplicationWindow {
             aparatoFilter: "" // Mostra todos por padrão no browser universal
             onOpenExperiment: function(aparato, numCampos, expName, expPath) {
                 var meta = ExperimentManager.readMetadataFromPath(expPath)
-                if (aparato === "campo_aberto" || meta.aparato === "campo_aberto") {
+                if (aparato === "comportamento_complexo" || meta.aparato === "comportamento_complexo") {
+                    stack.push(ccDashboardComponent, {
+                        "searchMode":            true,
+                        "numCampos":             numCampos,
+                        "initialExperimentName": expName,
+                        "currentTabIndex":       0
+                    })
+                } else if (aparato === "campo_aberto" || meta.aparato === "campo_aberto") {
                     stack.push(caDashboardComponent, {
                         "searchMode":            true,
                         "numCampos":             numCampos,

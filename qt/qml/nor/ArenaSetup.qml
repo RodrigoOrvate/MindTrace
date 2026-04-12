@@ -26,9 +26,11 @@ Item {
     property string analysisMode: ""
     property string saveDirectory: ""
 
-    // CA mode: hides pair selectors, uses borda/centro or plat/grande zone labels
+    // CA mode: hides pair selectors, uses borda/centro zone labels
     property string aparato:   "nor"
-    property bool   caMode:    aparato === "campo_aberto"
+    property bool   caMode:    aparato === "campo_aberto" || aparato === "comportamento_complexo"
+    // CC mode: caMode + sem zona de centro (sem centroRatio no canvas)
+    property bool   ccMode:    aparato === "comportamento_complexo"
     property int    numCampos: 3
 
     signal pairsEdited(string p1, string p2, string p3)
@@ -397,27 +399,33 @@ Item {
             }
             Item { Layout.fillWidth: true }
             Text {
-                text: root.caMode ? "Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão  |  Alt + Scroll: +/- Centro"
-                                  : "Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão  |  Shift + Scroll: +/- Objetos"
+                // CA: scroll simples = centro | Ctrl+drag = paredes | Alt+drag = chão
+                // CC: sem centro, Ctrl+drag = paredes | Alt+drag = chão
+                // NOR (devMode): scroll simples = objetos | Ctrl+drag = paredes | Alt+drag = chão
+                text: root.ccMode
+                      ? "🎞 Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
+                      : root.caMode
+                        ? "🖱 Scroll: +/- Centro  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
+                        : "🔧 devMode  |  Scroll: +/- Objetos  |  Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
                 color: ThemeManager.textTertiary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
             }
 
-            // ── Editar Pares ──
+            // ── Editar Pares (apenas NOR — CA não tem pares de objetos) ──
             Button {
                 id: editPairsBtn
-                text: "✏ Editar Pares"
                 visible: !root.caMode
+                text: "✏ Editar Pares"
                 onClicked: editPairsPopup.open()
-                
+
                 background: Rectangle {
                     radius: 6
                     color: editPairsBtn.hovered ? ThemeManager.surfaceHover : ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
                     border.color: editPairsBtn.hovered ? ThemeManager.border : ThemeManager.borderLight; Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 2
                 }
-                
+
                 contentItem: Text {
                     text: parent.text
                     color: editPairsBtn.hovered ? ThemeManager.textPrimary : ThemeManager.textPlaceholder; Behavior on color { ColorAnimation { duration: 150 } }
@@ -426,7 +434,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-                
+
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
@@ -643,34 +651,36 @@ Item {
                                         }
 
                                         if (root.caMode) {
-                                            // --- MODO CAMPO ABERTO (CA) ---
-                                            // 1. Centro (dinâmico via centroRatio - segue a perspectiva do chão)
+                                            // --- MODO CA / CC ---
                                             var midX = (iTL.x + iTR.x + iBR.x + iBL.x) / 4
                                             var midY = (iTL.y + iTR.y + iBR.y + iBL.y) / 4
-                                            
-                                            var cTL={ x: midX + (iTL.x - midX) * root.centroRatio, y: midY + (iTL.y - midY) * root.centroRatio }
-                                            var cTR={ x: midX + (iTR.x - midX) * root.centroRatio, y: midY + (iTR.y - midY) * root.centroRatio }
-                                            var cBR={ x: midX + (iBR.x - midX) * root.centroRatio, y: midY + (iBR.y - midY) * root.centroRatio }
-                                            var cBL={ x: midX + (iBL.x - midX) * root.centroRatio, y: midY + (iBL.y - midY) * root.centroRatio }
-                                            
-                                            poly([cTL,cTR,cBR,cBL], "rgba(255,0,255,0.2)", "rgba(255,0,255,0.8)")
-                                            
-                                            // 2. Borda (área entre Centro e Parede)
+
+                                            if (!root.ccMode) {
+                                                // Centro — só CA (não CC)
+                                                var cTL={ x: midX + (iTL.x - midX) * root.centroRatio, y: midY + (iTL.y - midY) * root.centroRatio }
+                                                var cTR={ x: midX + (iTR.x - midX) * root.centroRatio, y: midY + (iTR.y - midY) * root.centroRatio }
+                                                var cBR={ x: midX + (iBR.x - midX) * root.centroRatio, y: midY + (iBR.y - midY) * root.centroRatio }
+                                                var cBL={ x: midX + (iBL.x - midX) * root.centroRatio, y: midY + (iBL.y - midY) * root.centroRatio }
+                                                poly([cTL,cTR,cBR,cBL], "rgba(255,0,255,0.2)", "rgba(255,0,255,0.8)")
+                                                ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "white"
+                                                ctx.fillText("Centro", midX - 15, midY + 4)
+                                            }
+
+                                            // Borda (chão)
                                             ctx.globalCompositeOperation = "destination-over"
                                             poly([iTL,iTR,iBR,iBL], "rgba(0,255,255,0.15)", "rgba(0,255,255,0.6)")
                                             ctx.globalCompositeOperation = "source-over"
 
-                                            // 3. Paredes (Borda externa até base)
-                                            poly([oTL,oTR,iTR,iTL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)") 
-                                            poly([iBL,iBR,oBR,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)") 
+                                            // Paredes (área entre chão e arena)
+                                            poly([oTL,oTR,iTR,iTL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
+                                            poly([iBL,iBR,oBR,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
                                             poly([oTL,iTL,iBL,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
                                             poly([iTR,oTR,oBR,iBR],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
 
-                                            // Labels CA
-                                            ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "white"
-                                            ctx.fillText("Centro", midX - 15, midY + 4)
+                                            // Labels
+                                            ctx.font = "bold 10px sans-serif"
                                             ctx.fillStyle = "rgba(255,255,255,0.7)"
-                                            ctx.fillText("Borda", (iTL.x + cTL.x)/2 - 15, midY + 4)
+                                            if (!root.ccMode) ctx.fillText("Borda", (iTL.x + (midX + (iTL.x-midX)*root.centroRatio))/2 - 15, midY + 4)
                                             ctx.fillText("Parede", (oTL.x + iTL.x)/2 - 15, midY + 4)
                                         } else {
                                             // --- MODO RECONHECIMENTO (NOR/RO) ---
@@ -838,15 +848,16 @@ Item {
                                     property int dragFloorCorner: -1
 
                                     function onPressedHandler(mouse) {
-                                        if (!root.devMode) return;
+                                        // No modo CA: Ctrl e Alt funcionam sem devMode
+                                        // No modo NOR: tudo requer devMode
+                                        var needsDev = !root.caMode
+                                        if (needsDev && !root.devMode) return;
                                         var capturingDist = 900;
                                         var fp = root.floorPoints[campoCell.campoIndex]
                                         var w = arenaRect.width, h = arenaRect.height
-                                        var iTL = { x: fp[0].x * w, y: fp[0].y * h }
-                                        var iBR = { x: fp[2].x * w, y: fp[2].y * h }
-                                        var midX = (iTL.x + iBR.x) / 2, midY = (iTL.y + iBR.y) / 2
 
                                         if (mouse.modifiers & Qt.ShiftModifier) {
+                                            if (!root.devMode) return;  // Shift (objetos) sempre requer devMode
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
                                             var cx0 = root.zones[i0].x * w, cy0 = root.zones[i0].y * h
                                             var cx1 = root.zones[i1].x * w, cy1 = root.zones[i1].y * h
@@ -855,7 +866,10 @@ Item {
                                             dragZoneIdx = d0 <= d1 ? i0 : i1
                                         } else if (mouse.modifiers & Qt.ControlModifier) {
                                             var ap = root.arenaPoints[campoCell.campoIndex]
-                                            var minDistOuter = capturingDist; dragOuterCorner = -1
+                                            // SEM limite de distância: sempre captura o canto mais próximo
+                                            // mesmo se estiver fora do quadrante visível
+                                            dragOuterCorner = -1
+                                            var minDistOuter = Infinity
                                             for (var c=0; c<4; c++) {
                                                 var px = ap[c].x * w, py = ap[c].y * h
                                                 var dist = (mouse.x-px)*(mouse.x-px) + (mouse.y-py)*(mouse.y-py)
@@ -875,22 +889,28 @@ Item {
                                     onReleased: { dragZoneIdx = -1; dragOuterCorner = -1; dragFloorCorner = -1 }
 
                                     onPositionChanged: (mouse) => {
-                                        if (!root.devMode) return;
+                                        // No modo NOR, requer devMode; no CA, Ctrl/Alt funcionam sempre
+                                        var allowDrag = root.devMode || root.caMode
+                                        if (!allowDrag) return;
                                         var w = arenaRect.width, h = arenaRect.height
-                                        
-                                        // Trava (clamp) para evitar que o ponto suma fora do quadrante
+
+                                        // Clamp para zonas e chão (devem ficar dentro do quadrante)
                                         var mx = Math.max(0, Math.min(w, mouse.x))
                                         var my = Math.max(0, Math.min(h, mouse.y))
 
                                         if (dragZoneIdx >= 0) {
+                                            if (!root.devMode) return  // segurança extra para NOR
                                             var nz = root.zones.slice()
                                             nz[dragZoneIdx] = { x: mx/w, y: my/h, r: root.zones[dragZoneIdx].r }
                                             root.zones = nz
                                             root.zonasEditadas(); showUnsavedToast()
                                         } else if (dragOuterCorner >= 0) {
+                                            // Pontos de PAREDE podem sair do quadrante (sem clamp)
+                                            var rawX = mouse.x / w
+                                            var rawY = mouse.y / h
                                             var nap = root.arenaPoints.slice()
                                             var ptsAp = JSON.parse(JSON.stringify(nap[campoCell.campoIndex]))
-                                            ptsAp[dragOuterCorner] = { x: mx/w, y: my/h }
+                                            ptsAp[dragOuterCorner] = { x: rawX, y: rawY }
                                             nap[campoCell.campoIndex] = ptsAp
                                             root.arenaPoints = nap
                                             root.zonasEditadas(); showUnsavedToast()
@@ -905,30 +925,34 @@ Item {
                                     }
 
                                     onWheel: (wheel) => {
-                                        console.warn("[DEBUG] Wheel event detected inside ArenaSetup. Modifiers:", wheel.modifiers, "DeltaY:", wheel.angleDelta.y)
-                                        if (wheel.modifiers & Qt.ShiftModifier) {
-                                            if (!root.devMode) return;
+                                        // No modo CA: scroll simples (sem modificador ou com Alt)
+                                        // ajusta centroRatio. Não requer devMode.
+                                        if (root.caMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.AltModifier))) {
+                                            wheel.accepted = true
+                                            var step = 0.02
+                                            if (wheel.angleDelta.y > 0) root.centroRatio = Math.min(0.95, root.centroRatio + step)
+                                            else if (wheel.angleDelta.y < 0) root.centroRatio = Math.max(0.05, root.centroRatio - step)
+                                            arenaCanvas.requestPaint()
+                                            root.zonasEditadas(); showUnsavedToast()
+                                            return
+                                        }
+                                        // No modo NOR (devMode): scroll simples redimensiona o objeto mais próximo
+                                        if (!root.caMode && root.devMode &&
+                                                (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.ShiftModifier))) {
+                                            wheel.accepted = true
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
                                             var dx0 = wheel.x - root.zones[i0].x * arenaRect.width
                                             var dy0 = wheel.y - root.zones[i0].y * arenaRect.height
                                             var dx1 = wheel.x - root.zones[i1].x * arenaRect.width
                                             var dy1 = wheel.y - root.zones[i1].y * arenaRect.height
                                             var ti = (dx0*dx0+dy0*dy0) <= (dx1*dx1+dy1*dy1) ? i0 : i1
-                                            var step = wheel.angleDelta.y > 0 ? 1.05 : 0.952
+                                            var step2 = wheel.angleDelta.y > 0 ? 1.05 : 0.952
                                             var nzW = root.zones.slice()
-                                            nzW[ti] = { x: nzW[ti].x, y: nzW[ti].y, r: Math.max(0.04, Math.min(0.4, nzW[ti].r * step)) }
+                                            nzW[ti] = { x: nzW[ti].x, y: nzW[ti].y, r: Math.max(0.04, Math.min(0.4, nzW[ti].r * step2)) }
                                             root.zones = nzW; root.zonasEditadas(); showUnsavedToast()
-                                        } else if (wheel.modifiers & Qt.AltModifier) {
-                                            wheel.accepted = true
-                                            var step = 0.05
-                                            var old = root.centroRatio
-                                            if (wheel.angleDelta.y > 0) root.centroRatio = Math.min(0.95, root.centroRatio + step)
-                                            else if (wheel.angleDelta.y < 0) root.centroRatio = Math.max(0.05, root.centroRatio - step)
-                                            
-                                            console.warn("[DEBUG] CentroRatio changed from", old, "to", root.centroRatio)
-                                            arenaCanvas.requestPaint()
-                                            root.zonasEditadas(); showUnsavedToast()
+                                            return
                                         }
+                                        wheel.accepted = false
                                     }
                                 }
 
@@ -996,33 +1020,16 @@ Item {
                         visible: text !== ""
                     }
 
-                    // Controles: Play/Pause + Remover
+                    // Controles: apenas Remover (sem Play — só captura de frame)
                     RowLayout {
                         Layout.fillWidth: true; spacing: 6
 
-                        // Play / Pause
-                        Rectangle {
-                            Layout.fillWidth: true; height: 24; radius: 5
-                            color: playMa.containsMouse ? ThemeManager.success : ThemeManager.accentDim
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            border.color: ThemeManager.success; border.width: 1
-                            Text {
-                                anchors.centerIn: parent
-                                text: videoPlayer.playbackState === MediaPlayer.PlayingState
-                                      ? "⏸ Pausar" : "▶ Reproduzir"
-                                color: ThemeManager.successLight; font.pixelSize: 10; font.weight: Font.Bold
-                            }
-                            MouseArea {
-                                id: playMa; anchors.fill: parent
-                                hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (videoPlayer.playbackState === MediaPlayer.PlayingState)
-                                        videoPlayer.pause()
-                                    else
-                                        videoPlayer.play()
-                                }
-                            }
+                        Text {
+                            text: "📷 Frame capturado"
+                            color: ThemeManager.success; font.pixelSize: 9; opacity: 0.8
                         }
+
+                        Item { Layout.fillWidth: true }
 
                         // Remover vídeo
                         Rectangle {

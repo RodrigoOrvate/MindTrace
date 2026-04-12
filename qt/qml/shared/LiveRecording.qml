@@ -28,8 +28,11 @@ Item {
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
     property bool   isOffline: analysisMode === "offline"
 
-    // ── Timers independentes por campo (cada campo conta 300s sozinho) ─────────
-    property var timesRemaining: [300, 300, 300]
+    // ── Timer: durão configurável (5 ou 20 min) ────────────────────────────────
+    property int    sessionDurationMinutes: 5   // injetado pelo dashboard
+    property int    sessionDurationSeconds: sessionDurationMinutes * 60
+
+    property var timesRemaining: [sessionDurationSeconds, sessionDurationSeconds, sessionDurationSeconds]
     property var timerStarted:   [false, false, false]
     property var fieldFinished:  [false, false, false]
 
@@ -69,6 +72,10 @@ Item {
 
     property var currentVelocity: [0.0, 0.0, 0.0]   // m/s por campo (última janela 100ms)
     property var totalDistance:   [0.0, 0.0, 0.0]   // metros acumulados por campo
+    
+    // Trail support
+    property bool showTrail: false
+    property var bodyHistory: [[], [], []]
 
     // Posição body anterior (coordenadas locais 0..1 dentro do campo)
     property var _prevBodyLX:   [-1.0, -1.0, -1.0]
@@ -147,6 +154,14 @@ Item {
             bx[campo] = x / recordingRoot.videoWidth
             by[campo] = y / recordingRoot.videoHeight
             bl[campo] = p
+
+            // Para CC e afins, garantir que a detecção de corpo também pode iniciar o timer
+            if (p > 0.5 && !recordingRoot.timerStarted[campo]) {
+                var ts = recordingRoot.timerStarted.slice()
+                ts[campo] = true
+                recordingRoot.timerStarted = ts
+            }
+
             recordingRoot.bodyNormX      = bx
             recordingRoot.bodyNormY      = by
             recordingRoot.bodyLikelihood = bl
@@ -260,6 +275,8 @@ Item {
         bodyLikelihood   = [0,  0,  0 ]
         currentVelocity  = [0.0, 0.0, 0.0]
         totalDistance    = [0.0, 0.0, 0.0]
+        timerStarted     = [false, false, false]
+        bodyHistory      = [[], [], []]
         _prevBodyLX      = [-1.0, -1.0, -1.0]
         _prevBodyLY      = [-1.0, -1.0, -1.0]
         _prevBodyTime    = [0, 0, 0]
@@ -317,7 +334,8 @@ Item {
 
 
     function accumulateExploration() {
-        if (!zones || zones.length < 6) return
+        if (recordingRoot.aparato === "nor" && (!zones || zones.length < 6)) return
+        
         var ox    = [0,   0.5, 0  ]
         var oy    = [0,   0,   0.5]
         var cellW = 0.5
@@ -356,8 +374,7 @@ Item {
                 if (!floorPoints || !floorPoints[campo]) continue
                 var fp = floorPoints[campo]
                 var cr = recordingRoot.centroRatio
-                
-                // Representação local 0..1 dentro do campo (normalizado pelo VideoOutput)
+
                 // Para CA, usamos BODY em vez de NOSE
                 var lx = bodyLocalX(campo)
                 var ly = bodyLocalY(campo)
@@ -371,7 +388,11 @@ Item {
                 var centroPoly = [cTL, cTR, cBR, cBL]
 
                 var inCentro = isPointInPoly(pt, centroPoly)
-                var inBorda  = !inCentro && isPointInPoly(pt, fp)
+
+                // BORDA = dentro da fronteira EXTERNA (arenaPoints inclui área de parede)
+                var apCA = (recordingRoot.arenaPoints && recordingRoot.arenaPoints[campo])
+                           ? recordingRoot.arenaPoints[campo] : fp
+                var inBorda = !inCentro && isPointInPoly(pt, apCA)
 
                 // Mapeia Zone 0 -> Centro, Zone 1 -> Borda
                 var zonesCA = [inCentro, inBorda]
@@ -386,6 +407,11 @@ Item {
                         _inZone[ziCA] = false
                     }
                 }
+            } else if (recordingRoot.aparato === "comportamento_complexo") {
+                // -- Lógica CC: tracking de corpo puro, sem zonas --
+                // Distância e velocidade são calculadas globalmente (não por zona).
+                // Nenhuma acumulação de explorationTimes/Bouts aqui.
+                continue
             } else {
                 // -- Lógica NOR: Zonas Circulares --
                 for (var obj = 0; obj < 2; obj++) {
@@ -419,13 +445,23 @@ Item {
         var newPBLX = _prevBodyLX.slice()
         var newPBLY = _prevBodyLY.slice()
         var newPBT  = _prevBodyTime.slice()
+        var newHist = [
+            recordingRoot.bodyHistory[0] ? recordingRoot.bodyHistory[0].slice() : [],
+            recordingRoot.bodyHistory[1] ? recordingRoot.bodyHistory[1].slice() : [],
+            recordingRoot.bodyHistory[2] ? recordingRoot.bodyHistory[2].slice() : []
+        ]
 
         for (var ci = 0; ci < 3; ci++) {
             var blx = bodyLocalX(ci)
             var bly = bodyLocalY(ci)
             var bl  = bodyLikelihood[ci]
 
-            if (blx < 0 || bl < 0.5) {
+            if (blx >= 0 && bl >= 0.5 && recordingRoot.timerStarted[ci]) {
+                newHist[ci].push({x: blx, y: bly})
+                if (newHist[ci].length > 40) newHist[ci].shift() // Mantém últimos ~4000ms visíveis
+            }
+
+            if (blx < 0 || bl < 0.5 || !recordingRoot.timerStarted[ci]) {
                 newVel[ci] = 0.0
                 newPBLX[ci] = -1.0
                 continue
@@ -441,8 +477,8 @@ Item {
                 var dist = Math.sqrt(dx * dx + dy * dy)
                 var dt   = (now2 - prevT) / 1000.0
 
-                // Filtra saltos impossíveis (> 1 m/s = animal correndo rápido)
-                if (dt > 0 && dist / dt < 2.0) {
+                // Filtra saltos impossíveis (> 10 m/s = glitch de modelo ou pulo da GPU)
+                if (dt > 0 && dist / dt < 10.0) {
                     newVel[ci]   = dist / dt
                     newDist[ci] += dist
                 }
@@ -455,6 +491,7 @@ Item {
 
         currentVelocity = newVel
         totalDistance   = newDist
+        bodyHistory     = newHist
         _prevBodyLX     = newPBLX
         _prevBodyLY     = newPBLY
         _prevBodyTime   = newPBT
@@ -693,15 +730,7 @@ Item {
                                     onPaint: {
                                         var ctx = getContext("2d")
                                         ctx.clearRect(0, 0, width, height)
-                                        
-                                        // Debug: verifica se dados existem
-                                        console.log("ArenaPaint:", JSON.stringify({
-                                            arenaPoints: recordingRoot.arenaPoints ? "ok" : "null",
-                                            floorPoints: recordingRoot.floorPoints ? "ok" : "null",
-                                            ci: ci,
-                                            aparato: recordingRoot.aparato
-                                        }))
-                                        
+
                                         if (!recordingRoot.arenaPoints || !recordingRoot.floorPoints) {
                                             ctx.fillStyle = "red"
                                             ctx.fillText("SEM ARENA", 10, 20)
@@ -756,10 +785,10 @@ Item {
                                     }
                                 }
 
-                                // Zona A (vinho) - visível quando não é CA
+                                // Zona A (vinho) - visível quando não é CA/CC
                                 Rectangle {
                                     id: zoneA
-                                    visible: recordingRoot.aparato !== "campo_aberto"
+                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
                                                      ? recordingRoot.zones[campoCell.ci*2] : {x:0.3,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
@@ -770,10 +799,10 @@ Item {
                                     color: "#40ab3d4c"; border.width: 2
                                     opacity: 0.7
                                 }
-                                // Zona B (azul) - visível quando não é CA
+                                // Zona B (azul) - visível quando não é CA/CC
                                 Rectangle {
                                     id: zoneB
-                                    visible: recordingRoot.aparato !== "campo_aberto"
+                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
                                                      ? recordingRoot.zones[campoCell.ci*2+1] : {x:0.7,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
@@ -811,6 +840,21 @@ Item {
                                     onPaint: {
                                         var ctx = getContext("2d")
                                         ctx.clearRect(0, 0, width, height)
+
+                                        // Rastro do rato
+                                        if (recordingRoot.showTrail) {
+                                            var hist = recordingRoot.bodyHistory[ci]
+                                            if (hist && hist.length > 1) {
+                                                ctx.beginPath()
+                                                ctx.moveTo(hist[0].x * width, hist[0].y * height)
+                                                for (var j = 1; j < hist.length; j++) {
+                                                    ctx.lineTo(hist[j].x * width, hist[j].y * height)
+                                                }
+                                                ctx.strokeStyle = "rgba(255, 136, 0, 0.4)"
+                                                ctx.lineWidth = 2
+                                                ctx.stroke()
+                                            }
+                                        }
 
                                         var noseOk = _nl > 0.5 && _nx >= 0
                                         var bodyOk = _bl > 0.5 && _bx >= 0
@@ -969,7 +1013,8 @@ Item {
                         // Botão "Carregar Vídeo" — visível apenas quando parado
                         Rectangle {
                             visible: !recordingRoot.isAnalyzing
-                            implicitWidth: 130; height: 34; radius: 8
+                            Layout.fillWidth: true; Layout.minimumWidth: 80
+                            height: 34; radius: 8
                             color: loadBtnMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
                             border.color: ThemeManager.borderLight; border.width: 1
                             Behavior on color { ColorAnimation { duration: 120 } }
@@ -977,7 +1022,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "📂  Carregar Vídeo"
-                                color: ThemeManager.textSecondary; font.pixelSize: 12; font.bold: true
+                                color: ThemeManager.textSecondary; font.pixelSize: 11; font.bold: true
                             }
                             MouseArea {
                                 id: loadBtnMa; anchors.fill: parent; hoverEnabled: true
@@ -986,10 +1031,29 @@ Item {
                             }
                         }
 
-                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            Layout.fillWidth: true; Layout.minimumWidth: 80
+                            height: 34; radius: 8
+                            color: recordingRoot.showTrail ? ThemeManager.accentDim : ThemeManager.surfaceDim
+                            border.color: recordingRoot.showTrail ? ThemeManager.accent : ThemeManager.border
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: recordingRoot.showTrail ? "👁 Rastro ON" : "🐾 Rastro OFF"
+                                color: recordingRoot.showTrail ? ThemeManager.accentHover : ThemeManager.textSecondary
+                                font.pixelSize: 11; font.bold: true
+                            }
+                            MouseArea {
+                                anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: recordingRoot.showTrail = !recordingRoot.showTrail
+                            }
+                        }
 
                         Rectangle {
-                            implicitWidth: 120; height: 34; radius: 8
+                            Layout.fillWidth: true; Layout.minimumWidth: 80
+                            height: 34; radius: 8
                             color: recordingRoot.isAnalyzing
                                    ? (startBtnMa.containsMouse ? "#5a1020" : "#3a0d15")
                                    : (startBtnMa.containsMouse ? "#2a6a40" : "#1f5430")
@@ -999,7 +1063,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: recordingRoot.isAnalyzing ? "⏹  Parar" : "▶  Iniciar"
-                                color: "white"; font.pixelSize: 13; font.bold: true
+                                color: "white"; font.pixelSize: 12; font.bold: true
                             }
                             MouseArea {
                                 id: startBtnMa; anchors.fill: parent; hoverEnabled: true
@@ -1052,7 +1116,8 @@ Item {
                     }
 
                     Text {
-                        text: recordingRoot.aparato === "campo_aberto" ? "EXPLORAÇÃO DE CAMPO" : "EXPLORAÇÃO DE OBJETOS"
+                        text: recordingRoot.aparato === "campo_aberto" ? "EXPLORAÇÃO DE CAMPO" :
+                              recordingRoot.aparato === "comportamento_complexo" ? "EXPLORAÇÃO GERAL" : "EXPLORAÇÃO DE OBJETOS"
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -1132,7 +1197,7 @@ Item {
                                         // ── MÉTRICAS ESPECÍFICAS (NOR vs CA) ──
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
-                                            visible: recordingRoot.aparato !== "campo_aberto"
+                                            visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
 
                                             // OBJ A (familiar)
                                             RowLayout {
