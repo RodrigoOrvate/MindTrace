@@ -14,29 +14,30 @@ Plataforma C++/Qt 6.11.0 (QML) para tracking comportamental em neurociência. O 
 ```
 QMediaPlayer (headless)
   → QVideoSink::videoFrameChanged (DirectConnection, multimedia thread)
-    → InferenceController::onVideoFrameChanged
+    → InferenceController::onVideoFrameChanged 
       → frame.toImage() → convertToFormat(RGB888)
         → InferenceEngine::enqueueFrame (thread-safe, single-slot queue)
           → processJob() — 3 std::threads, uma por campo
-            → inferCrop() — Ort::Session.Run() → locref → emit sinais
-              → trackReceived / bodyReceived (QueuedConnection → QML)
+            → inferPose() — Ort::Session.Run() → locref → nose/body coords
+            → BehaviorScanner::pushFrame (Feature extraction: velocity, distance, rolling windows)
+            → inferBehavior() — Ort::Session.Run() (SimBA/B-SOiD logic)
+            → emit sinais (trackReceived, bodyReceived, behaviorReceived)
+              → QML Update (UI Badges + BehaviorTimeline)
 ```
 
-**Pontos críticos da arquitetura:**
-- **Headless player + displayPlayer separado**: O `QMediaPlayer` headless (C++) serve frames ao motor de inferência. O vídeo visível no QML é um segundo `MediaPlayer` independente — pode usar hardware acceleration.
-- **3 sessões ONNX paralelas**: Uma `Ort::Session` por campo, cada uma rodando em `std::thread` próprio dentro de `processJob()`.
+- **Dual-Model Inference**: Executa inferência de pose (DLC) seguida de classificação comportamental (SimBA/B-SOiD) no mesmo pipeline C++.
 - **Single-slot queue**: `enqueueFrame()` descarta frame anterior pendente — sempre processa o mais recente, evitando backpressure.
+- **Auto-loading Behavior.onnx**: Sistema busca nativamente por `Behavior.onnx` na pasta do modelo para ativar classificação automática.
 
 ## Componentes C++
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/tracking/inference_engine.h/cpp` | QThread dedicada. Cria 3 `Ort::Session`, processa crops em paralelo via `std::thread`, aplica locref sub-pixel |
-| `src/tracking/inference_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames do `QMediaPlayer` headless via `videoFrameChanged`, alimenta InferenceEngine, emite sinais para QML |
-| `src/manager/ExperimentManager.cpp/h` | Gestão de experimentos (CRUD, I/O JSON/CSV, `registry.json`) |
-| `src/models/ExperimentTableModel.cpp/h` | Modelo de tabela para CSVs (lazy-loading) |
-| `src/models/ArenaModel.cpp/h` | Engine de persistência das zonas e polígonos |
-| `src/models/ArenaConfigModel.cpp/h` | Modelo de configuração da arena |
+| `src/tracking/inference_engine.h/cpp` | Orquestra 3 sessões de Pose + 1 sessão de Comportamento (compartilhada). Executa inferência de pose em threads paralelas; comportamento em série após pose. |
+| `src/tracking/BehaviorScanner.h/cpp` | Extração de features (velocidade, aceleração, médias móveis) para o modelo comportamental. |
+| `src/tracking/BehaviorTimeline.h/cpp` | Custom QQuickItem usando Scene Graph (GPU) para renderizar etogramas em tempo real. |
+| `src/tracking/inference_controller.h/cpp` | Orquestrador. `QVideoSink` recebe frames, alimenta InferenceEngine, emite sinais (Pose+Behavior) para QML. |
+| `src/manager/ExperimentManager.cpp/h` | Gestão de experimentos (I/O, `registry.json`) e Exportação (CSV Tracking + CSV Behavior). |
 | `src/core/main.cpp` | Ponto de entrada e registro de tipos QML |
 
 ## QML
@@ -56,6 +57,40 @@ QMediaPlayer (headless)
 - **Stride:** 8.0
 - **Locref stdev:** 7.2801
 - **Sem mean subtraction** — o grafo já normaliza internamente
+
+## Modelo de Comportamento ONNX
+
+- **Arquivo:** `Behavior.onnx` (Opcional, busca automática em `appDir/` ou `defaultModelDir/`)
+- **Geração:** SimBA `merge_to_onnx` — une N classificadores `.sav` (um por comportamento) em um único ONNX
+- **Input:** `[None, 21]` float32 (Features do `BehaviorScanner`)
+- **Output:** float tensor `[None, N_classes]` — cada valor é a probabilidade **independente** do comportamento (classificadores binários merged; NÃO somam 1)
+- **Sem zipmap** — o `merge_to_onnx` gera float tensor direto, sem label int64 nem ZipMap
+- **Threshold de confiança:** `MIN_CONFIDENCE = 0.25f` — adequado para probabilidades de binary merge (usar 0.40+ apenas para softmax multiclasse)
+
+### Features (21) — `BehaviorScanner.cpp`
+
+Mapeamento verificado contra `features_extracted/*.csv` do SimBA (colunas 7–27):
+
+| Índice | Coluna SimBA | Descrição |
+|---|---|---|
+| 0 | Movement_nose | Deslocamento do nariz (px/frame, **espaço de treino**) |
+| 1 | Movement_body | Deslocamento do corpo (px/frame) |
+| 2 | All_bp_movements_Animal_1_sum | movNose + movBody |
+| 3 | All_bp_movements_Animal_1_mean | movSum / 2 |
+| 4 | All_bp_movements_Animal_1_min | min(movNose, movBody) |
+| 5 | All_bp_movements_Animal_1_max | max(movNose, movBody) |
+| 6–7 | Mean/Sum_..._mean_2 | Rolling mean/sum de **movMean** — janela 2s |
+| 8–9 | Mean/Sum_..._mean_5 | Rolling mean/sum de movMean — janela 5s |
+| 10–11 | Mean/Sum_..._mean_6 | Rolling mean/sum de movMean — janela 6s |
+| 12–13 | Mean/Sum_..._mean_7.5 | Rolling mean/sum de movMean — janela 7.5s |
+| 14–15 | Mean/Sum_..._mean_15 | Rolling mean/sum de movMean — janela 15s |
+| 16 | Sum_probabilities | nose.p + body.p |
+| 17 | Mean_probabilities | (nose.p + body.p) / 2 |
+| 18–20 | Low_prob_detections_0.1/0.5/0.75 | **Contagem absoluta** de bodyparts com p abaixo do threshold na janela 1s (max = 2×fps; NÃO é fração) |
+
+> **Escala de coordenadas:** DLC retorna coordenadas no espaço do crop (360×240). SimBA extrai features no espaço do vídeo original. `BehaviorScanner` aplica o fator de escala `TRAINING_W / CROP_W` e `TRAINING_H / CROP_H` (constantes em `BehaviorScanner.h`) para converter antes de calcular os deslocamentos. Ajustar `TRAINING_W/H` conforme o valor em SimBA → "Configure Video Parameters".
+>
+> **Rolling windows:** SimBA rola sobre `All_bp_movements_Animal_1_mean = (movNose + movBody) / 2`, não sobre a soma. O buffer interno `_movementsSumHist` guarda `movSum / 2.0f`.
 
 ## GPU / ONNX Execution Providers
 
@@ -162,6 +197,12 @@ Semelhante ao CA, porém voltado para rastreamento genérico de locomoção sem 
 - JSON de sessão: `aparato: "comportamento_complexo"`, métricas puras de tracker de corpo
 - Interface LiveRecording esconde painéis laterais de tempos de zonas automaticamente e muda o título para "EXPLORAÇÃO GERAL"
 - Filtro de distância na análise é mais brando (< 10 m/s) para captar toda flutuação e tem toggle `Rastro ON/OFF` para visualização na UI
+- **Zonas editáveis**: Em CC, as zonas são arrastáveis e redimensionáveis na ArenaSetup
+  - Shift+drag para mover zonas
+  - Scroll do mouse para redimensionar
+  - Labels "A"/"B" escondidos em CC (visíveis apenas em NOR)
+  - Tamanho e posição são salvos e restaurados ao carregar a configuração
+  - Zonas também visíveis na aba Gravação (LiveRecording.qml)
 
 ### Compatibilidade Excel
 Todos os CSVs são gravados com **UTF-8 BOM** (`\xEF\xBB\xBF`) garantindo visualização perfeita de acentos ("í", "ó") no Microsoft Excel.
@@ -202,6 +243,7 @@ fpsReceived(fps)              — FPS do vídeo
 infoReceived(msg)             — status informativo (ex: "Modo CPU: DirectML indisponível")
 errorOccurred(msg)            — erro fatal
 analyzingChanged()            — bool isAnalyzing
+behaviorReceived(campo, label)— classificação de comportamento SimBA/BSOID
 ```
 
 Métodos invocáveis do `InferenceController` (Q_INVOKABLE):
@@ -211,7 +253,17 @@ stopAnalysis()
 setPlaybackRate(rate)   — sincroniza headless player com displayPlayer
 position()              — posição atual do headless em ms
 seekTo(ms)              — salta headless para posição (usado pelo positionSyncTimer)
+loadBehaviorModel(path) — carrega modelo de comportamento manualmente
 ```
+
+### Pre-warm de Sessões
+
+O `InferenceController` inicia o carregamento das sessões ONNX **no construtor**, em background, assim que o app abre. Quando o usuário clica "Start Analysis":
+- Se sessões já prontas (`m_modelReady && engine.isRunning()`): `readyReceived()` é emitido imediatamente — início instantâneo
+- Se ainda carregando: o sinal `modelReady` dispara quando concluído (engine já está rodando)
+- Após `stopAnalysis()`: engine para → próximo `startAnalysis()` recarrega sessões normalmente
+
+O `readyReceived()` **não é emitido** durante o pre-warm silencioso (`m_isAnalyzing == false`), evitando sinalização prematura ao QML.
 
 ## Velocidade e Distância (Body Point)
 
@@ -270,3 +322,32 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | Pontos da arena sumiam ao arrastar | Implementado clamp (trava) de coordenadas [0, width/height] no `onPositionChanged` |
 | `setup_onnx.ps1` executado diretamente sem MSVC | Script deve ser chamado apenas pelo `build.bat`, que ativa o ambiente MSVC correto antes |
 | Distância e Tracking zerados em modos sem zonas | `accumulateExploration` abortava cedo em arranjos sem zonas. Reduzido para exigir `zones.length < 6` apenas no `nor`. Layout dinâmico dos botões ajustado. |
+| Comportamento SimBA sempre "---" | `bOutputs[0]` lido como `float*` mas é `int64` (sklearn-onnx label). `merge_to_onnx` do SimBA gera float direto — corrigido com detecção de `elemType` em runtime. Silent catch também escondia erros. |
+| Inicialização lenta (3+ sessões ONNX no Start) | Pre-warm implementado no construtor do `InferenceController` — sessões carregam em background ao abrir o app; Start Analysis dispara imediatamente. |
+| Threshold 0.40 bloqueava binary merge | `merge_to_onnx` gera classificadores binários independentes (não somam 1). Threshold reduzido para 0.25. |
+| Classificação sempre "walking" (features erradas) | 3 bugs no `BehaviorScanner`: (1) rolling buffer guardava `movSum` mas SimBA usa `movMean=(movNose+movBody)/2` → features 6–15 chegavam 2× maiores; (2) `Low_prob_detections` implementado como fração [0,1] mas SimBA armazena contagem absoluta por bodypart (max=2×fps); (3) coordenadas em espaço do crop (360 px) mas treino foi em 330 px → escala aplicada via `TRAINING_W/CROP_W`. |
+| `merge_to_onnx.py` gerava ONNX inválido (nomes duplicados) | `TreeEnsembleClassifier` tinha o mesmo nome em todos os sub-modelos. Corrigido com `prefix_model()` que renomeia absolutamente todos os nós, tensores e inicializadores antes de mesclar. |
+| Softmax uniforme (todos os scores ~0.20) | Valores brutos dos classificadores binários são muito pequenos (0.0–0.3). Softmax de valores próximos de 0 fica uniforme. Corrigido com **temperatura T=0.05** antes do Softmax: `Div(probs_raw, 0.05)` → `Softmax`. |
+| Comportamentos trocados na UI (walking aparecia como resting) | Ordem dos BEHAVIORS no `merge_to_onnx.py` era `[walking, sniffing, grooming, resting, rearing]` mas `behaviorNames` no QML era `[Walking, Resting, Rearing, Grooming, Sniffing, Thigmotaxis]`. Corrigido alinhando QML com a ordem do script e removendo Thigmotaxis. |
+
+## ⚠️ Classificação de Comportamento — Rule-Based
+
+O pipeline de classificação comportamental agora usa **classificação baseada em regras** implementada em C++ (`BehaviorScanner::classifySimple()`),取代 modelos ONNX do SimBA para maior controle e robustez.
+
+### Regras de Classificação
+
+A ordem de verificação dos comportamentos é:
+
+1. **Velocidade < 0.05 m/s → Resting**: Prioridade máxima. Mesmo que o rato esteja em pé, se estiver muito lento → resting
+2. **Rearing**: Focinho bem acima do corpo (>30px de diferença vertical) + estar nas bordas (parede) → rearing
+3. **Sniffing**: Focinho dentro da zona do objeto (distância < 1.5× raio da zona) → sniffing
+4. **Resting**: Corpo quase parado (movBody < 0.3 px/frame)
+5. **Walking**: Corpo movendo significativamente (movBody > 3.0 ou rolling mean 2s > 5.0)
+6. **Grooming**: Nariz muito ativo + corpo quase parado (movBody < 2.0 e movNose > 4.0)
+
+### Detalhes de Implementação
+
+- **Velocidade**: Recebida do QML via `InferenceController::setVelocity(campo, velocity)` em m/s
+- **Zonas**: Recebidas do QML via `InferenceController::setZones(campo, zones)` — usadas para detecção de sniffing
+- **Coordenadas**: Usam `_prevNose` (focinho) para sniffing/rearing e `_prevBody` (corpo) para velocidade
+- **Threshold de velocidade**: 0.05 m/s — calibrado para detectar corretamente rats em pé mas parados (ex: farejando parado = sniffing não resting)

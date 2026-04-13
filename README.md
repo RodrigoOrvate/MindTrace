@@ -39,7 +39,7 @@ Se o caminho for diferente, edite a variável `QT_DIR` no início de `qt\scripts
 
 ## 2. ONNX Runtime 1.24.4
 
-> Você só precisa **baixar um pacote** — o que corresponde í  sua GPU.  
+> Você só precisa **baixar um pacote** — o que corresponde à sua GPU.  
 > O código detecta a GPU automaticamente em runtime (via DXGI) e usa o melhor provider disponível.
 
 ### Passo 1 — Configuração Automática (Recomendado)
@@ -58,7 +58,7 @@ Na primeira execução sem o SDK, ele perguntará:
 [3] Não, sair
 ```
 
-Selecione a opção correspondente í  sua GPU. O script baixa e organiza tudo automaticamente.
+Selecione a opção correspondente à sua GPU. O script baixa e organiza tudo automaticamente.
 
 > **Não execute o `setup_onnx.ps1` diretamente.** Use sempre o `build.bat` — ele garante o ambiente MSVC correto antes de qualquer operação.
 
@@ -82,10 +82,10 @@ Se o download automático falhar, organize os arquivos manualmente:
 **Estrutura Final Esperada:**
 ```
 MindTrace/
-├── onnxruntime_sdk/        â†� Raiz do SDK
-│   ├── include/            â†� Cabeçalhos (.h)
-│   └── lib/                â†� DLLs e .lib
-└── qt/                     â†� Código-fonte
+├── onnxruntime_sdk/        — Raiz do SDK
+│   ├── include/            — Cabeçalhos (.h)
+│   └── lib/                — DLLs e .lib
+└── qt/                     — Código-fonte
 ```
 
 > **Atenção:** a pasta `qt/` contém o código-fonte. O `onnxruntime_sdk` deve ficar na raiz (`MindTrace/`), não dentro de `qt/`.
@@ -97,8 +97,8 @@ Para que o provider CUDA funcione, você precisa instalar separadamente:
 
 | Dependência | Versão recomendada | Download |
 |---|---|---|
-| CUDA Toolkit | 12.6.3 | [Baixar CUDA 12.6.3](https://developer.nvidia.com/cuda-12-6-3-download-archive) Â· [Arquivo completo](https://developer.nvidia.com/cuda-toolkit-archive) |
-| cuDNN | 9.x (para CUDA 12) | [Baixar cuDNN](https://developer.nvidia.com/cudnn-downloads) Â· [Arquivo completo](https://developer.nvidia.com/rdp/cudnn-archive) |
+| CUDA Toolkit | 12.6.3 | [Baixar CUDA 12.6.3](https://developer.nvidia.com/cuda-12-6-3-download-archive) · [Arquivo completo](https://developer.nvidia.com/cuda-toolkit-archive) |
+| cuDNN | 9.x (para CUDA 12) | [Baixar cuDNN](https://developer.nvidia.com/cudnn-downloads) · [Arquivo completo](https://developer.nvidia.com/rdp/cudnn-archive) |
 
 #### Instalando o cuDNN (passo obrigatório após o download)
 
@@ -137,7 +137,7 @@ Coloque o arquivo `Network-MemoryLab-v2.onnx` em `qt/` (não incluído no reposi
 - **Input:** `[1, 240, 360, 3]` — RGB float32, **sem** subtração de média (o grafo já normaliza)
 - **Output 0:** `[1, 30, 46, 2]` — scoremap (heatmaps nose/body)
 - **Output 1:** `[1, 30, 46, 4]` — locref (offsets sub-pixel)
-- **Stride:** 8.0 Â· **Locref stdev:** 7.2801
+- **Stride:** 8.0 · **Locref stdev:** 7.2801
 
 ---
 
@@ -197,13 +197,14 @@ O status é exibido na área de log durante o carregamento do modelo, ex.:
 ```
 MindTrace.exe (Qt 6.11.0 / C++17 / ONNX Runtime 1.24.4)
   └── LiveRecording.qml
-       └── InferenceController (C++)
-            ├── QVideoSink          — recebe cada frame decodificado do QMediaPlayer headless
-            │    └── videoFrameChanged → onVideoFrameChanged → enqueueFrame
-            └── InferenceEngine (QThread)  — inferência ONNX nativa multi-thread
-                 ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML / CPU (cascata)
-                 ├── 3× Ort::Session (uma por campo)
-                 └── std::thread por campo → inferência paralela
+        └── InferenceController (C++)
+             ├── QVideoSink          — recebe cada frame decodificado do QMediaPlayer headless
+             │    └── videoFrameChanged → onVideoFrameChanged → enqueueFrame
+             └── InferenceEngine (QThread)  — inferência Dual-Model nativa (Pose + Comportamento)
+                  ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML / CPU (cascata)
+                  ├── BehaviorScanner — extração de métricas espaciais para IA
+                  ├── 3× Ort::Session (Pose) + 3× Ort::Session (Comportamento)
+                  └── std::thread por campo → inferência paralela via HW Acceleration
 ```
 
 **Sinais emitidos (`InferenceController` → QML):**
@@ -217,6 +218,7 @@ fpsReceived(fps)                    — FPS extraído do metadata
 infoReceived(msg)                   — ex: "Modo GPU: DirectML ativo (AMD, DirectX 12)"
 errorOccurred(msg)                  — erro fatal
 analyzingChanged()                  — bool isAnalyzing
+behaviorReceived(campo, labelId)    — id do compartamento SimBA/B-SOiD detectado
 ```
 
 ---
@@ -263,6 +265,13 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 - **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
 - **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
 - **Velocidade:** Análise offline em 1x, 2x ou 4x com sincronização automática entre display e inferência.
+- **Motor Comportamental:** Classificação baseada em regras (`BehaviorScanner::classifySimple()`) executada nativamente em C++. Sistema rule-based com detecção de:
+  - **Sniffing**: focinho dentro da zona do objeto
+  - **Rearing**: focinho bem acima do corpo (>30px) + bordas (parede)
+  - **Resting**: velocidade < 0.05 m/s ou corpo parado
+  - **Walking**: corpo movendo significativamente
+  - **Grooming**: nariz ativo + corpo quase parado
+- **Zonas Editáveis (CC)**: Em modo Comportamento Complexo, as zonas podem ser editadas na ArenaSetup (Shift+drag para mover, scroll para redimensionar). Tamanho e posição são salvos/restaurados.
 
 ---
 
@@ -284,3 +293,5 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | Exclusão no Browser global falhava | ExperimentManager::deleteExperiment aceita contexto; SearchBrowser passa contexto do item |
 | Pontos da arena sumiam ao arrastar | Implementado clamp (trava) de coordenadas [0, width/height] no onPositionChanged |
 | Distância/ Tracking congelados | `accumulateExploration` abortava em arranjos sem zonas; Layout CC ajustado para fluir métricas genericamente |
+| Estabilidade de UI | `BehaviorTimeline` criado para renderizar etogramas com GPU (SceneGraph) evitando drop de frames. |
+| CSV Behavior Summary | C++ agora emite o arquivo behavior_summary.csv separando % de tempo no CA/CC automaticamente. |

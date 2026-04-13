@@ -87,17 +87,21 @@ public:
     Q_INVOKABLE bool    insertSessionResult(const QString &experimentName,
                                             const QVariantList &rows);
 
+    Q_INVOKABLE bool    insertBehaviorResult(const QString &experimentName,
+                                             const QVariantList &rows);
+
     Q_INVOKABLE bool    createExperimentFull(const QString &name,
-                                             const QStringList &columns,
-                                             const QString &pair1,
-                                             const QString &pair2,
-                                             const QString &pair3,
-                                             bool includeDrug,
-                                             bool hasReactivation,
-                                             const QString &savePath,
-                                             const QString &aparato = QStringLiteral("nor"),
-                                             int numCampos = 3,
-                                             double centroRatio = 0.5);
+                                              const QStringList &columns,
+                                              const QString &pair1,
+                                              const QString &pair2,
+                                              const QString &pair3,
+                                              bool includeDrug,
+                                              bool hasReactivation,
+                                              const QString &savePath,
+                                              const QString &aparato = QStringLiteral("nor"),
+                                              int numCampos = 3,
+                                              double centroRatio = 0.5,
+                                              bool hasObjectZones = true);
 
     Q_INVOKABLE bool    updateCentroRatio(const QString &folderPath, double ratio);
 
@@ -162,7 +166,8 @@ private:
                           bool           hasReactivation = false,
                           const QString &aparato = QStringLiteral("nor"),
                           int            numCampos = 3,
-                          double         centroRatio = 0.5) const;
+                          double         centroRatio = 0.5,
+                          bool           hasObjectZones = true) const;
     void    writeCsv(const QString &folderPath,
                      const QStringList &columns,
                      int animalCount) const;

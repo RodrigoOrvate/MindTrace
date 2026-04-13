@@ -50,6 +50,7 @@ ApplicationWindow {
     property string pendingCcArenaId:      "cc_3campos"
     property int    pendingCcSessionMin:   5
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
+    property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
 
     // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
     onActiveChanged: {
@@ -305,14 +306,15 @@ ApplicationWindow {
     Component {
         id: ccSetupComponent
         CCSetup {
-            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, savePath) {
                 ExperimentManager.loadContext(root.pendingCcContext)
                 root.pendingCcSessionMin = sessionMinutes
+                root.pendingCcHasObjectZones = hasObjectZones
                 root.awaitingCreation    = true
                 root.pendingCcFlow       = true
                 ExperimentManager.createExperimentFull(
                     name, cols, "", "", "", includeDrug, false, savePath,
-                    "comportamento_complexo", root.pendingCcNumCampos)
+                    "comportamento_complexo", root.pendingCcNumCampos, 0.5, hasObjectZones)
             }
             onBackRequested: stack.pop()
         }

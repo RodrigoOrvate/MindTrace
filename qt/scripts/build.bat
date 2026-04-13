@@ -151,10 +151,18 @@ for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll DirectML.dll onnxru
 echo [INFO] Prioridade GPU: CUDA (NVIDIA) -> DirectML (AMD/Intel) -> CPU
 
 :: Copia modelo ONNX para build\
-for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml) do (
+echo [INFO] Coletando modelos...
+for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml Behavior.onnx) do (
     if exist "%%M" (
+        echo [INFO] Copiando %%M para a pasta build...
         copy /y "%%M" "build\" >nul
-        echo [OK] Modelo copiado: %%M
+        if errorlevel 1 (
+            echo [ERRO] Falha ao copiar %%M. Verifique permissoes ou espaco em disco.
+        ) else (
+            echo [OK] Modelo copiado: %%M
+        )
+    ) else (
+        echo [AVISO] Modelo %%M nao encontrado na pasta qt/.
     )
 )
 

@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include "inference_controller.h"
+#include "BehaviorTimeline.h"
 #include <QQmlContext>
 #include <QtQml>
 #include <QMessageBox>
@@ -77,6 +78,7 @@ int main(int argc, char *argv[])
     qDebug() << "Tipos QML registrados.";
 
     qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
+    qmlRegisterType<BehaviorTimeline>("MindTrace.Tracking", 1, 0, "BehaviorTimeline");
 
     QQmlApplicationEngine engine;
 

@@ -258,6 +258,7 @@ Item {
                 property string selectedPath: ""
                 property int    colCount:     0
                 property bool   includeDrug:      true
+                property bool   hasObjectZones:   true
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
@@ -275,12 +276,30 @@ Item {
                     ExperimentManager.setActiveContext(ctx)
 
                     includeDrug     = meta.includeDrug !== false
+                    hasObjectZones  = meta.hasObjectZones !== false
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
 
                     // Propaga pontos de arena para aba Gravação
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                     liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                    
+                    // Propaga zonas sehasObjectZones
+                    if (workArea.hasObjectZones) {
+                        var src = ArenaConfigModel.zones || []
+                        if (src.length > 0) {
+                            var converted = []
+                            for (var i = 0; i < src.length; i++) {
+                                var z = src[i]
+                                converted.push({
+                                    x: z.xRatio !== undefined ? z.xRatio : 0.3,
+                                    y: z.yRatio !== undefined ? z.yRatio : 0.5,
+                                    r: z.radiusRatio !== undefined ? z.radiusRatio : 0.12
+                                })
+                            }
+                            liveRecordingTab.zones = converted
+                        }
+                    }
 
                     colCount = tableModel.columnCount()
                 }
@@ -396,6 +415,7 @@ Item {
 
                                 // Propagação ao vivo Arena → Gravação
                                 onZonasEditadas: {
+                                    liveRecordingTab.zones        = tabArenaSetup.zones
                                     liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
                                     liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
                                 }
@@ -410,8 +430,9 @@ Item {
                                 aparato:      "comportamento_complexo"
                                 sessionDurationMinutes: workArea.sessionMinutes
 
-                                arenaPoints: JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
-                                floorPoints: JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                                zones:        workArea.hasObjectZones ? tabArenaSetup.zones : []
+                                arenaPoints:  JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                floorPoints:  JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
 
                                 Connections {
                                     target: ArenaConfigModel
@@ -449,102 +470,129 @@ Item {
 
                                     ColumnLayout {
                                         anchors.centerIn: parent
-                                        width: Math.min(560, parent.width - 80)
+                                        width: Math.min(800, parent.width - 80)
                                         spacing: 24
 
-                                        // Ícone
-                                        Text {
+                                        RowLayout {
                                             Layout.alignment: Qt.AlignHCenter
-                                            text: "🧠"
-                                            font.pixelSize: 52
-                                            opacity: 0.6
+                                            spacing: 12
+                                            Text { text: "🧠"; font.pixelSize: 32 }
+                                            Text {
+                                                text: "Classificação de Comportamento (SimBA)"
+                                                color: ThemeManager.textPrimary
+                                                font.pixelSize: 22; font.weight: Font.Bold
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                            }
                                         }
 
-                                        // Título
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            text: "Classificação de Comportamento"
-                                            color: ThemeManager.textPrimary
-                                            font.pixelSize: 20; font.weight: Font.Bold
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                        }
-
-                                        // Descrição
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: "Esta aba permitirá aplicar algoritmos de classificação automatizada sobre os vídeos e trajetórias gravados, identificando padrões comportamentais como grooming, exploração, imobilidade, sociabilidade e outros."
-                                            color: ThemeManager.textSecondary
-                                            font.pixelSize: 13
-                                            wrapMode: Text.WordWrap
-                                            horizontalAlignment: Text.AlignHCenter
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                        }
-
-                                        // Opções de algoritmo (informativo)
                                         Rectangle {
                                             Layout.fillWidth: true; radius: 12
-                                            color: ThemeManager.surfaceDim
-                                            border.color: "#7a3dab"; border.width: 1
-                                            implicitHeight: algoCol.implicitHeight + 24
-
-                                            ColumnLayout {
-                                                id: algoCol
-                                                anchors { fill: parent; margins: 16 }
+                                            color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
+                                            implicitHeight: modelRow.implicitHeight + 24
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            RowLayout {
+                                                id: modelRow
+                                                anchors { fill: parent; margins: 12 }
                                                 spacing: 12
-
-                                                Text {
-                                                    text: "ALGORITMOS EM AVALIAÇÃO"
-                                                    color: ThemeManager.textSecondary
-                                                    font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.5
+                                                Text { text: "📦"; font.pixelSize: 20 }
+                                                ColumnLayout {
+                                                    spacing: 2
+                                                    Text { text: "Modelo de Classificação (ONNX)"; color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    Text { text: "Behavior.onnx autocarregado e integrado ao pipeline C++"; color: ThemeManager.textSecondary; font.pixelSize: 11; Behavior on color { ColorAnimation { duration: 150 } } }
                                                 }
+                                                Item { Layout.fillWidth: true }
+                                                Rectangle {
+                                                    color: ThemeManager.successLight
+                                                    radius: 6
+                                                    implicitWidth: txtStatus.implicitWidth + 16
+                                                    implicitHeight: txtStatus.implicitHeight + 8
+                                                    Text {
+                                                        id: txtStatus
+                                                        anchors.centerIn: parent
+                                                        text: "✅ ATIVO"
+                                                        color: ThemeManager.success
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Bold
+                                                    }
+                                                }
+                                            }
+                                        }
 
-                                                Repeater {
-                                                    model: [
-                                                        { name: "B-SOiD",     desc: "Pose-based unsupervised behavior segmentation (scikit-learn + UMAP)" },
-                                                        { name: "YOLO Pose",  desc: "Detecção de posturas em tempo real via keypoints" },
-                                                        { name: "Rede Custom",desc: "Modelo treinado sobre keypoints do MindTrace (a definir)" }
-                                                    ]
-                                                    delegate: RowLayout {
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 16
+                                            Repeater {
+                                                model: workArea.activeNumCampos
+                                                delegate: Rectangle {
+                                                    Layout.fillWidth: true; Layout.minimumHeight: 120; radius: 12
+                                                    color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 150 } }
+                                                    border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                    
+                                                    ColumnLayout {
+                                                        anchors.centerIn: parent
                                                         spacing: 12
-                                                        Rectangle {
-                                                            width: 6; height: 6; radius: 3
-                                                            color: "#7a3dab"
-                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        Text { 
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            text: "Campo " + (index+1)
+                                                            color: ThemeManager.textSecondary
+                                                            font.pixelSize: 13; font.weight: Font.Bold
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
-                                                        ColumnLayout {
-                                                            spacing: 1
-                                                            Text { text: modelData.name; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
-                                                            Text { text: modelData.desc;  color: ThemeManager.textTertiary; font.pixelSize: 11; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                                        
+                                                        Rectangle {
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            radius: 6; implicitHeight: 36; implicitWidth: bhvText.implicitWidth + 36
+                                                            property string bhvName: liveRecordingTab.currentBehaviorString[index] || "Detectando..."
+                                                            property color badgeColor: {
+                                                                if (bhvName === "Walking") return "#8b5cf6"; // Purple
+                                                                if (bhvName === "Resting") return "#3b82f6"; // Blue
+                                                                if (bhvName === "Rearing") return "#10b981"; // Green
+                                                                if (bhvName === "Grooming") return "#eab308"; // Yellow
+                                                                if (bhvName === "Sniffing") return "#f97316"; // Orange
+                                                                // Thigmotaxis removed
+                                                                return ThemeManager.surfaceAlt;
+                                                            }
+                                                            color: badgeColor
+                                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                                            Text {
+                                                                id: bhvText
+                                                                anchors.centerIn: parent
+                                                                text: parent.bhvName
+                                                                color: parent.bhvName === "Detectando..." ? ThemeManager.textSecondary : "#ffffff"
+                                                                font.pixelSize: 14; font.weight: Font.Bold
+                                                                Behavior on color { ColorAnimation { duration: 250 } }
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
 
-                                        // Botão desabilitado
+                                        // Legenda
                                         Rectangle {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            height: 40; radius: 8
-                                            implicitWidth: classifyLbl.implicitWidth + 32
-                                            color: ThemeManager.surfaceDim
-                                            border.color: ThemeManager.border; border.width: 1
-
-                                            Text {
-                                                id: classifyLbl
-                                                anchors.centerIn: parent
-                                                text: "🔒  Classificar  (em breve)"
-                                                color: ThemeManager.textTertiary
-                                                font.pixelSize: 13; font.weight: Font.Bold
+                                            Layout.fillWidth: true; radius: 8
+                                            color: "transparent"; border.color: ThemeManager.borderLight; border.width: 1
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            implicitHeight: legendRow.implicitHeight + 20
+                                            RowLayout {
+                                                id: legendRow
+                                                anchors { fill: parent; margins: 10 }
+                                                spacing: 16; Layout.alignment: Qt.AlignHCenter
+                                                Item { Layout.fillWidth: true }
+                                                Repeater {
+                                                    model: ["Walking|#8b5cf6", "Sniffing|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
+                                                    delegate: RowLayout {
+                                                        spacing: 6
+                                                        Rectangle { width: 14; height: 14; radius: 7; color: modelData.split("|")[1] }
+                                                        Text { text: modelData.split("|")[0]; color: ThemeManager.textSecondary; font.pixelSize: 12; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                    }
+                                                }
+                                                Item { Layout.fillWidth: true }
                                             }
                                         }
-
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            text: "O algoritmo será definido em uma conversa separada antes da implementação."
-                                            color: ThemeManager.textTertiary; font.pixelSize: 11
-                                            horizontalAlignment: Text.AlignHCenter
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                        }
+                                        
+                                        Item { Layout.fillHeight: true } // spacer
                                     }
                                 }
                             }

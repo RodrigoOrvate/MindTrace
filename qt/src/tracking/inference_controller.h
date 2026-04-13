@@ -22,6 +22,9 @@ public:
     bool isAnalyzing() const;
 
     Q_INVOKABLE QString defaultModelDir() const;
+    Q_INVOKABLE void loadBehaviorModel(const QString& behaviorModelPath);
+    Q_INVOKABLE void setZones(int campo, const QList<QVariant>& zones);
+    Q_INVOKABLE void setVelocity(int campo, float velocity);  // m/s para comportamento
     Q_INVOKABLE void startAnalysis(const QString& videoPath, const QString& modelDir);
     Q_INVOKABLE void stopAnalysis();
     Q_INVOKABLE void setPlaybackRate(double rate);
@@ -33,6 +36,7 @@ signals:
     void readyReceived();                                       // Model loaded, tracking active
     void trackReceived(int campo, float x, float y, float p);  // Nose — mosaico px
     void bodyReceived (int campo, float x, float y, float p);  // Body — mosaico px
+    void behaviorReceived(int campo, int labelId);             // Behavior classes
     void dimsReceived (int width, int height);
     void fpsReceived  (double fps);
     void errorOccurred(QString errorMsg);

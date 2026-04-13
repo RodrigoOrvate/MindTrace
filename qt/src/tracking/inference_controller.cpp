@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QFile>
+#include <QDir>
 #include <QImage>
 #include <QMetaObject>
 #include <QMediaMetaData>
@@ -27,7 +28,13 @@ InferenceController::InferenceController(QObject* parent)
     // ── InferenceEngine signals → InferenceController signals ──────────────────────────
     connect(m_engine, &InferenceEngine::modelReady, this, [this]() {
         m_modelReady = true;
-        emit readyReceived();
+        if (m_isAnalyzing) {
+            // Normal start: emit ready to unblock the UI
+            emit readyReceived();
+        } else {
+            // Pre-warm completed silently — sessions ready for instant start
+            qDebug() << "[InferenceController] Sessions pre-warmed successfully.";
+        }
     }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::trackResult, this,
@@ -38,6 +45,11 @@ InferenceController::InferenceController(QObject* parent)
     connect(m_engine, &InferenceEngine::bodyResult, this,
             [this](int c, float x, float y, float p) {
                 emit bodyReceived(c, x, y, p);
+            }, Qt::QueuedConnection);
+
+    connect(m_engine, &InferenceEngine::behaviorResult, this,
+            [this](int campo, int labelId) {
+                emit behaviorReceived(campo, labelId);
             }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::errorMsg, this,
@@ -51,6 +63,37 @@ InferenceController::InferenceController(QObject* parent)
     // ── Media player status ───────────────────────────────────────────────────
     connect(m_player, &QMediaPlayer::mediaStatusChanged,
             this, &InferenceController::onMediaStatusChanged);
+
+    // ── Pre-warm: load ONNX sessions immediately at construction ─────────────
+    // Sessions take several seconds to load. Starting the engine thread here
+    // means sessions will be ready before the user clicks "Start Analysis".
+    {
+        const QString appDir     = QCoreApplication::applicationDirPath();
+        QString preWarmModel     = appDir + "/Network-MemoryLab-v2.onnx";
+        if (!QFile::exists(preWarmModel))
+            preWarmModel = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+
+        if (QFile::exists(preWarmModel)) {
+            // AUTO-LOAD BEHAVIOR MODELS DISABLED - Use rule-based classifySimple instead
+            // To enable ONNX behavior models, uncomment below and ensure behavior_models/ folder exists
+            /*
+            QString behaviorModelDir = preWarmModel;
+            behaviorModelDir.replace("Network-MemoryLab-v2.onnx", "behavior_models");
+            if (!QDir(behaviorModelDir).exists()) {
+                behaviorModelDir = appDir + "/behavior_models";
+            }
+
+            if (QDir(behaviorModelDir).exists()) {
+                m_engine->loadBehaviorModel(behaviorModelDir);
+                qDebug() << "[InferenceController] Auto-loading behavior_models from:" << behaviorModelDir;
+            }
+            */
+
+            m_engine->loadModel(preWarmModel);
+            m_engine->start();
+            qDebug() << "[InferenceController] Pre-warming ONNX sessions in background...";
+        }
+    }
 }
 
 InferenceController::~InferenceController()
@@ -71,6 +114,29 @@ QString InferenceController::defaultModelDir() const
 void InferenceController::setAnalyzing(bool v)
 {
     if (m_isAnalyzing != v) { m_isAnalyzing = v; emit analyzingChanged(); }
+}
+
+void InferenceController::loadBehaviorModel(const QString& path)
+{
+    m_engine->loadBehaviorModel(path);
+}
+
+void InferenceController::setZones(int campo, const QList<QVariant>& zones) {
+    std::vector<Zone> converted;
+    converted.reserve(zones.size());
+    for (const auto& z : zones) {
+        QVariantMap m = z.toMap();
+        Zone zone;
+        zone.x = m.value("x", 0.0).toFloat();
+        zone.y = m.value("y", 0.0).toFloat();
+        zone.r = m.value("r", 0.0).toFloat();
+        converted.push_back(zone);
+    }
+    m_engine->setZones(campo, converted);
+}
+
+void InferenceController::setVelocity(int campo, float velocity) {
+    m_engine->setVelocity(campo, velocity);
 }
 
 // ── Control ───────────────────────────────────────────────────────────────────
@@ -96,14 +162,28 @@ void InferenceController::startAnalysis(const QString& videoPath, const QString&
         return;
     }
 
-    m_modelReady = false;
-    m_videoW     = 0;
-    m_videoH     = 0;
+    m_videoW = 0;
+    m_videoH = 0;
 
-    // Start model loading in background thread
+    // Behavior model is NOT auto-loaded — rule-based is the default.
+    // If the user previously loaded a model via loadBehaviorModel(), it stays active.
+    // To reset to rule-based, call loadBehaviorModel("") explicitly.
+
     m_engine->loadModel(modelPath);
-    if (!m_engine->isRunning())
+
+    if (m_modelReady && m_engine->isRunning()) {
+        // Sessions were pre-warmed — emit ready on next event loop tick so
+        // the caller's setAnalyzing(true) fires before QML reacts to readyReceived.
+        QMetaObject::invokeMethod(this, [this]() {
+            emit readyReceived();
+        }, Qt::QueuedConnection);
+    } else if (!m_engine->isRunning()) {
+        // Engine stopped (first run without pre-warm, or after stopAnalysis) — start fresh
+        m_modelReady = false;
         m_engine->start();
+    }
+    // else: engine running but pre-warm still in progress —
+    //       modelReady signal will fire later and emit readyReceived() since m_isAnalyzing==true
 
     // Start headless playback — QVideoSink delivers every decoded frame
     m_player->setSource(QUrl::fromLocalFile(cleanVideo));  // Qt 6: setSource (was setMedia)

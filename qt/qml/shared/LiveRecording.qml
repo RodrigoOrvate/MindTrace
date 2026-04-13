@@ -24,6 +24,26 @@ Item {
     property double centroRatio: 0.5
     property bool   isReactivation: false  // quando em fase de Reativação ou Teste (RO)
 
+    // ── Propagate zones to inference engine ───────────────────────────────────────
+    onZonesChanged: {
+        if (zones && zones.length > 0 && (aparato === "nor" || aparato === "comportamento_complexo")) {
+            for (var c = 0; c < numCampos; c++) {
+                var campoZones = []
+                // Each field has 2 zones (object A and B)
+                for (var i = 0; i < 2; i++) {
+                    var idx = c * 2 + i
+                    if (zones[idx]) {
+                        campoZones.push(zones[idx])
+                    }
+                }
+                if (campoZones.length > 0) {
+                    inference.setZones(c, campoZones)
+                }
+            }
+            console.log("[LiveRecording] Zones propagated to inference:", zones.length, "zones")
+        }
+    }
+
     // ── Controle de velocidade (análise offline) ────────────────────────────────
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
     property bool   isOffline: analysisMode === "offline"
@@ -90,6 +110,10 @@ Item {
     // Tick para forçar re-avaliação do bout live a cada 100 ms
     property int _explorationTick: 0
     property bool _dlcReady: false
+
+    // ── Classificação de Comportamento (SimBA/B-SOiD) ──────────────────────────
+    property var behaviorNames: ["Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
+    property var currentBehaviorString: ["", "", ""]
 
     // ── Log ───────────────────────────────────────────────────────────────────
     ListModel { id: logModel }
@@ -165,6 +189,15 @@ Item {
             recordingRoot.bodyNormX      = bx
             recordingRoot.bodyNormY      = by
             recordingRoot.bodyLikelihood = bl
+        }
+        function onBehaviorReceived(campo, labelId) {
+            var bs = recordingRoot.currentBehaviorString.slice()
+            if (labelId === -1) {
+                bs[campo] = "---"
+            } else {
+                bs[campo] = recordingRoot.behaviorNames[labelId] || ("Id " + labelId)
+            }
+            recordingRoot.currentBehaviorString = bs
         }
         function onAnalyzingChanged() {
             if (!inference.isAnalyzing && recordingRoot.isAnalyzing) {
@@ -496,6 +529,11 @@ Item {
         _prevBodyLY     = newPBLY
         _prevBodyTime   = newPBT
 
+        // Propaga velocidade para o classificador de comportamento (C++)
+        for (var c = 0; c < 3; c++) {
+            inference.setVelocity(c, currentVelocity[c])
+        }
+
         // ── Snapshot por minuto ──────────────────────────────────────────
         // Usa o maior timer restante para calcular minuto corrido
         var maxTimer = Math.max(timesRemaining[0], timesRemaining[1], timesRemaining[2])
@@ -714,6 +752,27 @@ Item {
                                     opacity: 0.85
                                 }
 
+                                // Overlay para exibir Behavior Badge em tempo real
+                                Rectangle {
+                                    id: behaviorBadge
+                                    anchors { top: parent.top; left: parent.left; margins: 10 }
+                                    visible: recordingRoot.currentBehaviorString[campoCell.ci] !== "" && recordingRoot.isAnalyzing
+                                    color: "#cc0a0a16"
+                                    border.color: ThemeManager.accent
+                                    border.width: 1
+                                    radius: 6
+                                    implicitWidth: bTxt.implicitWidth + 16
+                                    implicitHeight: 24
+                                    z: 100 // acima da grid e das zonas
+                                    Text {
+                                        id: bTxt
+                                        anchors.centerIn: parent
+                                        text: recordingRoot.currentBehaviorString[campoCell.ci]
+                                        color: ThemeManager.textPrimary
+                                        font.pixelSize: 11; font.weight: Font.Bold
+                                    }
+                                }
+
                                 // Overlay arena (paredes + chão + zonas)
                                 Canvas {
                                     id: arenaCanv
@@ -785,10 +844,10 @@ Item {
                                     }
                                 }
 
-                                // Zona A (vinho) - visível quando não é CA/CC
+                                // Zona A (vinho) - visível quando não é CA
                                 Rectangle {
                                     id: zoneA
-                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
+                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "comportamento_complexo")
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
                                                      ? recordingRoot.zones[campoCell.ci*2] : {x:0.3,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
@@ -799,10 +858,10 @@ Item {
                                     color: "#40ab3d4c"; border.width: 2
                                     opacity: 0.7
                                 }
-                                // Zona B (azul) - visível quando não é CA/CC
+                                // Zona B (azul) - visível quando não é CA
                                 Rectangle {
                                     id: zoneB
-                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
+                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "comportamento_complexo")
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
                                                      ? recordingRoot.zones[campoCell.ci*2+1] : {x:0.7,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)

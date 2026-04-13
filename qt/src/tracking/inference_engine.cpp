@@ -1,6 +1,8 @@
 #include "inference_engine.h"
 #include <QDebug>
+#include <QFile>
 #include <algorithm>
+#include <atomic>
 #include <thread>
 
 // GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU
@@ -114,6 +116,7 @@ static bool try_add_dml_provider(Ort::SessionOptions& opts) {
 InferenceEngine::InferenceEngine(QObject* parent)
     : QThread(parent)
     , m_env(ORT_LOGGING_LEVEL_WARNING, "MindTrace")
+    , m_scanners{BehaviorScanner(30), BehaviorScanner(30), BehaviorScanner(30)}
 {}
 
 InferenceEngine::~InferenceEngine()
@@ -126,6 +129,25 @@ void InferenceEngine::loadModel(const QString& path)
 {
     QMutexLocker lock(&m_mutex);
     m_modelPath = path;
+}
+
+void InferenceEngine::loadBehaviorModel(const QString& dirPath)
+{
+    QMutexLocker lock(&m_mutex);
+    m_bModelDir = dirPath;
+    m_behaviorEnabled = !dirPath.isEmpty();
+}
+
+void InferenceEngine::setZones(int campo, const std::vector<Zone>& zones) {
+    if (campo >= 0 && campo < 3) {
+        m_scanners[campo].setZones(zones);
+    }
+}
+
+void InferenceEngine::setVelocity(int campo, float velocity) {
+    if (campo >= 0 && campo < 3) {
+        m_scanners[campo].setVelocity(velocity);
+    }
 }
 
 void InferenceEngine::enqueueFrame(const QImage& frame, int videoW, int videoH)
@@ -151,14 +173,91 @@ void InferenceEngine::requestStop()
 bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& opts)
 {
     try {
+        emit infoMsg("Carregando modelos de pose (GPU)...");
         for (int i = 0; i < 3; i++) {
             m_sessions[i] = std::make_unique<Ort::Session>(
                 m_env, m_modelPath.toStdWString().c_str(), opts);
         }
+        
+        if (m_behaviorEnabled && !m_bModelDir.isEmpty()) {
+            // ── Load individual binary classifiers (one .onnx per behavior) ──
+            // Expected files: walking.onnx, sniffing.onnx, grooming.onnx,
+            //                 resting.onnx, rearing.onnx in behavior_models directory
+            // Index matches QML behaviorNames: [Walking=0, Sniffing=1, Grooming=2,
+            //                                   Resting=3, Rearing=4]
+            static const std::pair<const char*, int> BEHAVIOR_MAP[] = {
+                {"walking",  0},
+                {"sniffing", 1},
+                {"grooming", 2},
+                {"resting",  3},
+                {"rearing", 4},
+            };
+
+            m_behaviorSessions.clear();
+
+            Ort::SessionOptions bOpts;
+            bOpts.SetIntraOpNumThreads(1);
+            bOpts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+            bOpts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+
+            Ort::AllocatorWithDefaultOptions bAlloc;
+            int loaded = 0;
+
+            for (auto& [name, idx] : BEHAVIOR_MAP) {
+                QString onnxPath = m_bModelDir + "/" + name + ".onnx";
+                if (!QFile::exists(onnxPath)) {
+                    qDebug() << "[Behavior] Não encontrado:" << onnxPath;
+                    continue;
+                }
+                try {
+                    auto session = std::make_unique<Ort::Session>(
+                        m_env, onnxPath.toStdWString().c_str(), bOpts);
+
+                    BehaviorSessionInfo bsi;
+                    bsi.behaviorIndex = idx;
+                    bsi.inputName = session->GetInputNameAllocated(0, bAlloc).get();
+
+                    // Find the float32 probabilities output (shape [None, 2])
+                    const size_t outCount = session->GetOutputCount();
+                    for (size_t i = 0; i < outCount; ++i) {
+                        auto info = session->GetOutputTypeInfo(i);
+                        if (info.GetONNXType() == ONNX_TYPE_TENSOR) {
+                            auto elemType = info.GetTensorTypeAndShapeInfo().GetElementType();
+                            if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+                                bsi.probOutputName = session->GetOutputNameAllocated(i, bAlloc).get();
+                                break;
+                            }
+                        }
+                    }
+
+                    if (bsi.probOutputName.empty()) {
+                        qDebug() << "[Behavior] Sem saída float em:" << onnxPath;
+                        continue;
+                    }
+
+                    bsi.session = std::move(session);
+                    m_behaviorSessions.push_back(std::move(bsi));
+                    qDebug() << "[Behavior] Carregado:" << name
+                             << "→ behaviorNames[" << idx << "]";
+                    ++loaded;
+                } catch (const Ort::Exception& e) {
+                    qDebug() << "[Behavior] Falha ao carregar" << name << ":" << e.what();
+                }
+            }
+
+            m_behaviorEnabled = loaded > 0;
+            if (loaded > 0)
+                emit infoMsg(QString("Behavior: %1 classificador(es) carregado(s)").arg(loaded));
+            else
+                qDebug() << "[Behavior] Nenhum modelo carregado — usando rule-based";
+        }
         return true;
     } catch (const Ort::Exception& e) {
-        qDebug() << "[ORT] Falha ao criar sessão:" << e.what();
-        for (int i = 0; i < 3; i++) m_sessions[i].reset();
+        qDebug() << "[ORT] Falha ao criar sessão de pose:" << e.what();
+        for (int i = 0; i < 3; i++) {
+            m_sessions[i].reset();
+        }
+        m_behaviorSessions.clear();
         return false;
     }
 }
@@ -224,6 +323,8 @@ sessions_ready:
             m_outputNames.push_back(m_sessions[0]->GetOutputNameAllocated(i, alloc).get());
         }
         m_hasLocref = (m_outputNames.size() >= 2);
+        // Behavior session I/O names stored in m_bInputName/m_bOutputName
+        // (populated inside tryCreateSessions above).
         return true;
     } catch (const Ort::Exception& e) {
         emit errorMsg(QString("ONNX load error: ") + e.what());
@@ -243,6 +344,10 @@ void InferenceEngine::run()
         m_stop       = false;
         m_hasPending = false;
     }
+
+    // Reset behavioral scanners so stale movement history from previous sessions
+    // doesn't contaminate the first frames of a new session.
+    for (auto& scanner : m_scanners) scanner.reset();
 
     if (!createSession()) return;
     emit modelReady();
@@ -345,6 +450,8 @@ void InferenceEngine::inferCrop(const QImage& crop, int campo,
     const float* locData = (m_hasLocref && outputs.size() >= 2)
                            ? outputs[1].GetTensorData<float>() : nullptr;
 
+    PosePoint pNose, pBody;
+
     // Process nose (ch=0) and body (ch=1)
     for (int ch = 0; ch < 2; ch++) {
         // Find peak in HEAT_ROWS × HEAT_COLS heatmap for this channel
@@ -373,9 +480,39 @@ void InferenceEngine::inferCrop(const QImage& crop, int campo,
         const float mx = px * scaleX + static_cast<float>(ox);
         const float my = py * scaleY + static_cast<float>(oy);
 
-        if (ch == 0)
+        if (ch == 0) {
+            // Likelihood threshold solicitado: 0.75
+            if (bestVal >= 0.75f) {
+                pNose = {px, py, bestVal}; // Usar px, py (escala local 360x240) para o scanner
+            }
             emit trackResult(campo, mx, my, bestVal);
-        else
+        } else {
+            if (bestVal >= 0.75f) {
+                pBody = {px, py, bestVal}; // Usar px, py (escala local 360x240) para o scanner
+            }
             emit bodyResult(campo, mx, my, bestVal);
+        }
     }
+
+    // ── Behavior classification ───────────────────────────────────────────────
+    // pushFrame is always called to keep rolling history current.
+    // Using rule-based classifySimple() only - no ONNX behavior models.
+    const bool validPose = m_scanners[campo].pushFrame(pNose, pBody);
+
+    if (!validPose) return; // one or both keypoints undetected — skip classification
+
+    // Rule-based classifier using classifySimple()
+    int simpleResult = m_scanners[campo].classifySimple();
+    
+    // Get raw values for debug
+    std::vector<float> feats = m_scanners[campo].getFeatures();
+    static const char* BEH_NAMES[] = {"Walking","Sniffing","Grooming","Resting","Rearing"};
+    qDebug() << "[Behavior] Simple:" << BEH_NAMES[simpleResult] 
+             << "noseMov=" << feats[0] << "bodyMov=" << feats[1] 
+             << "roll2s=" << feats[6]
+             << "noseXY=" << pNose.x << "," << pNose.y 
+             << "bodyXY=" << pBody.x << "," << pBody.y
+             << "dy=" << (pBody.y - pNose.y);
+    
+    emit behaviorResult(campo, simpleResult);
 }

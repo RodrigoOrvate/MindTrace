@@ -18,8 +18,8 @@ Item {
     property string selectedPath: ""
     property int    sessionMinutes: 5    // 5 ou 20
 
-    // name, cols, includeDrug, sessionMinutes, savePath
-    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, string savePath)
+    // name, cols, includeDrug, sessionMinutes, hasObjectZones, savePath
+    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, string savePath)
     signal backRequested()
 
     function doCreate() {
@@ -27,7 +27,7 @@ Item {
                     "Duração (min)", "Distância Total (m)", "Velocidade Média (m/s)"]
         if (drugCheck.checked) cols.push("Droga")
         root.experimentReady(nameField.text.trim(), cols,
-                             drugCheck.checked, root.sessionMinutes, root.selectedPath)
+                             drugCheck.checked, root.sessionMinutes, objectZonesCheck.checked, root.selectedPath)
     }
 
     FolderDialog {
@@ -242,6 +242,27 @@ Item {
                         spacing: 2
                         Text { text: "Incluir coluna \"Droga\""; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
                         Text { text: "Para tratamentos farmacológicos."; color: ThemeManager.textTertiary; font.pixelSize: 11 }
+                    }
+                }
+
+                // Zonas de Objetos
+                RowLayout {
+                    spacing: 12
+                    Rectangle {
+                        id: objectZonesCheck
+                        width: 20; height: 20; radius: 5
+                        property bool checked: true
+                        color:        checked ? "#7a3dab" : ThemeManager.surfaceDim
+                        border.color: checked ? "#7a3dab" : ThemeManager.border; border.width: 1.5
+                        Behavior on color        { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                        Text { anchors.centerIn: parent; text: "✓"; color: "white"; font.pixelSize: 11; font.weight: Font.Bold; visible: objectZonesCheck.checked }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: objectZonesCheck.checked = !objectZonesCheck.checked }
+                    }
+                    ColumnLayout {
+                        spacing: 2
+                        Text { text: "Zonas de Objetos"; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { text: "Habilita detecção sniffing vs resting."; color: ThemeManager.textTertiary; font.pixelSize: 11 }
                     }
                 }
             }

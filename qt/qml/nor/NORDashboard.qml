@@ -312,6 +312,7 @@ Item {
                 property string pair3:       ""
                 property bool   includeDrug: true
                 property bool   hasReactivation: false
+                property bool   hasObjectZones: true
                 property string analysisMode: "offline"
                 property string saveDirectory: ""
 

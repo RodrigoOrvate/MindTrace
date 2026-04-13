@@ -173,8 +173,9 @@ Item {
 
                 if (i < n) {
                     var z = ArenaConfigModel.zone(i)
-                    // Força o círculo a ignorar o raio antigo salvo e usar o novo raio dinâmico!
-                    nz.push({ x: z.xRatio, y: z.yRatio, r: dynamicRadius })
+                    // Em CC: usa raio salvo; em NOR: usa raio dinâmico baseado no objId
+                    var radius = root.ccMode ? (z.radiusRatio || dynamicRadius) : dynamicRadius
+                    nz.push({ x: z.xRatio, y: z.yRatio, r: radius })
                 } else {
                     // Círculos novos também já nascem com o tamanho correto
                     nz.push({ x: (i % 2 === 0 ? 0.3 : 0.7), y: 0.5, r: dynamicRadius })
@@ -400,10 +401,10 @@ Item {
             Item { Layout.fillWidth: true }
             Text {
                 // CA: scroll simples = centro | Ctrl+drag = paredes | Alt+drag = chão
-                // CC: sem centro, Ctrl+drag = paredes | Alt+drag = chão
+                // CC: scroll = objetos | Shift+drag = mover | Ctrl+drag = paredes | Alt+drag = chão
                 // NOR (devMode): scroll simples = objetos | Ctrl+drag = paredes | Alt+drag = chão
                 text: root.ccMode
-                      ? "🎞 Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
+                      ? "🖱 Scroll: +/- Zonas  |  Shift + Arrastar: Mover Zonas  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
                       : root.caMode
                         ? "🖱 Scroll: +/- Centro  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
                         : "🔧 devMode  |  Scroll: +/- Objetos  |  Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chão"
@@ -493,7 +494,7 @@ Item {
             // ── Salvar Configuração ──────────────────────────────────────────
             Button {
                 text: "💾 Salvar Configuração"
-                enabled: experimentPath !== "" && (root.caMode || pair1 !== "")
+                enabled: experimentPath !== "" && (root.caMode || root.ccMode || pair1 !== "")
                 onClicked: {
                     var allZones = []
                     for (var i = 0; i < 6; i++) {
@@ -710,7 +711,7 @@ Item {
                                 // ── Zona A (vinho) ────────────────────────────
                                 Rectangle {
                                     id: zoneA
-                                    visible: !root.caMode
+                                    visible: !root.caMode || root.ccMode  // Mostra em NOR e CC, não em CA
                                     property var zd: root.zones[campoCell.campoIndex * 2]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -721,6 +722,7 @@ Item {
                                     Column {
                                         anchors.centerIn: parent; spacing: 1
                                         Text {
+                                            visible: !root.ccMode  // Só mostra label em NOR, não em CC
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: campoCell.campoIds[0]; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                                             font.pixelSize: Math.max(7, zoneA.width * 0.22)
@@ -741,7 +743,7 @@ Item {
                                 // ── Zona B (azul) ─────────────────────────────
                                 Rectangle {
                                     id: zoneB
-                                    visible: !root.caMode
+                                    visible: !root.caMode || root.ccMode  // Mostra em NOR e CC, não em CA
                                     property var zd: root.zones[campoCell.campoIndex * 2 + 1]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -752,6 +754,7 @@ Item {
                                     Column {
                                         anchors.centerIn: parent; spacing: 1
                                         Text {
+                                            visible: !root.ccMode  // Só mostra label em NOR, não em CC
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: campoCell.campoIds[1]; color: "#e8e8f0"
                                             font.pixelSize: Math.max(7, zoneB.width * 0.22)
@@ -849,15 +852,16 @@ Item {
 
                                     function onPressedHandler(mouse) {
                                         // No modo CA: Ctrl e Alt funcionam sem devMode
+                                        // No modo CC: Shift funciona para zonas
                                         // No modo NOR: tudo requer devMode
-                                        var needsDev = !root.caMode
+                                        var needsDev = !root.caMode && !root.ccMode
                                         if (needsDev && !root.devMode) return;
                                         var capturingDist = 900;
                                         var fp = root.floorPoints[campoCell.campoIndex]
                                         var w = arenaRect.width, h = arenaRect.height
 
                                         if (mouse.modifiers & Qt.ShiftModifier) {
-                                            if (!root.devMode) return;  // Shift (objetos) sempre requer devMode
+                                            if (!root.devMode && !root.ccMode) return;  // Shift (objetos) requer devMode ou ccMode
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
                                             var cx0 = root.zones[i0].x * w, cy0 = root.zones[i0].y * h
                                             var cx1 = root.zones[i1].x * w, cy1 = root.zones[i1].y * h
@@ -865,6 +869,7 @@ Item {
                                             var d1 = (mouse.x-cx1)*(mouse.x-cx1)+(mouse.y-cy1)*(mouse.y-cy1)
                                             dragZoneIdx = d0 <= d1 ? i0 : i1
                                         } else if (mouse.modifiers & Qt.ControlModifier) {
+                                            // Ctrl funciona em CA e CC sem devMode
                                             var ap = root.arenaPoints[campoCell.campoIndex]
                                             // SEM limite de distância: sempre captura o canto mais próximo
                                             // mesmo se estiver fora do quadrante visível
@@ -879,7 +884,7 @@ Item {
                                             var minDistFloor = capturingDist; dragFloorCorner = -1
                                             for (var c=0; c<4; c++) {
                                                 var fx = fp[c].x * w, fy = fp[c].y * h
-                                                var distF = (mouse.x-fx)*(mouse.x-fx) + (mouse.y-fy)*(mouse.y-fy)
+                                                var distF = (mouse.x-fx)*(mouse.x-fx)+(mouse.y-fy)*(mouse.y-fy)
                                                 if (distF < minDistFloor) { minDistFloor = distF; dragFloorCorner = c }
                                             }
                                         }
@@ -889,8 +894,9 @@ Item {
                                     onReleased: { dragZoneIdx = -1; dragOuterCorner = -1; dragFloorCorner = -1 }
 
                                     onPositionChanged: (mouse) => {
+                                        // No modo CC: zonas podem ser arrastadas
                                         // No modo NOR, requer devMode; no CA, Ctrl/Alt funcionam sempre
-                                        var allowDrag = root.devMode || root.caMode
+                                        var allowDrag = root.devMode || root.caMode || root.ccMode
                                         if (!allowDrag) return;
                                         var w = arenaRect.width, h = arenaRect.height
 
@@ -899,7 +905,8 @@ Item {
                                         var my = Math.max(0, Math.min(h, mouse.y))
 
                                         if (dragZoneIdx >= 0) {
-                                            if (!root.devMode) return  // segurança extra para NOR
+                                            // Zonas podem ser arrastadas em devMode OU ccMode
+                                            if (!root.devMode && !root.ccMode) return;
                                             var nz = root.zones.slice()
                                             nz[dragZoneIdx] = { x: mx/w, y: my/h, r: root.zones[dragZoneIdx].r }
                                             root.zones = nz
@@ -925,9 +932,24 @@ Item {
                                     }
 
                                     onWheel: (wheel) => {
+                                        // Modo CC: scroll redimensiona zonas
+                                        if (root.ccMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.ShiftModifier))) {
+                                            wheel.accepted = true
+                                            var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
+                                            var dx0 = wheel.x - root.zones[i0].x * arenaRect.width
+                                            var dy0 = wheel.y - root.zones[i0].y * arenaRect.height
+                                            var dx1 = wheel.x - root.zones[i1].x * arenaRect.width
+                                            var dy1 = wheel.y - root.zones[i1].y * arenaRect.height
+                                            var ti = (dx0*dx0+dy0*dy0) <= (dx1*dx1+dy1*dy1) ? i0 : i1
+                                            var step2 = wheel.angleDelta.y > 0 ? 1.05 : 0.952
+                                            var nzW = root.zones.slice()
+                                            nzW[ti] = { x: nzW[ti].x, y: nzW[ti].y, r: Math.max(0.04, Math.min(0.4, nzW[ti].r * step2)) }
+                                            root.zones = nzW; root.zonasEditadas(); showUnsavedToast()
+                                            return
+                                        }
                                         // No modo CA: scroll simples (sem modificador ou com Alt)
                                         // ajusta centroRatio. Não requer devMode.
-                                        if (root.caMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.AltModifier))) {
+                                        if (root.caMode && !root.ccMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.AltModifier))) {
                                             wheel.accepted = true
                                             var step = 0.02
                                             if (wheel.angleDelta.y > 0) root.centroRatio = Math.min(0.95, root.centroRatio + step)

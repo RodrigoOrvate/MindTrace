@@ -312,17 +312,58 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
     return true;
 }
 
+bool ExperimentManager::insertBehaviorResult(const QString &experimentName,
+                                             const QVariantList &rows)
+{
+    if (rows.isEmpty()) return true;
+
+    const QString trimmed = experimentName.trimmed();
+    if (trimmed.isEmpty()) {
+        emit errorOccurred(QStringLiteral("Nome de experimento vazio."));
+        return false;
+    }
+
+    const QString csvPath = experimentPath(trimmed)
+                            + QStringLiteral("/behavior_summary.csv");
+
+    bool isNew = !QFile::exists(csvPath);
+
+    {
+        QFile file(csvPath);
+        if (!file.open(QIODevice::Append | QIODevice::Text)) {
+            emit errorOccurred(QStringLiteral("Não foi possível abrir o CSV: ") + csvPath);
+            return false;
+        }
+        
+        if (isNew) {
+            file.write("\xEF\xBB\xBF"); // BOM para Excel
+            QTextStream header(&file);
+            header << "Video,Animal,Campo,Comportamento,Tempo (s),Sessao (%)\n";
+        }
+        
+        QTextStream out(&file);
+        for (const QVariant &rowVar : rows) {
+            const QStringList cols = rowVar.toStringList();
+            if (!cols.isEmpty())
+                out << cols.join(QLatin1Char(',')) << QLatin1Char('\n');
+        }
+    }
+
+    return true;
+}
+
 bool ExperimentManager::createExperimentFull(const QString    &name,
-                                              const QStringList &columns,
-                                              const QString     &pair1,
-                                              const QString     &pair2,
-                                              const QString     &pair3,
-                                              bool               includeDrug,
-                                              bool               hasReactivation,
-                                              const QString     &savePath,
-                                              const QString     &aparato,
-                                              int                numCampos,
-                                              double             centroRatio)
+                                               const QStringList &columns,
+                                               const QString     &pair1,
+                                               const QString     &pair2,
+                                               const QString     &pair3,
+                                               bool               includeDrug,
+                                               bool               hasReactivation,
+                                               const QString     &savePath,
+                                               const QString     &aparato,
+                                               int                numCampos,
+                                               double             centroRatio,
+                                               bool               hasObjectZones)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
         emit errorOccurred(QStringLiteral("Contexto ou nome inválido."));
@@ -365,7 +406,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
         return false;
     }
 
-    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio);
+    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio, hasObjectZones);
     writeCsv(folderPath, columns, 0);
 
     scanAndUpdateModel();
@@ -675,7 +716,8 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        bool               hasReactivation,
                                        const QString     &aparato,
                                        int                numCampos,
-                                       double             centroRatio) const
+                                       double             centroRatio,
+                                       bool               hasObjectZones) const
 {
     QJsonArray colArray;
     for (const QString &col : columns)
