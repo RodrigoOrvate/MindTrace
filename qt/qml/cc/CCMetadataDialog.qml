@@ -24,20 +24,31 @@ Popup {
     property var avgVelocity:   [0.0, 0.0, 0.0]
     property var perMinuteData: [[], [], []]
 
-    // Textos dos campos (preenchidos pelos CampoDataRow)
+    // Textos dos campos (preenchidos pelos CampoBlock via onAnimalChanged / onDrogaChanged)
     property var _animalTexts: ["", "", ""]
     property var _drogaTexts:  ["", "", ""]
 
     // ── Geometria ─────────────────────────────────────────────────────────
-    width:  520
+    anchors.centerIn: parent
+    width:  540
+    height: mainLayout.implicitHeight + 48
     modal:  true
     focus:  true
     closePolicy: Popup.CloseOnEscape
 
+    onOpened: {
+        diaField.text = "1"
+        root._animalTexts = ["", "", ""]
+        root._drogaTexts  = ["", "", ""]
+        diaField.forceActiveFocus()
+    }
+
     background: Rectangle {
-        radius: 16; color: ThemeManager.surface
+        radius: 14
+        color: ThemeManager.surface
         Behavior on color { ColorAnimation { duration: 200 } }
-        border.color: "#7a3dab"; border.width: 1.5
+        border.color: "#7a3dab"
+        border.width: 1.5
     }
 
     // ── Função de inserção ────────────────────────────────────────────────
@@ -98,23 +109,36 @@ Popup {
 
     // ── UI ────────────────────────────────────────────────────────────────
     ColumnLayout {
+        id: mainLayout
         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
-        spacing: 16
+        spacing: 14
 
-        // Cabeçalho
+        // ── Header ────────────────────────────────────────────────────────
         RowLayout {
             spacing: 10
-            Text { text: "🧩"; font.pixelSize: 22 }
-            Text {
-                text: "Sessão Concluída — Comportamento Complexo"
-                color: ThemeManager.textPrimary; font.pixelSize: 17; font.weight: Font.Bold
-                Behavior on color { ColorAnimation { duration: 150 } }
+            Text { text: "🧩"; font.pixelSize: 20 }
+            ColumnLayout {
+                spacing: 2
+                Text {
+                    text: "Sessão Concluída"
+                    color: ThemeManager.textPrimary
+                    font.pixelSize: 16; font.weight: Font.Bold
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+                Text {
+                    text: "Comportamento Complexo — informe o dia e os animais"
+                    color: "#7a3dab"; font.pixelSize: 11
+                }
             }
             Item { Layout.fillWidth: true }
             Text {
-                text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14
+                text: "✕"
+                color: ThemeManager.textSecondary; font.pixelSize: 14
                 Behavior on color { ColorAnimation { duration: 150 } }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.close() }
+                MouseArea {
+                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                    onClicked: root.close()
+                }
             }
         }
 
@@ -126,77 +150,76 @@ Popup {
 
             Text {
                 text: "DIA DA SESSÃO"
-                color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                color: ThemeManager.textSecondary
+                font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             RowLayout {
                 spacing: 8
-
                 Repeater {
                     model: ["1", "2", "3", "4", "5"]
                     delegate: Rectangle {
                         height: 34; width: 40; radius: 8
                         property bool isSelected: diaField.text === modelData
-                        color:        isSelected ? "#1a0d2e" : (dayBtnMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                        color:        isSelected ? "#1a0d2e" : (dayMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
                         border.color: isSelected ? "#7a3dab" : ThemeManager.border
                         border.width: isSelected ? 2 : 1
                         Behavior on color        { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
-
                         Text {
                             anchors.centerIn: parent; text: modelData
-                            color: isSelected ? "#7a3dab" : ThemeManager.textSecondary
+                            color: isSelected ? "#a855f7" : ThemeManager.textSecondary
                             font.pixelSize: 13; font.weight: Font.Bold
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
                         MouseArea {
-                            id: dayBtnMa; anchors.fill: parent
+                            id: dayMa; anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                             onClicked: diaField.text = modelData
                         }
                     }
                 }
-
                 TextField {
                     id: diaField
-                    width: 50; height: 34
-                    text: "1"
+                    width: 52; height: 34; text: "1"
                     color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold
                     leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                     background: Rectangle {
-                        radius: 8; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                        radius: 8; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
                         border.color: diaField.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
                 }
-
                 Text {
-                    text: "Dia " + (diaField.text || "?") + " da sessão"
+                    text: "Dia " + (diaField.text || "?")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Dados por campo ───────────────────────────────────────────────
-        CampoDataRow {
+        // ── Campos ────────────────────────────────────────────────────────
+        CampoBlock {
             Layout.fillWidth: true; visible: root.numCampos >= 1; campoIndex: 0
-            dist: root.totalDistance[0] || 0; vel: root.avgVelocity[0] || 0
+            dist: root.totalDistance[0] || 0;  vel: root.avgVelocity[0] || 0
             includeDrug: root.includeDrug
             onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[0] = txt; root._animalTexts = a }
             onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[0] = txt; root._drogaTexts  = d }
         }
-        CampoDataRow {
+        CampoBlock {
             Layout.fillWidth: true; visible: root.numCampos >= 2; campoIndex: 1
-            dist: root.totalDistance[1] || 0; vel: root.avgVelocity[1] || 0
+            dist: root.totalDistance[1] || 0;  vel: root.avgVelocity[1] || 0
             includeDrug: root.includeDrug
             onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[1] = txt; root._animalTexts = a }
             onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[1] = txt; root._drogaTexts  = d }
         }
-        CampoDataRow {
+        CampoBlock {
             Layout.fillWidth: true; visible: root.numCampos >= 3; campoIndex: 2
-            dist: root.totalDistance[2] || 0; vel: root.avgVelocity[2] || 0
+            dist: root.totalDistance[2] || 0;  vel: root.avgVelocity[2] || 0
             includeDrug: root.includeDrug
             onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[2] = txt; root._animalTexts = a }
             onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[2] = txt; root._drogaTexts  = d }
@@ -217,93 +240,133 @@ Popup {
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {
-                    text: parent.text; color: ThemeManager.buttonText
+                    text: parent.text; color: "#ffffff"
                     font.pixelSize: 13; font.weight: Font.Bold
-                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment:   Text.AlignVCenter
                 }
-                leftPadding: 18; rightPadding: 18; topPadding: 9; bottomPadding: 9
+                leftPadding: 20; rightPadding: 20; topPadding: 10; bottomPadding: 10
             }
         }
 
         Item { height: 4 }
     }
 
-    // ── Componente interno: linha por campo ───────────────────────────────
-    component CampoDataRow: Rectangle {
-        id: rowRect
-        height: includeDrug ? 80 : 54; radius: 10
+    // ── Componente: bloco por campo ───────────────────────────────────────
+    component CampoBlock: Rectangle {
+        id: blk
+        radius: 10
         color: ThemeManager.surfaceDim
         border.color: ThemeManager.border; border.width: 1
+        implicitHeight: blkCol.implicitHeight + 24
         Behavior on color { ColorAnimation { duration: 200 } }
 
-        property int    campoIndex:  0
-        property real   dist:        0.0
-        property real   vel:         0.0
-        property bool   includeDrug: true
+        property int  campoIndex:  0
+        property real dist:        0.0
+        property real vel:         0.0
+        property bool includeDrug: true
 
         signal animalChanged(string txt)
         signal drogaChanged(string txt)
 
         ColumnLayout {
-            anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 10; bottomMargin: 10 }
-            spacing: 6
+            id: blkCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+            spacing: 10
 
+            // Linha principal: badge + stats + campo animal
             RowLayout {
-                spacing: 10
+                spacing: 12
 
+                // Badge campo
                 Rectangle {
-                    width: 28; height: 20; radius: 4
-                    color: "#1a0d2e"; border.color: "#7a3dab"; border.width: 1
-                    Text { anchors.centerIn: parent; text: "C" + (rowRect.campoIndex + 1); color: "#7a3dab"; font.pixelSize: 10; font.weight: Font.Bold }
+                    width: 32; height: 22; radius: 5
+                    color: "#1a0d2e"; border.color: "#7a3dab"; border.width: 1.5
+                    Text {
+                        anchors.centerIn: parent
+                        text: "C" + (blk.campoIndex + 1)
+                        color: "#a855f7"; font.pixelSize: 11; font.weight: Font.Bold
+                    }
                 }
 
-                Text {
-                    text: rowRect.dist.toFixed(2) + " m  ·  " + rowRect.vel.toFixed(3) + " m/s"
-                    color: ThemeManager.textTertiary; font.pixelSize: 11
+                // Stats em destaque
+                ColumnLayout {
+                    spacing: 1
+                    Text {
+                        text: blk.dist.toFixed(2) + " m"
+                        color: ThemeManager.textPrimary
+                        font.pixelSize: 15; font.weight: Font.Bold
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    Text {
+                        text: blk.vel.toFixed(3) + " m/s média"
+                        color: ThemeManager.textSecondary; font.pixelSize: 10
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
 
+                // Campo animal
                 ColumnLayout {
-                    spacing: 2
-                    Text { text: "ANIMAL"; color: ThemeManager.textSecondary; font.pixelSize: 9; font.letterSpacing: 1 }
+                    spacing: 3
+                    Text {
+                        text: "ANIMAL"
+                        color: ThemeManager.textSecondary
+                        font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
                     TextField {
                         id: animalField
-                        width: 120; height: 26
+                        width: 130; height: 30
                         placeholderText: "ID ou nome"
-                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
-                        leftPadding: 8; rightPadding: 8; topPadding: 4; bottomPadding: 4
+                        color: ThemeManager.textPrimary
+                        placeholderTextColor: ThemeManager.textTertiary
+                        font.pixelSize: 12
+                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
-                            radius: 6; color: ThemeManager.surface
+                            radius: 7; color: ThemeManager.surface
+                            Behavior on color { ColorAnimation { duration: 200 } }
                             border.color: animalField.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
-                        onTextChanged: rowRect.animalChanged(text)
+                        onTextChanged: blk.animalChanged(text)
                     }
                 }
             }
 
+            // Linha droga (opcional)
             RowLayout {
-                visible: rowRect.includeDrug; spacing: 10
-                Item { width: 38 }
+                visible: blk.includeDrug; spacing: 12
+                Item { width: 44 }
                 ColumnLayout {
-                    spacing: 2
-                    Text { text: "DROGA"; color: ThemeManager.textSecondary; font.pixelSize: 9; font.letterSpacing: 1 }
+                    spacing: 3
+                    Text {
+                        text: "DROGA / TRATAMENTO"
+                        color: ThemeManager.textSecondary
+                        font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
                     TextField {
                         id: drogaField
-                        width: 200; height: 26
+                        width: 260; height: 30
                         placeholderText: "Ex.: Salina, Midazolam…"
-                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
-                        leftPadding: 8; rightPadding: 8; topPadding: 4; bottomPadding: 4
+                        color: ThemeManager.textPrimary
+                        placeholderTextColor: ThemeManager.textTertiary
+                        font.pixelSize: 12
+                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
-                            radius: 6; color: ThemeManager.surface
+                            radius: 7; color: ThemeManager.surface
+                            Behavior on color { ColorAnimation { duration: 200 } }
                             border.color: drogaField.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
-                        onTextChanged: rowRect.drogaChanged(text)
+                        onTextChanged: blk.drogaChanged(text)
                     }
                 }
             }
+
+            Item { height: 2 }
         }
     }
 }

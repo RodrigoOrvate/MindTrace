@@ -200,11 +200,17 @@ MindTrace.exe (Qt 6.11.0 / C++17 / ONNX Runtime 1.24.4)
         └── InferenceController (C++)
              ├── QVideoSink          — recebe cada frame decodificado do QMediaPlayer headless
              │    └── videoFrameChanged → onVideoFrameChanged → enqueueFrame
-             └── InferenceEngine (QThread)  — inferência Dual-Model nativa (Pose + Comportamento)
+             └── InferenceEngine (QThread)  — inferência nativa (Pose + Comportamento rule-based)
                   ├── DXGI vendor detection → CUDA (NVIDIA) / DirectML / CPU (cascata)
-                  ├── BehaviorScanner — extração de métricas espaciais para IA
-                  ├── 3× Ort::Session (Pose) + 3× Ort::Session (Comportamento)
+                  ├── BehaviorScanner[3]  — extração de 21 features + classifySimple() + _frameHistory
+                  ├── 3× Ort::Session (Pose DLC)
                   └── std::thread por campo → inferência paralela via HW Acceleration
+
+  └── CCDashboard (Comportamento Complexo)
+        └── BSoidAnalyzer (C++ QObject)
+             ├── BSoidWorker (QThread) — PCA 21→6 + K-Means++ k=7
+             ├── populateTimelines()  — preenche BehaviorTimeline (Regras + B-SOiD) de C++
+             └── extractSnippets()   — QThread + QProcess (FFmpeg) → clips por cluster
 ```
 
 **Sinais emitidos (`InferenceController` → QML):**
@@ -230,20 +236,36 @@ MindTrace/
 ├── onnxruntime_sdk/        — SDK ONNX Runtime (configurado pelo build.bat)
 └── qt/
     ├── src/
-    │   ├── core/           — main.cpp
+    │   ├── core/           — main.cpp (registro de tipos QML)
     │   ├── manager/        — ExperimentManager.cpp/.h (CRUD, Registry)
     │   ├── models/         — TableModels, ArenaModel, ConfigModels
-    │   └── tracking/       — InferenceController, InferenceEngine
+    │   ├── tracking/       — InferenceController, InferenceEngine, BehaviorScanner, BehaviorTimeline
+    │   └── analysis/       — BSoidAnalyzer.h/cpp (PCA + K-Means + snippets)
     ├── qml/
     │   ├── core/           — Navegação e componentes base (main.qml, GhostButton, Theme/)
-    │    │   ├── shared/         — LiveRecording, SessionResultDialog (comuns)
+    │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml (comuns)
     │   ├── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
     │   ├── ca/             — CADashboard, CAArenaSelection, CASetup, CAMetadataDialog
-    │   ├── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
+    │   └── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
     ├── data/               — arenas.json, arena_config_referencia.json
     ├── scripts/            — build.bat, setup_onnx.ps1
     ├── CMakeLists.txt
     └── resources.qrc
+```
+
+**Saída por experimento:**
+```
+<experimento>/
+├── tracking_data.csv           — coordenadas nose/body por frame
+├── behavior_summary.csv        — % de tempo por comportamento (rule-based)
+├── sessions/
+│   └── session_<ts>.json       — metadados ricos (bouts, DI, por minuto)
+└── bsoid_snippets/             — gerado pelo BSoidAnalyzer após análise
+    ├── grupo_1/
+    │   ├── clip_1.mp4          — segmento representativo (máx. 5s)
+    │   └── timestamps.csv      — start/end de cada clip
+    └── grupo_N/
+        └── ...
 ```
 
 ---
@@ -271,11 +293,26 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
   - **Resting**: velocidade < 0.05 m/s ou corpo parado
   - **Walking**: corpo movendo significativamente
   - **Grooming**: nariz ativo + corpo quase parado
+- **Análise B-SOiD (Não-Supervisionada):** Descoberta de padrões comportamentais via clustering nativo (PCA + K-Means).
+  - **Timeline Dupla:** Visualização comparativa entre Regras (supervisionadas) e B-SOiD (descobertas).
+  - **Extração de Clips:** Segmentação automática de vídeo para validação visual dos grupos descobertos.
 - **Zonas Editáveis (CC)**: Em modo Comportamento Complexo, as zonas podem ser editadas na ArenaSetup (Shift+drag para mover, scroll para redimensionar). Tamanho e posição são salvos/restaurados.
 
 ---
 
-## 12. Histórico de Problemas Resolvidos
+## 12. Fluxo de Análise B-SOiD
+
+Para realizar a descoberta de novos comportamentos após uma sessão de Comportamento Complexo (CC):
+
+1.  **Finalização da Sessão:** Complete a análise offline ou ao vivo.
+2.  **Exportação de Features:** Na aba "Comportamento" do CCDashboard, clique em "Analisar B-SOiD". O sistema exportará as 21 features cinemáticas por frame.
+3.  **Processamento Nativo:** O motor `BSoidAnalyzer` executa a redução de dimensionalidade (PCA) e o agrupamento (K-Means) em background.
+4.  **Linha do Tempo:** Explore os grupos gerados na `BehaviorTimeline` de SceneGraph (GPU).
+5.  **Extração de Snippets:** Clique em "Extrair Clips" para gerar vídeos curtos (FFmpeg) de cada grupo comportamental na pasta `bsoid_snippets/` do experimento.
+
+---
+
+## 13. Histórico de Problemas Resolvidos
 
 | Problema | Solução |
 |---|---|
@@ -295,3 +332,5 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 | Distância/ Tracking congelados | `accumulateExploration` abortava em arranjos sem zonas; Layout CC ajustado para fluir métricas genericamente |
 | Estabilidade de UI | `BehaviorTimeline` criado para renderizar etogramas com GPU (SceneGraph) evitando drop de frames. |
 | CSV Behavior Summary | C++ agora emite o arquivo behavior_summary.csv separando % de tempo no CA/CC automaticamente. |
+| Erro `undefined inference` | Corrigido erro onde o QML não encontrava o InferenceController em LiveRecording através de um wrapper funcional. |
+| Timeline B-SOiD | Implementado `populateTimelines()` nativo para preenchimento ultra-rápido de etogramas via SceneGraph. |

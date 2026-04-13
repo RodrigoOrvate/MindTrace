@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QMediaMetaData>
+#include <QTextStream>
 #include <QDebug>
 
 InferenceController::InferenceController(QObject* parent)
@@ -135,8 +136,61 @@ void InferenceController::setZones(int campo, const QList<QVariant>& zones) {
     m_engine->setZones(campo, converted);
 }
 
+void InferenceController::setFloorPolygon(int campo, const QList<QVariant>& points) {
+    std::vector<std::pair<float,float>> poly;
+    poly.reserve(points.size());
+    for (const auto& p : points) {
+        QVariantMap m = p.toMap();
+        poly.push_back({ m.value("x", 0.0).toFloat(), m.value("y", 0.0).toFloat() });
+    }
+    m_engine->setFloorPolygon(campo, poly);
+}
+
 void InferenceController::setVelocity(int campo, float velocity) {
     m_engine->setVelocity(campo, velocity);
+}
+
+bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int campo)
+{
+    if (campo < 0 || campo >= 3) return false;
+
+    const auto& history = m_engine->getScannerHistory(campo);
+    if (history.empty()) {
+        qWarning() << "[InferenceController] exportBehaviorFeatures: histórico vazio para campo" << campo;
+        return false;
+    }
+
+    QFile file(csvPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "[InferenceController] exportBehaviorFeatures: não foi possível abrir" << csvPath;
+        return false;
+    }
+
+    QTextStream out(&file);
+    // UTF-8 BOM para compatibilidade com Excel
+    out.setEncoding(QStringConverter::Utf8);
+    out << "\xEF\xBB\xBF";
+
+    // Cabeçalho
+    out << "frame,move_nose,move_body,bp_sum,bp_mean,bp_min,bp_max"
+           ",roll2s_mean,roll2s_sum,roll5s_mean,roll5s_sum"
+           ",roll6s_mean,roll6s_sum,roll7_5s_mean,roll7_5s_sum"
+           ",roll15s_mean,roll15s_sum"
+           ",prob_sum,prob_mean"
+           ",low_prob_01,low_prob_05,low_prob_075"
+           ",rule_label\n";
+
+    for (const auto& rec : history) {
+        out << rec.frameIdx;
+        for (size_t i = 0; i < 21; ++i)
+            out << ',' << rec.features[i];
+        out << ',' << rec.ruleLabel << '\n';
+    }
+
+    file.close();
+    qDebug() << "[InferenceController] exportBehaviorFeatures: exportados"
+             << history.size() << "frames para" << csvPath;
+    return true;
 }
 
 // ── Control ───────────────────────────────────────────────────────────────────

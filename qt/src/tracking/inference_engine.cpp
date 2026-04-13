@@ -144,10 +144,27 @@ void InferenceEngine::setZones(int campo, const std::vector<Zone>& zones) {
     }
 }
 
+void InferenceEngine::setFloorPolygon(int campo, const std::vector<std::pair<float,float>>& poly) {
+    if (campo >= 0 && campo < 3) {
+        m_scanners[campo].setFloorPolygon(poly);
+    }
+}
+
 void InferenceEngine::setVelocity(int campo, float velocity) {
     if (campo >= 0 && campo < 3) {
         m_scanners[campo].setVelocity(velocity);
     }
+}
+
+const std::vector<FrameRecord>& InferenceEngine::getScannerHistory(int campo) const {
+    static const std::vector<FrameRecord> empty;
+    if (campo < 0 || campo >= 3) return empty;
+    return m_scanners[campo].frameHistory();
+}
+
+void InferenceEngine::clearScannerHistory(int campo) {
+    if (campo >= 0 && campo < 3)
+        m_scanners[campo].clearHistory();
 }
 
 void InferenceEngine::enqueueFrame(const QImage& frame, int videoW, int videoH)

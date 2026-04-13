@@ -11,7 +11,13 @@ void BehaviorScanner::reset() {
     _bodyProbHist.clear();
     _prevNose = PosePoint{};
     _prevBody = PosePoint{};
+    _frameCount = 0;
     std::fill(_currentFeatures.begin(), _currentFeatures.end(), 0.0f);
+}
+
+void BehaviorScanner::clearHistory() {
+    _frameHistory.clear();
+    _frameHistory.shrink_to_fit();
 }
 
 float BehaviorScanner::getMean(const std::deque<float>& d, size_t window) const {
@@ -54,6 +60,26 @@ float BehaviorScanner::getLowProbFraction(float threshold, size_t window) const 
 
 void BehaviorScanner::setZones(const std::vector<Zone>& zones) {
     _zones = zones;
+}
+
+void BehaviorScanner::setFloorPolygon(const std::vector<std::pair<float,float>>& poly) {
+    _floorPoly = poly;
+}
+
+// Ray-casting — espelho exato do isPointInPoly do QML
+bool BehaviorScanner::isInsideFloor(float nx, float ny) const {
+    if (_floorPoly.size() < 3) return false;
+    bool inside = false;
+    int n = static_cast<int>(_floorPoly.size());
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+        float xi = _floorPoly[i].first,  yi = _floorPoly[i].second;
+        float xj = _floorPoly[j].first,  yj = _floorPoly[j].second;
+        if (((yi > ny) != (yj > ny)) &&
+            (nx < (xj - xi) * (ny - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
 }
 
 void BehaviorScanner::setCropSize(int w, int h) {
@@ -154,6 +180,18 @@ bool BehaviorScanner::pushFrame(const PosePoint& nose, const PosePoint& body) {
     _currentFeatures[19] = getLowProbFraction(0.5f, probWindow);
     _currentFeatures[20] = getLowProbFraction(0.75f, probWindow);
 
+    // ── Registrar frame no histórico B-SOiD ───────────────────────────────
+    // Só grava se pelo menos um keypoint é válido (evita linhas de ruído puro).
+    if (nose.p > 0.0f || body.p > 0.0f) {
+        FrameRecord rec;
+        rec.frameIdx  = _frameCount;
+        rec.ruleLabel = classifySimple();
+        for (size_t i = 0; i < FEATURE_COUNT; ++i)
+            rec.features[i] = _currentFeatures[i];
+        _frameHistory.push_back(std::move(rec));
+    }
+    ++_frameCount;
+
     return (nose.p > 0.0f && body.p > 0.0f);
 }
 
@@ -162,56 +200,61 @@ std::vector<float> BehaviorScanner::getFeatures() const {
 }
 
 int BehaviorScanner::classifySimple() const {
-    const float movNose = _currentFeatures[0];
-    const float movBody = _currentFeatures[1];
+    const float movNose    = _currentFeatures[0];
+    const float movBody    = _currentFeatures[1];
     const float roll2sMean = _currentFeatures[6];
 
+    const float noseX = _prevNose.x;
     const float noseY = _prevNose.y;
     const float bodyX = _prevBody.x;
     const float bodyY = _prevBody.y;
-    const bool hasZones = !_zones.empty();
+    const bool hasValidNose = (_prevNose.p > 0.1f);
+    const bool hasValidPose = (hasValidNose && _prevBody.p > 0.1f);
+    const bool hasZones     = !_zones.empty();
 
-    // ── Regra de velocidade: resting se muito lento ─────────────────────────────
-    // Se velocidade < 0.05 m/s → resting (mesmo que em pé)
+    // ── Prioridade 1: Sniffing — nose na zona do objeto ────────────────────────
+    // Maior prioridade: independente da velocidade, se o focinho está dentro da
+    // área de um objeto → sniffing. Corrige o bug onde resting vencia sniffing.
+    if (hasZones && hasValidNose && isNearObject(noseX, noseY)) {
+        return BEHAVIOR_SNIFFING;
+    }
+
+    // ── Prioridade 2: Rearing — nose fora do chão, body ainda no chão ─────────
+    // Usa o mesmo polígono do chão (floorPoints) que o QML usa para CA/CC.
+    // Se o nose cruzou a fronteira do chão para a área colorida (parede) e o
+    // body continua dentro do chão → rato está em pé → rearing.
+    // Prioritário sobre velocidade: rato parado em pé = rearing, não resting.
+    if (hasValidPose && _floorPoly.size() >= 3) {
+        const float W = static_cast<float>(_cropW);
+        const float H = static_cast<float>(_cropH);
+        const float normNoseX = noseX / W;
+        const float normNoseY = noseY / H;
+        const float normBodyX = bodyX / W;
+        const float normBodyY = bodyY / H;
+
+        if (!isInsideFloor(normNoseX, normNoseY) && isInsideFloor(normBodyX, normBodyY)) {
+            return BEHAVIOR_REARING;
+        }
+    }
+
+    // ── Prioridade 3: Resting — velocidade abaixo do limiar ────────────────────
+    // _velocity em m/s vinda do QML (mesmo limiar usado para coloração da UI).
+    // Rato praticamente parado → resting.
     if (_velocity < 0.05f) {
         return BEHAVIOR_RESTING;
     }
 
-    // ── Rearing: focinho muito alto (passando do chão para a parede) ───────────
-    // O focinho muito acima do corpo indica que o rato está em pé
-    // threshold de 30px de diferença = focinho bem acima do corpo
-    const bool isUpright = (noseY < bodyY - 30.0f);
-    const bool nearEdges = (bodyX < 20 || bodyX > 340 || bodyY < 15 || bodyY > 225);
-    
-    // Rearing:rato em pé (focinho bem acima do corpo) E nas bordas (parede)
-    if (isUpright && nearEdges) {
-        return BEHAVIOR_REARING;
-    }
-
-    // ── Sniffing: only when zones exist AND nose near object ─────────────────────
-    // Regra reforçada: se o focinho está na área do objeto, é sniffing
-    if (hasZones) {
-        const float noseX = _prevNose.x;
-        if (isNearObject(noseX, noseY)) {
-            return BEHAVIOR_SNIFFING;
-        }
-    }
-
-    // ── Resting: body stopped ─────────────────────────────────────────────────
-    if (movBody < 0.3f) {
-        return BEHAVIOR_RESTING;
-    }
-
-    // ── Walking: body moving significantly ─────────────────────────────────────
-    if (movBody > 3.0f || roll2sMean > 5.0f) {
-        return BEHAVIOR_WALKING;
-    }
-
-    // ── Grooming: nose very active while body mostly still ───────────────────
-    if (movBody < 2.0f && movNose > 4.0f) {
+    // ── Prioridade 4: Grooming — corpo parado + nose muito ativo ───────────────
+    // Velocidade presente mas corpo quase imóvel enquanto o nariz se move muito.
+    if (movBody < 1.5f && movNose > 5.0f) {
         return BEHAVIOR_GROOMING;
     }
 
-    // Default: resting
+    // ── Prioridade 5: Walking — corpo em movimento, fora de objeto e no chão ───
+    if (movBody > 2.0f || roll2sMean > 3.0f) {
+        return BEHAVIOR_WALKING;
+    }
+
+    // Fallback: resting (velocidade leve mas sem deslocamento claro)
     return BEHAVIOR_RESTING;
 }

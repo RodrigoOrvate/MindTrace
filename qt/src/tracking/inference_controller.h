@@ -24,12 +24,15 @@ public:
     Q_INVOKABLE QString defaultModelDir() const;
     Q_INVOKABLE void loadBehaviorModel(const QString& behaviorModelPath);
     Q_INVOKABLE void setZones(int campo, const QList<QVariant>& zones);
+    Q_INVOKABLE void setFloorPolygon(int campo, const QList<QVariant>& points);
     Q_INVOKABLE void setVelocity(int campo, float velocity);  // m/s para comportamento
     Q_INVOKABLE void startAnalysis(const QString& videoPath, const QString& modelDir);
     Q_INVOKABLE void stopAnalysis();
     Q_INVOKABLE void setPlaybackRate(double rate);
     Q_INVOKABLE qint64 position() const;
     Q_INVOKABLE void seekTo(qint64 ms);
+    // B-SOiD: exporta CSV com features[21] + ruleLabel por frame para análise pós-sessão
+    Q_INVOKABLE bool exportBehaviorFeatures(const QString& csvPath, int campo);
 
 signals:
     void analyzingChanged();

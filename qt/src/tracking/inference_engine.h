@@ -27,6 +27,7 @@ public:
     void loadModel(const QString& modelPath);
     void loadBehaviorModel(const QString& behaviorModelPath);
     void setZones(int campo, const std::vector<Zone>& zones);
+    void setFloorPolygon(int campo, const std::vector<std::pair<float,float>>& poly);
     void setVelocity(int campo, float velocity);  // m/s para comportamento
 
     // Thread-safe. Replaces any pending frame with the new one.
@@ -34,6 +35,10 @@ public:
 
     // Ask the thread to exit cleanly.
     void requestStop();
+
+    // B-SOiD: acesso ao histórico de frames de cada scanner (leitura após stopAnalysis)
+    const std::vector<FrameRecord>& getScannerHistory(int campo) const;
+    void clearScannerHistory(int campo);
 
 signals:
     // Emitted (from tracker thread, use QueuedConnection) when model is ready.

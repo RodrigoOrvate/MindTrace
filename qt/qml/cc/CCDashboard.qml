@@ -11,6 +11,8 @@ import "../core/Theme"
 import "../shared"
 import "../nor"
 import MindTrace.Backend 1.0
+import MindTrace.Analysis 1.0
+import MindTrace.Tracking 1.0
 
 Item {
     id: root
@@ -35,6 +37,95 @@ Item {
     }
 
     property string pendingDeleteName: ""
+
+    // ── B-SOiD ────────────────────────────────────────────────────────────
+    property bool   bsoidRunning:  false
+    property int    bsoidProgress: 0
+    property var    bsoidGroups:   []   // lista de {clusterId, frameCount, percentage, ...}
+    property string bsoidError:    ""
+    property bool   bsoidDone:     false
+    property double bsoidFps:      30.0
+    property string bsoidVideoPath: ""
+
+    // ── Snippets ──────────────────────────────────────────────────────────
+    property bool   snippetsRunning:  false
+    property int    snippetsProgress: 0
+    property bool   snippetsComplete: false
+    property string snippetsOutDir:   ""
+    property string snippetsError:    ""
+
+    BSoidAnalyzer {
+        id: bsoidAnalyzer
+        onProgress: function(pct) { root.bsoidProgress = pct }
+        onAnalysisReady: function(groups) {
+            root.bsoidRunning  = false
+            root.bsoidDone     = true
+            root.bsoidGroups   = groups
+            root.bsoidError    = ""
+            root.bsoidProgress = 100
+            // Preenche timeline dupla a partir de C++ (mais eficiente que iterar em JS)
+            Qt.callLater(function() {
+                ruleTimeline.clear()
+                clusterTimeline.clear()
+                // Cores para regras nativas
+                ruleTimeline.setLabelColor(0, "#10b981")  // Walking
+                ruleTimeline.setLabelColor(1, "#3b82f6")  // Sniffing
+                ruleTimeline.setLabelColor(2, "#ec4899")  // Grooming
+                ruleTimeline.setLabelColor(3, "#6b7280")  // Resting
+                ruleTimeline.setLabelColor(4, "#f97316")  // Rearing
+                // Cores para clusters B-SOiD
+                var colors = root.bsoidColors
+                for (var i = 0; i < colors.length; i++)
+                    clusterTimeline.setLabelColor(i, colors[i])
+                bsoidAnalyzer.populateTimelines(ruleTimeline, clusterTimeline, root.bsoidFps)
+            })
+        }
+        onErrorOccurred: function(msg) {
+            root.bsoidRunning = false
+            root.bsoidError   = msg
+        }
+        onSnippetsProgress: function(pct) { root.snippetsProgress = pct }
+        onSnippetsDone: function(ok, outDir, msg) {
+            root.snippetsRunning  = false
+            root.snippetsComplete = ok
+            root.snippetsOutDir   = ok ? outDir : ""
+            root.snippetsError    = ok ? "" : msg
+        }
+    }
+
+    // Cores dos clusters B-SOiD (até 12 clusters)
+    readonly property var bsoidColors: [
+        "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6",
+        "#8b5cf6","#ec4899","#14b8a6","#f97316","#84cc16",
+        "#06b6d4","#a855f7"
+    ]
+
+    function bsoidRuleName(ruleId) {
+        var names = ["Walking","Sniffing","Grooming","Resting","Rearing"]
+        return (ruleId >= 0 && ruleId < names.length) ? names[ruleId] : "?"
+    }
+
+    function startBsoidAnalysis(campo) {
+        if (root.bsoidRunning) return
+        var sessionPath = workArea.selectedPath  // pasta do experimento
+        if (!sessionPath) { root.bsoidError = "Nenhum experimento selecionado."; return }
+        // Usa o mesmo timestamp que exportBehaviorFeatures criaria
+        var csvPath = sessionPath + "/bsoid_features_campo" + (campo + 1) + "_tmp.csv"
+        var ok = liveRecordingTab.exportBehaviorFeatures(csvPath, campo)
+        if (!ok) { root.bsoidError = "Nenhum dado de features disponível. Execute uma análise primeiro."; return }
+        // Captura FPS e caminho do vídeo para timeline e snippets
+        root.bsoidFps       = (liveRecordingTab.dlcFps > 0) ? liveRecordingTab.dlcFps : 30.0
+        root.bsoidVideoPath = liveRecordingTab.videoPath
+        root.bsoidRunning   = true
+        root.bsoidDone      = false
+        root.bsoidGroups    = []
+        root.bsoidError     = ""
+        root.bsoidProgress  = 0
+        root.snippetsComplete = false
+        root.snippetsOutDir   = ""
+        root.snippetsError    = ""
+        bsoidAnalyzer.analyze(csvPath, 7)
+    }
 
     onContextChanged: {
         if (!root.searchMode && context !== "")
@@ -468,131 +559,500 @@ Item {
                                     color: ThemeManager.background
                                     Behavior on color { ColorAnimation { duration: 200 } }
 
-                                    ColumnLayout {
-                                        anchors.centerIn: parent
-                                        width: Math.min(800, parent.width - 80)
-                                        spacing: 24
+                                    ScrollView {
+                                        anchors.fill: parent
+                                        contentWidth: availableWidth
+                                        clip: true
 
-                                        RowLayout {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            spacing: 12
-                                            Text { text: "🧠"; font.pixelSize: 32 }
-                                            Text {
-                                                text: "Classificação de Comportamento (SimBA)"
-                                                color: ThemeManager.textPrimary
-                                                font.pixelSize: 22; font.weight: Font.Bold
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                            }
-                                        }
+                                        ColumnLayout {
+                                            width: Math.min(820, parent.width - 80)
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            anchors.top: parent.top
+                                            anchors.topMargin: 28
+                                            spacing: 20
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; radius: 12
-                                            color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
-                                            implicitHeight: modelRow.implicitHeight + 24
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            // Título
                                             RowLayout {
-                                                id: modelRow
-                                                anchors { fill: parent; margins: 12 }
+                                                Layout.alignment: Qt.AlignHCenter
                                                 spacing: 12
-                                                Text { text: "📦"; font.pixelSize: 20 }
+                                                Text { text: "🧠"; font.pixelSize: 30 }
                                                 ColumnLayout {
                                                     spacing: 2
-                                                    Text { text: "Modelo de Classificação (ONNX)"; color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                    Text { text: "Behavior.onnx autocarregado e integrado ao pipeline C++"; color: ThemeManager.textSecondary; font.pixelSize: 11; Behavior on color { ColorAnimation { duration: 150 } } }
-                                                }
-                                                Item { Layout.fillWidth: true }
-                                                Rectangle {
-                                                    color: ThemeManager.successLight
-                                                    radius: 6
-                                                    implicitWidth: txtStatus.implicitWidth + 16
-                                                    implicitHeight: txtStatus.implicitHeight + 8
                                                     Text {
-                                                        id: txtStatus
-                                                        anchors.centerIn: parent
-                                                        text: "✅ ATIVO"
-                                                        color: ThemeManager.success
-                                                        font.pixelSize: 12
-                                                        font.weight: Font.Bold
+                                                        text: "Análise Comportamental Nativa"
+                                                        color: ThemeManager.textPrimary
+                                                        font.pixelSize: 20; font.weight: Font.Bold
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                    }
+                                                    Text {
+                                                        text: "Classificação por regras em tempo real · B-SOiD disponível pós-sessão"
+                                                        color: ThemeManager.textSecondary; font.pixelSize: 11
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
                                                 }
                                             }
-                                        }
 
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 16
-                                            Repeater {
-                                                model: workArea.activeNumCampos
-                                                delegate: Rectangle {
-                                                    Layout.fillWidth: true; Layout.minimumHeight: 120; radius: 12
-                                                    color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 150 } }
-                                                    border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } }
-                                                    
+                                            // Card: motor de regras ativo
+                                            Rectangle {
+                                                Layout.fillWidth: true; radius: 12
+                                                color: ThemeManager.surfaceDim
+                                                border.color: ThemeManager.borderLight; border.width: 1
+                                                implicitHeight: ruleRow.implicitHeight + 24
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                RowLayout {
+                                                    id: ruleRow
+                                                    anchors { fill: parent; margins: 12 }
+                                                    spacing: 12
+                                                    Text { text: "⚙️"; font.pixelSize: 20 }
                                                     ColumnLayout {
-                                                        anchors.centerIn: parent
-                                                        spacing: 12
-                                                        Text { 
-                                                            Layout.alignment: Qt.AlignHCenter
-                                                            text: "Campo " + (index+1)
-                                                            color: ThemeManager.textSecondary
-                                                            font.pixelSize: 13; font.weight: Font.Bold
+                                                        spacing: 2
+                                                        Text {
+                                                            text: "Motor de Regras Nativo (C++)"
+                                                            color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
-                                                        
-                                                        Rectangle {
-                                                            Layout.alignment: Qt.AlignHCenter
-                                                            radius: 6; implicitHeight: 36; implicitWidth: bhvText.implicitWidth + 36
-                                                            property string bhvName: liveRecordingTab.currentBehaviorString[index] || "Detectando..."
-                                                            property color badgeColor: {
-                                                                if (bhvName === "Walking") return "#8b5cf6"; // Purple
-                                                                if (bhvName === "Resting") return "#3b82f6"; // Blue
-                                                                if (bhvName === "Rearing") return "#10b981"; // Green
-                                                                if (bhvName === "Grooming") return "#eab308"; // Yellow
-                                                                if (bhvName === "Sniffing") return "#f97316"; // Orange
-                                                                // Thigmotaxis removed
-                                                                return ThemeManager.surfaceAlt;
-                                                            }
-                                                            color: badgeColor
-                                                            Behavior on color { ColorAnimation { duration: 250 } }
+                                                        Text {
+                                                            text: "Sniffing · Rearing · Resting · Grooming · Walking — sem modelo ONNX"
+                                                            color: ThemeManager.textSecondary; font.pixelSize: 11
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                        }
+                                                    }
+                                                    Item { Layout.fillWidth: true }
+                                                    Rectangle {
+                                                        color: ThemeManager.successLight; radius: 6
+                                                        implicitWidth: ruleStatusTxt.implicitWidth + 16
+                                                        implicitHeight: ruleStatusTxt.implicitHeight + 8
+                                                        Text {
+                                                            id: ruleStatusTxt
+                                                            anchors.centerIn: parent
+                                                            text: "✅ ATIVO"
+                                                            color: ThemeManager.success
+                                                            font.pixelSize: 12; font.weight: Font.Bold
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Badges em tempo real por campo
+                                            RowLayout {
+                                                Layout.fillWidth: true; spacing: 16
+                                                Repeater {
+                                                    model: workArea.activeNumCampos
+                                                    delegate: Rectangle {
+                                                        Layout.fillWidth: true; Layout.minimumHeight: 120; radius: 12
+                                                        color: ThemeManager.surface
+                                                        border.color: ThemeManager.border; border.width: 1
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                        ColumnLayout {
+                                                            anchors.centerIn: parent; spacing: 12
                                                             Text {
-                                                                id: bhvText
-                                                                anchors.centerIn: parent
-                                                                text: parent.bhvName
-                                                                color: parent.bhvName === "Detectando..." ? ThemeManager.textSecondary : "#ffffff"
-                                                                font.pixelSize: 14; font.weight: Font.Bold
+                                                                Layout.alignment: Qt.AlignHCenter
+                                                                text: "Campo " + (index + 1)
+                                                                color: ThemeManager.textSecondary
+                                                                font.pixelSize: 13; font.weight: Font.Bold
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            Rectangle {
+                                                                Layout.alignment: Qt.AlignHCenter
+                                                                radius: 6; implicitHeight: 36; implicitWidth: bhvTxt.implicitWidth + 36
+                                                                property string bhvName: liveRecordingTab.currentBehaviorString[index] || "Detectando..."
+                                                                property color badgeColor: {
+                                                                    if (bhvName === "Walking")  return "#8b5cf6"
+                                                                    if (bhvName === "Resting")  return "#3b82f6"
+                                                                    if (bhvName === "Rearing")  return "#10b981"
+                                                                    if (bhvName === "Grooming") return "#eab308"
+                                                                    if (bhvName === "Sniffing") return "#f97316"
+                                                                    return ThemeManager.surfaceAlt
+                                                                }
+                                                                color: badgeColor
                                                                 Behavior on color { ColorAnimation { duration: 250 } }
+                                                                Text {
+                                                                    id: bhvTxt
+                                                                    anchors.centerIn: parent
+                                                                    text: parent.bhvName
+                                                                    color: parent.bhvName === "Detectando..." ? ThemeManager.textSecondary : "#ffffff"
+                                                                    font.pixelSize: 14; font.weight: Font.Bold
+                                                                    Behavior on color { ColorAnimation { duration: 250 } }
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
-                                        }
 
-                                        // Legenda
-                                        Rectangle {
-                                            Layout.fillWidth: true; radius: 8
-                                            color: "transparent"; border.color: ThemeManager.borderLight; border.width: 1
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                                            implicitHeight: legendRow.implicitHeight + 20
+                                            // Legenda
+                                            Rectangle {
+                                                Layout.fillWidth: true; radius: 8
+                                                color: "transparent"
+                                                border.color: ThemeManager.borderLight; border.width: 1
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                implicitHeight: legendRow.implicitHeight + 20
+                                                RowLayout {
+                                                    id: legendRow
+                                                    anchors { fill: parent; margins: 10 }
+                                                    spacing: 16
+                                                    Item { Layout.fillWidth: true }
+                                                    Repeater {
+                                                        model: ["Walking|#8b5cf6", "Sniffing|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
+                                                        delegate: RowLayout {
+                                                            spacing: 6
+                                                            Rectangle { width: 14; height: 14; radius: 7; color: modelData.split("|")[1] }
+                                                            Text {
+                                                                text: modelData.split("|")[0]
+                                                                color: ThemeManager.textSecondary; font.pixelSize: 12
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                        }
+                                                    }
+                                                    Item { Layout.fillWidth: true }
+                                                }
+                                            }
+
+                                            // Separador B-SOiD
                                             RowLayout {
-                                                id: legendRow
-                                                anchors { fill: parent; margins: 10 }
-                                                spacing: 16; Layout.alignment: Qt.AlignHCenter
-                                                Item { Layout.fillWidth: true }
-                                                Repeater {
-                                                    model: ["Walking|#8b5cf6", "Sniffing|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
-                                                    delegate: RowLayout {
-                                                        spacing: 6
-                                                        Rectangle { width: 14; height: 14; radius: 7; color: modelData.split("|")[1] }
-                                                        Text { text: modelData.split("|")[0]; color: ThemeManager.textSecondary; font.pixelSize: 12; Behavior on color { ColorAnimation { duration: 150 } } }
+                                                Layout.fillWidth: true; spacing: 12
+                                                Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+                                                Text {
+                                                    text: "🔬  B-SOiD"
+                                                    color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2
+                                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                                }
+                                                Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+                                            }
+
+                                            // Card B-SOiD (pós-sessão — interativo)
+                                            Rectangle {
+                                                Layout.fillWidth: true; radius: 12
+                                                color: ThemeManager.surfaceDim
+                                                border.color: ThemeManager.borderLight; border.width: 1
+                                                implicitHeight: bsoidMainCol.implicitHeight + 28
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                                ColumnLayout {
+                                                    id: bsoidMainCol
+                                                    anchors { fill: parent; margins: 14 }
+                                                    spacing: 12
+
+                                                    // Header: título + status + botão
+                                                    RowLayout {
+                                                        spacing: 10
+                                                        Text { text: "🔬"; font.pixelSize: 18 }
+                                                        ColumnLayout {
+                                                            spacing: 2
+                                                            Text {
+                                                                text: "Análise B-SOiD (Pós-Sessão)"
+                                                                color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            Text {
+                                                                text: "Agrupa frames por padrão de movimento via PCA + K-Means"
+                                                                color: ThemeManager.textSecondary; font.pixelSize: 11
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                        }
+                                                        Item { Layout.fillWidth: true }
+
+                                                        // Badge de status
+                                                        Rectangle {
+                                                            radius: 6
+                                                            color: root.bsoidDone ? ThemeManager.successLight
+                                                                 : root.bsoidRunning ? "#1a1a3a"
+                                                                 : "#1a1a3a"
+                                                            border.color: root.bsoidDone ? ThemeManager.success
+                                                                        : root.bsoidRunning ? "#4a4a8c"
+                                                                        : "#4a4a8c"
+                                                            border.width: 1
+                                                            implicitWidth: bsoidBadgeTxt.implicitWidth + 16
+                                                            implicitHeight: bsoidBadgeTxt.implicitHeight + 8
+                                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                                            Text {
+                                                                id: bsoidBadgeTxt
+                                                                anchors.centerIn: parent
+                                                                text: root.bsoidDone    ? "✅ Concluído"
+                                                                    : root.bsoidRunning ? "⏳ " + root.bsoidProgress + "%"
+                                                                    : "⏳ Aguarda"
+                                                                color: root.bsoidDone ? ThemeManager.success : "#8888cc"
+                                                                font.pixelSize: 11; font.weight: Font.Bold
+                                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                            }
+                                                        }
+
+                                                        // Botão Analisar
+                                                        Button {
+                                                            visible: !root.bsoidRunning
+                                                            text: root.bsoidDone ? "↻ Re-analisar" : "▶ Analisar"
+                                                            onClicked: root.startBsoidAnalysis(0)
+                                                            background: Rectangle {
+                                                                radius: 7
+                                                                color: parent.hovered ? "#5b21b6" : "#7c3aed"
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            contentItem: Text {
+                                                                text: parent.text; color: "#ffffff"
+                                                                font.pixelSize: 12; font.weight: Font.Bold
+                                                                horizontalAlignment: Text.AlignHCenter
+                                                                verticalAlignment:   Text.AlignVCenter
+                                                            }
+                                                            leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
+                                                        }
+
+                                                        // Spinner durante análise
+                                                        BusyIndicator {
+                                                            visible: root.bsoidRunning
+                                                            width: 28; height: 28
+                                                            running: root.bsoidRunning
+                                                        }
+                                                    }
+
+                                                    // Barra de progresso
+                                                    Rectangle {
+                                                        visible: root.bsoidRunning
+                                                        Layout.fillWidth: true; height: 4; radius: 2
+                                                        color: ThemeManager.border
+                                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                                        Rectangle {
+                                                            width: parent.width * (root.bsoidProgress / 100)
+                                                            height: parent.height; radius: parent.radius
+                                                            color: "#7c3aed"
+                                                            Behavior on width { NumberAnimation { duration: 200 } }
+                                                        }
+                                                    }
+
+                                                    // Mensagem de erro
+                                                    Text {
+                                                        visible: root.bsoidError !== ""
+                                                        text: "⚠️ " + root.bsoidError
+                                                        color: "#ef4444"; font.pixelSize: 11
+                                                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                                                    }
+
+                                                    // Texto de ajuda (apenas antes da análise)
+                                                    Text {
+                                                        visible: !root.bsoidDone && !root.bsoidRunning && root.bsoidError === ""
+                                                        text: "Clique em Analisar após finalizar a gravação. O algoritmo analisa os dados de trajetória\ncoletados e descobre grupos comportamentais adicionais às regras nativas."
+                                                        color: ThemeManager.textTertiary; font.pixelSize: 11
+                                                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                    }
+
+                                                    // Resultados: grupos descobertos
+                                                    ColumnLayout {
+                                                        visible: root.bsoidDone && root.bsoidGroups.length > 0
+                                                        Layout.fillWidth: true; spacing: 6
+
+                                                        Text {
+                                                            text: "GRUPOS DESCOBERTOS — " + root.bsoidGroups.length + " clusters"
+                                                            color: ThemeManager.textSecondary
+                                                            font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                        }
+
+                                                        Repeater {
+                                                            model: root.bsoidGroups
+                                                            delegate: Rectangle {
+                                                                Layout.fillWidth: true; height: 38; radius: 8
+                                                                color: ThemeManager.surface
+                                                                border.color: ThemeManager.border; border.width: 1
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                                property var grp: modelData
+                                                                property color clusterColor: root.bsoidColors[grp.clusterId % root.bsoidColors.length]
+
+                                                                RowLayout {
+                                                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                                                    spacing: 10
+
+                                                                    Rectangle {
+                                                                        width: 12; height: 12; radius: 6
+                                                                        color: parent.parent.clusterColor
+                                                                    }
+                                                                    Text {
+                                                                        text: "Grupo " + (grp.clusterId + 1)
+                                                                        color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    }
+                                                                    Rectangle {
+                                                                        Layout.fillWidth: true; height: 6; radius: 3
+                                                                        color: ThemeManager.border
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                        Rectangle {
+                                                                            width: parent.width * (grp.percentage / 100)
+                                                                            height: parent.height; radius: parent.radius
+                                                                            color: parent.parent.parent.parent.clusterColor
+                                                                            Behavior on width { NumberAnimation { duration: 300 } }
+                                                                        }
+                                                                    }
+                                                                    Text {
+                                                                        text: grp.percentage.toFixed(1) + "%"
+                                                                        color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    }
+                                                                    Text {
+                                                                        text: "≈ " + root.bsoidRuleName(grp.dominantRule)
+                                                                        color: ThemeManager.textTertiary; font.pixelSize: 10
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // ── Timeline Dupla ──────────────────────────────────────────────────
+                                                    ColumnLayout {
+                                                        visible: root.bsoidDone
+                                                        Layout.fillWidth: true; spacing: 6
+
+                                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
+                                                        Text {
+                                                            text: "TIMELINE — REGRAS vs B-SOiD"
+                                                            color: ThemeManager.textSecondary
+                                                            font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                        }
+
+                                                        // Linha 1 — Regras nativas
+                                                        RowLayout {
+                                                            Layout.fillWidth: true; spacing: 6
+                                                            Text {
+                                                                text: "Regras"
+                                                                width: 46; color: ThemeManager.textTertiary
+                                                                font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            BehaviorTimeline {
+                                                                id: ruleTimeline
+                                                                Layout.fillWidth: true; height: 20
+                                                                defaultColor: ThemeManager.border
+                                                            }
+                                                        }
+
+                                                        // Linha 2 — Clusters B-SOiD
+                                                        RowLayout {
+                                                            Layout.fillWidth: true; spacing: 6
+                                                            Text {
+                                                                text: "B-SOiD"
+                                                                width: 46; color: ThemeManager.textTertiary
+                                                                font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            BehaviorTimeline {
+                                                                id: clusterTimeline
+                                                                Layout.fillWidth: true; height: 20
+                                                                defaultColor: ThemeManager.border
+                                                            }
+                                                        }
+
+                                                        // Legenda de cores dos clusters
+                                                        Flow {
+                                                            Layout.fillWidth: true; spacing: 8
+                                                            Repeater {
+                                                                model: root.bsoidGroups
+                                                                delegate: RowLayout {
+                                                                    spacing: 4
+                                                                    Rectangle {
+                                                                        width: 8; height: 8; radius: 4
+                                                                        color: root.bsoidColors[modelData.clusterId % root.bsoidColors.length]
+                                                                    }
+                                                                    Text {
+                                                                        text: "G" + (modelData.clusterId + 1)
+                                                                        color: ThemeManager.textTertiary; font.pixelSize: 9
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // ── Extração de Clips de Vídeo ──────────────────────────────────────
+                                                    ColumnLayout {
+                                                        visible: root.bsoidDone
+                                                        Layout.fillWidth: true; spacing: 6
+
+                                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
+                                                        Text {
+                                                            text: "CLIPS DE VÍDEO POR GRUPO"
+                                                            color: ThemeManager.textSecondary
+                                                            font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
+                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                        }
+
+                                                        RowLayout {
+                                                            Layout.fillWidth: true; spacing: 8
+
+                                                            Text {
+                                                                Layout.fillWidth: true
+                                                                text: root.snippetsComplete
+                                                                    ? "📁 " + root.snippetsOutDir
+                                                                    : root.snippetsRunning
+                                                                        ? "⏳ Extraindo... " + root.snippetsProgress + "%"
+                                                                        : root.snippetsError !== ""
+                                                                            ? "⚠️ " + root.snippetsError
+                                                                            : "Extrai 3 clips representativos por grupo para identificação visual. Requer FFmpeg no PATH ou pasta do app."
+                                                                color: root.snippetsComplete ? ThemeManager.success
+                                                                     : root.snippetsError !== "" ? "#ef4444"
+                                                                     : ThemeManager.textTertiary
+                                                                font.pixelSize: 10; wrapMode: Text.WordWrap
+                                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                            }
+
+                                                            Button {
+                                                                visible: !root.snippetsRunning
+                                                                text: root.snippetsComplete ? "↻ Re-extrair" : "🎬 Extrair Clips"
+                                                                enabled: root.bsoidDone
+                                                                onClicked: {
+                                                                    var outDir = workArea.selectedPath + "/bsoid_snippets"
+                                                                    root.snippetsRunning  = true
+                                                                    root.snippetsComplete = false
+                                                                    root.snippetsError    = ""
+                                                                    root.snippetsProgress = 0
+                                                                    bsoidAnalyzer.extractSnippets(root.bsoidVideoPath, outDir, root.bsoidFps, 3)
+                                                                }
+                                                                background: Rectangle {
+                                                                    radius: 7
+                                                                    color: parent.enabled
+                                                                        ? (parent.hovered ? "#1d4ed8" : "#2563eb")
+                                                                        : ThemeManager.border
+                                                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                                                }
+                                                                contentItem: Text {
+                                                                    text: parent.text; color: parent.enabled ? "#ffffff" : ThemeManager.textTertiary
+                                                                    font.pixelSize: 11; font.weight: Font.Bold
+                                                                    horizontalAlignment: Text.AlignHCenter
+                                                                    verticalAlignment:   Text.AlignVCenter
+                                                                }
+                                                                leftPadding: 12; rightPadding: 12; topPadding: 6; bottomPadding: 6
+                                                            }
+
+                                                            BusyIndicator {
+                                                                visible: root.snippetsRunning
+                                                                width: 24; height: 24; running: root.snippetsRunning
+                                                            }
+
+                                                            // Barra de progresso dos snippets
+                                                            Rectangle {
+                                                                visible: root.snippetsRunning
+                                                                width: 80; height: 4; radius: 2
+                                                                color: ThemeManager.border
+                                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                                Rectangle {
+                                                                    width: parent.width * (root.snippetsProgress / 100)
+                                                                    height: parent.height; radius: parent.radius
+                                                                    color: "#2563eb"
+                                                                    Behavior on width { NumberAnimation { duration: 200 } }
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
-                                                Item { Layout.fillWidth: true }
                                             }
+
+                                            Item { height: 20 }
                                         }
-                                        
-                                        Item { Layout.fillHeight: true } // spacer
                                     }
                                 }
                             }

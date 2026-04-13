@@ -44,6 +44,19 @@ Item {
         }
     }
 
+    // ── Propaga polígono do chão para detecção de rearing ─────────────────────
+    // Mesmo mecanismo do sniffing: nose fora do floorPoly + body dentro = rearing
+    onFloorPointsChanged: {
+        if (floorPoints) {
+            for (var fc = 0; fc < numCampos; fc++) {
+                if (floorPoints[fc] && floorPoints[fc].length >= 3) {
+                    inference.setFloorPolygon(fc, floorPoints[fc])
+                }
+            }
+            console.log("[LiveRecording] Floor polygon propagated for rearing detection")
+        }
+    }
+
     // ── Controle de velocidade (análise offline) ────────────────────────────────
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
     property bool   isOffline: analysisMode === "offline"
@@ -114,6 +127,11 @@ Item {
     // ── Classificação de Comportamento (SimBA/B-SOiD) ──────────────────────────
     property var behaviorNames: ["Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
     property var currentBehaviorString: ["", "", ""]
+
+    // ── API pública para B-SOiD (inference é ID interno, não acessível de fora) ──
+    function exportBehaviorFeatures(csvPath, campo) {
+        return inference.exportBehaviorFeatures(csvPath, campo)
+    }
 
     // ── Log ───────────────────────────────────────────────────────────────────
     ListModel { id: logModel }

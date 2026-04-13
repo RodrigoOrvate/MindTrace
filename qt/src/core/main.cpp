@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include "inference_controller.h"
 #include "BehaviorTimeline.h"
+#include "BSoidAnalyzer.h"
 #include <QQmlContext>
 #include <QtQml>
 #include <QMessageBox>
@@ -79,6 +80,7 @@ int main(int argc, char *argv[])
 
     qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
     qmlRegisterType<BehaviorTimeline>("MindTrace.Tracking", 1, 0, "BehaviorTimeline");
+    qmlRegisterType<BSoidAnalyzer>("MindTrace.Analysis", 1, 0, "BSoidAnalyzer");
 
     QQmlApplicationEngine engine;
 

@@ -44,6 +44,8 @@ add_executable(MindTrace WIN32
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/BehaviorScanner.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/BehaviorTimeline.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/BehaviorTimeline.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/BSoidAnalyzer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/BSoidAnalyzer.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/ThemeSettings.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/ThemeSettings.h"
     "${QRC_SOURCES}"
@@ -57,6 +59,7 @@ target_include_directories(MindTrace PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src/models"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis"
 )
 
 target_link_libraries(MindTrace PRIVATE

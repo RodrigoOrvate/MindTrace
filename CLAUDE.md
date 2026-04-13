@@ -329,25 +329,122 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | `merge_to_onnx.py` gerava ONNX inválido (nomes duplicados) | `TreeEnsembleClassifier` tinha o mesmo nome em todos os sub-modelos. Corrigido com `prefix_model()` que renomeia absolutamente todos os nós, tensores e inicializadores antes de mesclar. |
 | Softmax uniforme (todos os scores ~0.20) | Valores brutos dos classificadores binários são muito pequenos (0.0–0.3). Softmax de valores próximos de 0 fica uniforme. Corrigido com **temperatura T=0.05** antes do Softmax: `Div(probs_raw, 0.05)` → `Softmax`. |
 | Comportamentos trocados na UI (walking aparecia como resting) | Ordem dos BEHAVIORS no `merge_to_onnx.py` era `[walking, sniffing, grooming, resting, rearing]` mas `behaviorNames` no QML era `[Walking, Resting, Rearing, Grooming, Sniffing, Thigmotaxis]`. Corrigido alinhando QML com a ordem do script e removendo Thigmotaxis. |
+| B-SOiD retornava "Nenhum dado de features" mesmo após análise | `liveRecordingTab.inference` era `undefined` — IDs QML são escopados ao arquivo do componente e não acessíveis de fora. Corrigido com função pública `LiveRecording::exportBehaviorFeatures()` que delega internamente. |
+| Timeline dupla e snippets de vídeo pendentes | Implementados: `BSoidAnalyzer::populateTimelines()` (preenche dois `BehaviorTimeline` de C++), `extractSnippets()` (FFmpeg via QProcess em background thread), UI em CCDashboard com dual timeline + botão "Extrair Clips". |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
-O pipeline de classificação comportamental agora usa **classificação baseada em regras** implementada em C++ (`BehaviorScanner::classifySimple()`),取代 modelos ONNX do SimBA para maior controle e robustez.
+O pipeline de classificação comportamental usa **classificação baseada em regras** em C++ (`BehaviorScanner::classifySimple()`). Modelos ONNX do SimBA foram removidos — regras nativas dão mais controle e robustez.
 
-### Regras de Classificação
+### Regras de Classificação (ordem de prioridade)
 
-A ordem de verificação dos comportamentos é:
+1. **Sniffing** (prioridade máxima): Se `hasZones` e focinho dentro de 1.5× raio da zona do objeto → sniffing (independente de velocidade)
+2. **Rearing**: Focinho fora do polígono do chão (`_floorPoly`) e corpo ainda dentro → rearing (via ray-casting)
+3. **Resting**: `_velocity < 0.05 m/s` → resting
+4. **Grooming**: `movBody < 1.5 px/frame` e `movNose > 5.0 px/frame` → grooming
+5. **Walking**: `movBody > 2.0 px/frame` ou `roll2sMean > 3.0 px/frame` → walking
+6. **Fallback**: resting
 
-1. **Velocidade < 0.05 m/s → Resting**: Prioridade máxima. Mesmo que o rato esteja em pé, se estiver muito lento → resting
-2. **Rearing**: Focinho bem acima do corpo (>30px de diferença vertical) + estar nas bordas (parede) → rearing
-3. **Sniffing**: Focinho dentro da zona do objeto (distância < 1.5× raio da zona) → sniffing
-4. **Resting**: Corpo quase parado (movBody < 0.3 px/frame)
-5. **Walking**: Corpo movendo significativamente (movBody > 3.0 ou rolling mean 2s > 5.0)
-6. **Grooming**: Nariz muito ativo + corpo quase parado (movBody < 2.0 e movNose > 4.0)
+> **Sniffing sem zonas**: Se o experimento não tiver objetos configurados, `_zones` fica vazio, `hasZones = false` e sniffing nunca dispara. Correto para CC sem objetos.
+
+### Geometria Recebida do QML
+
+| Método Q_INVOKABLE | Descrição |
+|---|---|
+| `setZones(campo, zones)` | Zonas de objeto `{x, y, r}` norm 0-1 — usadas para sniffing |
+| `setFloorPolygon(campo, points)` | Polígono do chão `{x, y}` norm 0-1 — usado para rearing (ray-casting) |
+| `setVelocity(campo, velocity)` | Velocidade em m/s do QML — usado para resting |
 
 ### Detalhes de Implementação
 
 - **Velocidade**: Recebida do QML via `InferenceController::setVelocity(campo, velocity)` em m/s
 - **Zonas**: Recebidas do QML via `InferenceController::setZones(campo, zones)` — usadas para detecção de sniffing
-- **Coordenadas**: Usam `_prevNose` (focinho) para sniffing/rearing e `_prevBody` (corpo) para velocidade
-- **Threshold de velocidade**: 0.05 m/s — calibrado para detectar corretamente rats em pé mas parados (ex: farejando parado = sniffing não resting)
+- **Floor polygon**: Recebido do QML via `InferenceController::setFloorPolygon(campo, points)` — polígono norm 0-1 do chão visível para detecção de rearing
+- **isInsideFloor()**: Ray-casting exato espelhando o `isPointInPoly` do QML
+- **Threshold de velocidade**: 0.05 m/s — calibrado para ratos em pé mas parados (rearing sem movimento)
+
+## 🔬 B-SOiD — Análise Comportamental Enriquecida (Implementado)
+
+B-SOiD complementa as regras nativas descobrindo padrões comportamentais adicionais de forma não-supervisionada. A arquitetura é **post-session** (roda após a análise terminar, sobre os dados coletados).
+
+### Pipeline B-SOiD
+
+```
+Sessão finalizada
+  → BehaviorScanner::_frameHistory (features[21] + ruleLabel por frame)
+    → LiveRecording::exportBehaviorFeatures(path, campo)  [função pública QML]
+      → InferenceController::exportBehaviorFeatures → CSV
+        → BSoidAnalyzer::analyze(csvPath, nClusters=7)
+          → PCA 21→6 dimensões (método da potência + deflação)
+          → K-Means k=7 (K-Means++ init, seed fixo → reproduzível)
+          → emit analysisReady(grupos[])
+            → populateTimelines(ruleTimeline, clusterTimeline, fps)
+              → CCDashboard: timeline dupla (Regras | B-SOiD grupos)
+            → BSoidAnalyzer::extractSnippets(videoPath, outDir, fps, 3)
+              → <experimento>/bsoid_snippets/grupo_N/clip_M.mp4 + timestamps.csv
+```
+
+### Componentes Implementados
+
+| Arquivo | Responsabilidade | Status |
+|---|---|---|
+| `BehaviorScanner._frameHistory` | Buffer `{frameIdx, features[21], ruleLabel}` por sessão; `reset()` não limpa (só `clearHistory()`) | ✅ Implementado |
+| `LiveRecording::exportBehaviorFeatures(path, campo)` | Wrapper público QML que delega ao InferenceController interno (IDs de componente não são acessíveis de fora) | ✅ Implementado |
+| `InferenceController::exportBehaviorFeatures` | Exporta CSV com 21 features + rule_label por frame | ✅ Implementado |
+| `src/analysis/BSoidAnalyzer.h/cpp` | PCA + K-Means nativo + `populateTimelines()` + `extractSnippets()` | ✅ Implementado |
+| `CCDashboard` aba Comportamento | Clusters, timeline dupla (Regras vs B-SOiD), extração de clips de vídeo | ✅ Implementado |
+
+### FrameCluster (mapeamento frame → cluster)
+
+```cpp
+struct FrameCluster {
+    int frameIdx  = 0;
+    int clusterId = 0;
+    int ruleLabel = 0;  // resultado de BehaviorScanner::classifySimple()
+};
+```
+
+### API do BSoidAnalyzer (Q_INVOKABLEs)
+
+| Método | Descrição |
+|---|---|
+| `analyze(csvPath, nClusters)` | Roda PCA + K-Means em background thread |
+| `getFrameMapping()` | Retorna `QVariantList` de `{frameIdx, clusterId, ruleLabel}` |
+| `populateTimelines(ruleObj, clusterObj, fps)` | Preenche dois `BehaviorTimeline` diretamente de C++ (mais eficiente que iterar em JS) |
+| `extractSnippets(videoPath, outDir, fps, nPerCluster)` | Encontra segmentos contíguos por cluster, extrai clips com FFmpeg (ou salva `timestamps.csv` se FFmpeg ausente) |
+| `exportResult(outPath)` | Exporta `frame,cluster` CSV do último clustering |
+
+### Sinais do BSoidAnalyzer
+
+```
+progress(int)             — 0–100 durante PCA+K-Means
+analysisReady(groups)     — QVariantList de {clusterId, frameCount, percentage, avgMovNose, avgMovBody, dominantRule}
+errorOccurred(msg)        — erro durante análise
+snippetsProgress(int)     — 0–100 durante extração de clips
+snippetsDone(ok, outDir, message) — clip extraction concluída (ou apenas timestamps.csv se sem FFmpeg)
+```
+
+### Timeline Dupla (CCDashboard)
+
+Dois `BehaviorTimeline` (Scene Graph GPU) exibidos lado a lado após análise concluída:
+- **Linha "Regras"**: cores fixas por comportamento (Verde=Walking, Azul=Sniffing, Rosa=Grooming, Cinza=Resting, Laranja=Rearing)
+- **Linha "B-SOiD"**: cores automáticas por cluster (`bsoidColors[]`, até 12 clusters)
+- Populados via `bsoidAnalyzer.populateTimelines(ruleTimeline, clusterTimeline, fps)` — chamada de C++ direto, sem iterar em JS
+
+### Snippets de Vídeo por Grupo
+
+```
+<experimento>/bsoid_snippets/
+  grupo_1/
+    clip_1.mp4          — segmento mais longo do cluster (máx. 5s)
+    clip_2.mp4
+    clip_3.mp4
+    timestamps.csv      — start_sec, end_sec, duration_sec (sempre criado)
+  grupo_2/
+    ...
+```
+
+- **Detecção de FFmpeg**: primeiro busca `ffmpeg.exe` na pasta do app, depois no PATH
+- **Sem FFmpeg**: cria apenas `timestamps.csv` por grupo com os timestamps dos segmentos
+- **Com FFmpeg**: `ffmpeg -ss {start} -i {video} -t {dur} -c:v libx264 -preset ultrafast -crf 28 -an -y {output}`
+- **Seleção de segmentos**: segmentos contíguos de mesmo cluster, ordenados por duração decrescente, top 3
