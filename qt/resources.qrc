@@ -38,6 +38,12 @@
     <file>qml/cc/CCMetadataDialog.qml</file>
     <file>qml/cc/qmldir</file>
 
+    <file>qml/ei/EISetup.qml</file>
+    <file>qml/ei/EIDashboard.qml</file>
+    <file>qml/ei/EIMetadataDialog.qml</file>
+    <file>qml/ei/EIArenaSetup.qml</file>
+    <file>qml/ei/qmldir</file>
+
     <file>qml/shared/LiveRecording.qml</file>
     <file>qml/shared/SessionResultDialog.qml</file>
     <file>qml/shared/qmldir</file>

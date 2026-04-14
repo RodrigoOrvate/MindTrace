@@ -14,6 +14,7 @@ import "../nor"
 import "../shared"
 import "../ca"
 import "../cc"
+import "../ei"
 import "Theme"
 
 ApplicationWindow {
@@ -52,6 +53,11 @@ ApplicationWindow {
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
     property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
 
+    // ── Estado acumulado durante o fluxo de criação IA ──────────────────────────────────
+    property bool   pendingEiFlow:         false
+    property int    pendingEiExtincaoDays: 5
+    property bool   pendingEiHasReactivation: false
+
     // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
     onActiveChanged: {
         if (active)
@@ -70,7 +76,15 @@ ApplicationWindow {
             if (!root.awaitingCreation) return
             root.awaitingCreation = false
 
-            if (root.pendingCcFlow) {
+            if (root.pendingEiFlow) {
+                root.pendingEiFlow = false
+                stack.push(eiDashboardComponent, {
+                    "searchMode":            false,
+                    "initialExperimentName": name,
+                    "extincaoDays":          root.pendingEiExtincaoDays,
+                    "hasReactivation":       root.pendingEiHasReactivation
+                })
+            } else if (root.pendingCcFlow) {
                 root.pendingCcFlow = false
                 stack.push(ccDashboardComponent, {
                     "context":               root.pendingCcContext,
@@ -191,6 +205,7 @@ ApplicationWindow {
             onNorSelected:    stack.push(arenaSelectionComponent)
             onCaSelected:     stack.push(caArenaSelectionComponent)
             onCcSelected:     stack.push(ccArenaSelectionComponent)
+            onEiSelected:     stack.push(eiSetupComponent)
             onBackRequested:  stack.pop()
         }
     }
@@ -330,6 +345,39 @@ ApplicationWindow {
         }
     }
 
+    // ── Fluxo IA ───────────────────────────────────────────────────────────────────
+
+    Component {
+        id: eiSetupComponent
+        EISetup {
+            onExperimentReady: function(name, cols, includeDrug, hasReactivation, extincaoDays, savePath) {
+                root.pendingEiExtincaoDays = extincaoDays
+                root.pendingEiHasReactivation = hasReactivation
+                ExperimentManager.loadContext("Padrão")
+                root.awaitingCreation = true
+                root.pendingEiFlow = true
+                ExperimentManager.createExperimentFull(
+                    name, cols, "", "", "", includeDrug, false, savePath,
+                    "esquiva_inibitoria", 1)
+            }
+            onBackRequested: {
+                root.pendingEiFlow = false
+                root.awaitingCreation = false
+                stack.pop()
+            }
+        }
+    }
+
+    Component {
+        id: eiDashboardComponent
+        EIDashboard {
+            onBackRequested: {
+                ExperimentManager.clearFilter()
+                stack.pop()
+            }
+        }
+    }
+
     // ── SearchBrowser ────────────────────────────────────────────────────────────
 
     Component {
@@ -353,6 +401,12 @@ ApplicationWindow {
                     stack.push(caDashboardComponent, {
                         "searchMode":            true,
                         "numCampos":             numCampos,
+                        "initialExperimentName": expName,
+                        "currentTabIndex":       0
+                    })
+                } else if (aparato === "esquiva_inibitoria" || meta.aparato === "esquiva_inibitoria") {
+                    stack.push(eiDashboardComponent, {
+                        "searchMode":            true,
                         "initialExperimentName": expName,
                         "currentTabIndex":       0
                     })

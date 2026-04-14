@@ -425,13 +425,10 @@ Item {
                 if (!floorPoints || !floorPoints[campo]) continue
                 var fp = floorPoints[campo]
                 var cr = recordingRoot.centroRatio
-
-                // Para CA, usamos BODY em vez de NOSE
                 var lx = bodyLocalX(campo)
                 var ly = bodyLocalY(campo)
                 var pt = { x: lx, y: ly }
 
-                // Calcula Centro
                 var cTL = { x: fp[0].x + (fp[2].x - fp[0].x)*(1-cr)/2, y: fp[0].y + (fp[2].y - fp[0].y)*(1-cr)/2 }
                 var cTR = { x: fp[1].x + (fp[3].x - fp[1].x)*(1-cr)/2, y: fp[1].y + (fp[3].y - fp[1].y)*(1-cr)/2 }
                 var cBR = { x: fp[2].x - (fp[2].x - fp[0].x)*(1-cr)/2, y: fp[2].y - (fp[2].y - fp[0].y)*(1-cr)/2 }
@@ -439,13 +436,9 @@ Item {
                 var centroPoly = [cTL, cTR, cBR, cBL]
 
                 var inCentro = isPointInPoly(pt, centroPoly)
-
-                // BORDA = dentro da fronteira EXTERNA (arenaPoints inclui área de parede)
-                var apCA = (recordingRoot.arenaPoints && recordingRoot.arenaPoints[campo])
-                           ? recordingRoot.arenaPoints[campo] : fp
+                var apCA = (recordingRoot.arenaPoints && recordingRoot.arenaPoints[campo]) ? recordingRoot.arenaPoints[campo] : fp
                 var inBorda = !inCentro && isPointInPoly(pt, apCA)
 
-                // Mapeia Zone 0 -> Centro, Zone 1 -> Borda
                 var zonesCA = [inCentro, inBorda]
                 for (var zca = 0; zca < 2; zca++) {
                     var ziCA = campo * 2 + zca
@@ -459,10 +452,31 @@ Item {
                     }
                 }
             } else if (recordingRoot.aparato === "comportamento_complexo") {
-                // -- Lógica CC: tracking de corpo puro, sem zonas --
-                // Distância e velocidade são calculadas globalmente (não por zona).
-                // Nenhuma acumulação de explorationTimes/Bouts aqui.
                 continue
+            } else if (recordingRoot.aparato === "esquiva_inibitoria") {
+                // ── Lógica IA: Zonas quadrilaterais (Plataforma, Grade) ──
+                if (!floorPoints || !floorPoints[campo] || floorPoints[campo].length < 8) continue
+                var blx = bodyLocalX(campo)
+                var bly = bodyLocalY(campo)
+                var ptIA = { x: blx, y: bly }
+                var fpIA = floorPoints[campo]
+                var polyGrade = fpIA.slice(0, 4)
+                var polyPlataf = fpIA.slice(4, 8)
+                var inGrade = isPointInPoly(ptIA, polyGrade)
+                var inPlataf = isPointInPoly(ptIA, polyPlataf)
+
+                var zonesIA = [inPlataf, inGrade]
+                for (var zia = 0; zia < 2; zia++) {
+                    var ziA = campo * 2 + zia
+                    if (zonesIA[zia]) {
+                        newTimes[ziA] += 0.1
+                        if (!_inZone[ziA]) { _inZone[ziA] = true; _entryTime[ziA] = now }
+                    } else if (_inZone[ziA]) {
+                        var durIA = (now - _entryTime[ziA]) / 1000.0
+                        if (durIA > 0.1) { newBouts[ziA].push(parseFloat(durIA.toFixed(1))); boutsChanged = true }
+                        _inZone[ziA] = false
+                    }
+                }
             } else {
                 // -- Lógica NOR: Zonas Circulares --
                 for (var obj = 0; obj < 2; obj++) {
@@ -733,7 +747,8 @@ Item {
 
                 GridLayout {
                     anchors.fill: parent
-                    columns: 2; rowSpacing: 2; columnSpacing: 2
+                    columns: recordingRoot.aparato === "esquiva_inibitoria" ? 1 : 2
+                    rowSpacing: 2; columnSpacing: 2
 
                     // ── 3 campos (top-left, top-right, bottom-left) ───────────
                     Repeater {
@@ -761,6 +776,7 @@ Item {
                                         if (!framePreviewMaster || framePreviewMaster.width === 0)
                                             return Qt.rect(0, 0, 0, 0)
                                         var cr = framePreviewMaster.contentRect
+                                        if (recordingRoot.aparato === "esquiva_inibitoria") return cr
                                         var cw = cr.width / 2
                                         var ch = cr.height / 2
                                         if (campoCell.ci === 0) return Qt.rect(cr.x,      cr.y,      cw, ch)
@@ -832,7 +848,20 @@ Item {
                                             ctx.lineWidth=1; ctx.strokeStyle=s; ctx.stroke()
                                         }
 
-                                        if (recordingRoot.aparato === "campo_aberto") {
+                                        if (recordingRoot.aparato === "esquiva_inibitoria") {
+                                            // Grade (0-3 do floorPoints)
+                                            if (fp.length >= 4) {
+                                                var polyF = []
+                                                for(var k1=0;k1<4;k1++) polyF.push({x:fp[k1].x*w, y:fp[k1].y*h})
+                                                poly(polyF, "rgba(0,204,255,0.08)", "rgba(0,204,255,0.5)")
+                                            }
+                                            // Plataforma (4-7 do floorPoints)
+                                            if (fp.length >= 8) {
+                                                var polyP = []
+                                                for(var k2=4;k2<8;k2++) polyP.push({x:fp[k2].x*w, y:fp[k2].y*h})
+                                                poly(polyP, "rgba(0,255,0,0.08)", "rgba(0,255,0,0.5)")
+                                            }
+                                        } else if (recordingRoot.aparato === "campo_aberto") {
                                             var cr = recordingRoot.centroRatio
                                             var cTL = { x: iTL.x + (iBR.x - iTL.x)*(1-cr)/2, y: iTL.y + (iBR.y - iTL.y)*(1-cr)/2 }
                                             var cTR = { x: iTR.x + (iBL.x - iTR.x)*(1-cr)/2, y: iTR.y + (iBL.y - iTR.y)*(1-cr)/2 }
@@ -1211,7 +1240,7 @@ Item {
                             spacing: 6
 
                             Repeater {
-                                model: 3
+                                model: recordingRoot.numCampos
                                 delegate: Rectangle {
                                     id: campoCard
                                     width: parent.width
@@ -1339,6 +1368,38 @@ Item {
                                                         font.pixelSize: 9
                                                     }
                                                 }
+                                            }
+                                        }
+
+                                        // ── MÉTRICAS ESQUIVA INIBITÓRIA (EI) ────
+                                        ColumnLayout {
+                                            Layout.fillWidth: true; spacing: 5
+                                            visible: recordingRoot.aparato === "esquiva_inibitoria"
+
+                                            // Plataforma
+                                            RowLayout {
+                                                Layout.fillWidth: true; spacing: 5
+                                                Rectangle { width: 8; height: 8; radius: 4; color: "#00ff00" }
+                                                Text { text: "Plataforma"; color: "#00aa00"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
+                                            }
+                                            // Grade
+                                            RowLayout {
+                                                Layout.fillWidth: true; spacing: 5
+                                                Rectangle { width: 8; height: 8; radius: 4; color: "#00ccff" }
+                                                Text { text: "Grade"; color: "#0088cc"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
+                                            }
+
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                Text { text: "Descidas à grade:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Item { Layout.fillWidth: true }
+                                                Text { text: recordingRoot.explorationBouts[campoCard.zi1].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
                                         }
 

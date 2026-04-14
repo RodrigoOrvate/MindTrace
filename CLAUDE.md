@@ -448,3 +448,105 @@ Dois `BehaviorTimeline` (Scene Graph GPU) exibidos lado a lado após análise co
 - **Sem FFmpeg**: cria apenas `timestamps.csv` por grupo com os timestamps dos segmentos
 - **Com FFmpeg**: `ffmpeg -ss {start} -i {video} -t {dur} -c:v libx264 -preset ultrafast -crf 28 -an -y {output}`
 - **Seleção de segmentos**: segmentos contíguos de mesmo cluster, ordenados por duração decrescente, top 3
+## 🪤 Esquiva Inibitória (EI) — Implementado
+
+Paradigma de **memória aversiva passiva** (step-through, passive avoidance) para análise de medo e aprendizado.
+
+### Arquitetura EI
+
+**Fluxo:**
+- **Pasta módulo:** `qml/ei/` (EISetup, EIDashboard, EIMetadataDialog)
+- **Aparato:** `"esquiva_inibitoria"` (sempre 1 campo)
+- **Sequência:** TR (Treino) → E1–E5 (Extinção, dias 2–6) → [RA (Reativação, opcional)] → TT (Teste)
+- **Duração:** 5 min/sessão (timer fixo, não escalável)
+
+### Configuração
+
+Em **EISetup.qml**:
+- Nome experimento + diretório (opcional)
+- ✅ Checkbox: Reativação (default false) — habilita fase RA
+- ✅ Checkbox: Drogas (default true) — coluna extra no CSV
+- ✅ **SpinBox: Dias de Extinção** (padrão 5, range 1–30) — define quantas sessões E1...EN
+
+Colunas CSV geradas:
+```
+["Diretório do Vídeo", "Animal", "Fase", "Dia",
+ "Latência (s)", "Tempo Plataforma (s)", "Tempo Grade (s)",
+ "Bouts Plataforma", "Bouts Grade",
+ "Distância Total (m)", "Velocidade Média (m/s)", "Droga" (opcional)]
+```
+
+### Métricas
+
+| Métrica | Fonte | Descrição |
+|---|---|---|
+| **Latência (s)** | `explorationBouts[0][0]` | Tempo até primeiro exit da plataforma |
+| **Tempo Plataforma (s)** | `explorationTimes[0]` | Acumulado na zona 0 (plataforma) |
+| **Tempo Grade (s)** | `explorationTimes[1]` | Acumulado na zona 1 (grade) |
+| **Bouts Plataforma** | `explorationBouts[0].length` | Quantas vezes entrou na plataforma |
+| **Bouts Grade** | `explorationBouts[1].length` | Quantas vezes entrou na grade |
+| **Distância (m)** | `totalDistance[0]` | Movimento corporal acumulado |
+| **Velocidade (m/s)** | `currentVelocity[0]` | Média no período |
+
+### Arena EI
+
+- **Tipo:** Quadrada com 2 zonas editáveis (Shift+drag para mover, scroll para redimensionar)
+- **Zona 0:** Plataforma (retângulo pequeno, típico: esquerda)
+- **Zona 1:** Grade (retângulo grande, típico: direita)
+- **Rastreamento:** Body point (como CA) — zone detection usa ray-casting
+- **Sincronização:** Via `ArenaSetup` embebido (igual CC)
+
+### Fases Dinâmicas (EIMetadataDialog)
+
+Botões gerados automaticamente:
+```
+TR → E1 → E2 → ... → EN → [RA] → TT
+```
+Onde N = `extincaoDays` (padrão 5).
+
+**Mapeamento Dia:**
+- TR → Dia 1
+- E1 → Dia 2, E2 → Dia 3, ..., EN → Dia (1+N)
+- RA → Dia (1+N+1) — apenas se `hasReactivation`
+- TT → Dia (1+N+1) ou (1+N+2) com RA
+
+### LiveRecording para EI
+
+Branch novo em `accumulateExploration()`:
+```qml
+} else if (aparato === "esquiva_inibitoria") {
+    // Zonas editáveis com ray-casting (raio circular)
+    // Zona 0 = plataforma, Zona 1 = grade
+    // Calcula explorationTimes, explorationBouts como CA
+}
+```
+
+Sinais para C++:
+- `inference.setVelocity(0, currentVelocity[0])` — para classificação de comportamento (opcional)
+- Zonas via `setZones(0, zones[0:2])`
+
+### Post-Sessão (EIMetadataDialog)
+
+1. Seleciona fase (botões dinâmicos)
+2. Insere animal ID
+3. Exibe métricas (read-only)
+4. Opcionalmente: Droga (texto livre)
+5. "Salvar Sessão" → insere linha em `tracking_data.csv`, salva JSON metadados
+
+JSON metadados:
+```json
+{
+  "fase": "TR",
+  "dia": "1",
+  "videoPath": "...",
+  "animal": "rato_01",
+  "latencia_s": 2.5,
+  "tempo_plataforma_s": 145.3,
+  "tempo_grade_s": 14.7,
+  "bouts_plataforma": 3,
+  "bouts_grade": 8,
+  "distancia_total_m": 12.5,
+  "velocidade_media_ms": 0.042,
+  "droga": "saline"
+}
+```

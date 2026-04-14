@@ -195,7 +195,10 @@ Item {
                                     var appType = meta.aparato || "nor"
                                     previewName.text    = model.name
                                     previewContext.text = model.context
-                                    previewAparato.text = appType === "comportamento_complexo" ? "🧩 Comp. Complexo" : (appType === "campo_aberto" ? "🐀 Campo Aberto" : "🧠 Rec. de Objetos")
+                                    previewAparato.text = appType === "comportamento_complexo" ? "🧩 Comp. Complexo"
+                                                          : appType === "campo_aberto"          ? "🐀 Campo Aberto"
+                                                          : appType === "esquiva_inibitoria"    ? "⚡ Esquiva Inibitória"
+                                                          :                                       "🧠 Rec. de Objetos"
                                     previewCampos.text  = (meta.numCampos || 3) + " campo(s)"
                                     previewContainer.previewAparatoVal   = appType
                                     previewContainer.previewNumCamposVal = meta.numCampos || 3

@@ -12,6 +12,7 @@ Item {
     signal norSelected()
     signal caSelected()
     signal ccSelected()
+    signal eiSelected()
     signal backRequested()
 
     Rectangle { 
@@ -105,7 +106,7 @@ Item {
                 icon: "⚡"
                 title: "Esquiva\nInibitória"
                 description: "Memória aversiva passiva\n(step-through)"
-                locked: true
+                onClicked: root.eiSelected()
             }
 
             NORCard {

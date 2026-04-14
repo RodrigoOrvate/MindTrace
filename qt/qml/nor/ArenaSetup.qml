@@ -711,7 +711,7 @@ Item {
                                 // ── Zona A (vinho) ────────────────────────────
                                 Rectangle {
                                     id: zoneA
-                                    visible: !root.caMode || root.ccMode  // Mostra em NOR e CC, não em CA
+                                    visible: !root.caMode || root.ccMode
                                     property var zd: root.zones[campoCell.campoIndex * 2]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -722,20 +722,16 @@ Item {
                                     Column {
                                         anchors.centerIn: parent; spacing: 1
                                         Text {
-                                            visible: !root.ccMode  // Só mostra label em NOR, não em CC
+                                            visible: !root.ccMode
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: campoCell.campoIds[0]; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
-                                            font.pixelSize: Math.max(7, zoneA.width * 0.22)
-                                            font.weight: Font.Bold
-                                            horizontalAlignment: Text.AlignHCenter
+                                            text: campoCell.campoIds[0]; color: ThemeManager.textPrimary
+                                            font.pixelSize: Math.max(7, zoneA.width * 0.22); font.weight: Font.Bold
                                         }
                                         Text {
                                             visible: root.devMode
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: Math.round(zoneA.zd.r * arenaRect.width * 2) + "px Ø"
-                                            color: "#ffcc00"
-                                            font.pixelSize: Math.max(6, zoneA.width * 0.16)
-                                            horizontalAlignment: Text.AlignHCenter
+                                            color: "#ffcc00"; font.pixelSize: Math.max(6, zoneA.width * 0.16)
                                         }
                                     }
                                 }
@@ -743,7 +739,7 @@ Item {
                                 // ── Zona B (azul) ─────────────────────────────
                                 Rectangle {
                                     id: zoneB
-                                    visible: !root.caMode || root.ccMode  // Mostra em NOR e CC, não em CA
+                                    visible: !root.caMode || root.ccMode
                                     property var zd: root.zones[campoCell.campoIndex * 2 + 1]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -754,72 +750,55 @@ Item {
                                     Column {
                                         anchors.centerIn: parent; spacing: 1
                                         Text {
-                                            visible: !root.ccMode  // Só mostra label em NOR, não em CC
+                                            visible: !root.ccMode
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: campoCell.campoIds[1]; color: "#e8e8f0"
-                                            font.pixelSize: Math.max(7, zoneB.width * 0.22)
-                                            font.weight: Font.Bold
-                                            horizontalAlignment: Text.AlignHCenter
+                                            font.pixelSize: Math.max(7, zoneB.width * 0.22); font.weight: Font.Bold
                                         }
                                         Text {
                                             visible: root.devMode
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: Math.round(zoneB.zd.r * arenaRect.width * 2) + "px Ø"
-                                            color: "#ffcc00"
-                                            font.pixelSize: Math.max(6, zoneB.width * 0.16)
-                                            horizontalAlignment: Text.AlignHCenter
+                                            color: "#ffcc00"; font.pixelSize: Math.max(6, zoneB.width * 0.16)
                                         }
                                     }
                                 }
 
-                                // ── Pontos Interativos (Dev Mode) ───────────────
+                                // ── Pontos de Parede (Dev Mode) ───────────────────────────
                                 Repeater {
                                     model: root.devMode ? 4 : 0
                                     Rectangle {
-                                        id: apPt
-                                        z: 20; width: 8; height: 8; radius: 4
-                                        color: "#ff5500" // Laranja para Parede (Outer)
-                                        border.color: "white"; border.width: 1
-                                        property var pt: root.arenaPoints[campoCell.campoIndex][index]
-                                        x: arenaRect.width * pt.x - 4
-                                        y: arenaRect.height * pt.y - 4
+                                        z: 20; width: 12; height: 12; radius: 6
+                                        color: "#ff5500"; border.color: "white"; border.width: 1.5
+                                        property var pt: root.arenaPoints[campoCell.campoIndex] ? root.arenaPoints[campoCell.campoIndex][index] : {x:0,y:0}
+                                        x: arenaRect.width  * pt.x - width/2
+                                        y: arenaRect.height * pt.y - height/2
+                                        scale: (interactionMa.dragOuterCorner === index) ? 1.4 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150 } }
+                                        Text {
+                                            anchors { bottom: parent.top; horizontalCenter: parent.horizontalCenter; bottomMargin: 1 }
+                                            text: ["TL","TR","BR","BL"][index]
+                                            color: "#ff5500"; font.pixelSize: 8; font.weight: Font.Bold
+                                        }
                                     }
                                 }
 
+                                // ── Pontos de Chão (Dev Mode) ─────────────────────────────
                                 Repeater {
                                     model: root.devMode ? 4 : 0
                                     Rectangle {
-                                        id: fpPt
-                                        z: 21; width: 8; height: 8; radius: 1
-                                        color: "#00ccff" // Cyan/Blue para Chão (Floor)
-                                        border.color: "white"; border.width: 1
-                                        property var pt: root.floorPoints[campoCell.campoIndex][index]
-                                        x: arenaRect.width * pt.x - 4
-                                        y: arenaRect.height * pt.y - 4
-                                    }
-                                }
-
-                                // ── Pontos Interativos (Dev Mode) ───────────────
-                                Repeater {
-                                    model: root.devMode ? 4 : 0
-                                    Rectangle {
-                                        z: 20; width: 8; height: 8; radius: 4
-                                        color: "#ff5500" // Laranja para Parede (Outer)
-                                        border.color: "white"; border.width: 1
-                                        property var pt: root.arenaPoints[campoCell.campoIndex][index]
-                                        x: arenaRect.width * pt.x - 4
-                                        y: arenaRect.height * pt.y - 4
-                                    }
-                                }
-
-                                Repeater {
-                                    model: 0 // Removido
-                                    Rectangle {
-                                        visible: root.devMode && root.caMode
-                                        z: 21; width: 8; height: 8; radius: 1
-                                        color: "#00ccff" 
-                                        border.color: "white"; border.width: 1
-                                        anchors.centerIn: parent
+                                        z: 21; width: 12; height: 12; radius: 2
+                                        color: "#00ccff"; border.color: "white"; border.width: 1.5
+                                        property var pt: root.floorPoints[campoCell.campoIndex] ? root.floorPoints[campoCell.campoIndex][index] : {x:0,y:0}
+                                        x: arenaRect.width  * pt.x - width/2
+                                        y: arenaRect.height * pt.y - height/2
+                                        scale: (interactionMa.dragFloorCorner === index) ? 1.4 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 150 } }
+                                        Text {
+                                            anchors { top: parent.bottom; horizontalCenter: parent.horizontalCenter; topMargin: 1 }
+                                            text: ["TL","TR","BR","BL"][index]
+                                            color: "#00ccff"; font.pixelSize: 8; font.weight: Font.Bold
+                                        }
                                     }
                                 }
 

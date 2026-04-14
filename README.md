@@ -1,6 +1,6 @@
 # MindTrace — MemoryLab / UFRN
 
-Sistema de tracking comportamental de ratos para paradigmas **NOR (Novel Object Recognition)** e **Campo Aberto (Open Field)**, rodando **nativamente em C++** com ONNX Runtime. Sem subprocesso Python — toda inferência ocorre dentro do `MindTrace.exe`.
+Sistema de tracking comportamental de ratos para paradigmas **NOR (Novel Object Recognition)**, **Campo Aberto (Open Field)**, **Comportamento Complexo (CC)** e **Esquiva Inibitória (EI)**, rodando **nativamente em C++** com ONNX Runtime. Sem subprocesso Python — toda inferência ocorre dentro do `MindTrace.exe`.
 
 > **Sistema operacional:** Windows 10 ou 11 (64-bit) — obrigatório (usa DirectX 12 / DirectML)
 
@@ -246,7 +246,8 @@ MindTrace/
     │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml (comuns)
     │   ├── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
     │   ├── ca/             — CADashboard, CAArenaSelection, CASetup, CAMetadataDialog
-    │   └── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
+    │   ├── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
+    │   └── ei/             — EIDashboard, EISetup, EIMetadataDialog
     ├── data/               — arenas.json, arena_config_referencia.json
     ├── scripts/            — build.bat, setup_onnx.ps1
     ├── CMakeLists.txt
@@ -334,3 +335,55 @@ Para realizar a descoberta de novos comportamentos após uma sessão de Comporta
 | CSV Behavior Summary | C++ agora emite o arquivo behavior_summary.csv separando % de tempo no CA/CC automaticamente. |
 | Erro `undefined inference` | Corrigido erro onde o QML não encontrava o InferenceController em LiveRecording através de um wrapper funcional. |
 | Timeline B-SOiD | Implementado `populateTimelines()` nativo para preenchimento ultra-rápido de etogramas via SceneGraph. |
+---
+
+## 12. Esquiva Inibitória (EI) — Novo Paradigma
+
+**Novo:** Paradigma de **memória aversiva passiva** (step-through) para análise de medo e aprendizado associativo.
+
+### Configuração Rápida
+
+1. **Na tela inicial:** Clique no card ⚡ "Esquiva Inibitória"
+2. **EISetup:** 
+   - Nome do experimento
+   - Diretório (opcional)
+   - ✅ Reativação (habilita fase RA)
+   - ✅ Drogas (coluna extra no CSV)
+   - 📅 **Dias de Extinção** (SpinBox: 1–30, padrão 5)
+3. **Fluxo automático:** TR → E1–EN (Extinção) → [RA] → TT
+
+### Métricas Coletadas
+
+| Métrica | Significado |
+|---|---|
+| **Latência (s)** | Tempo até o primeiro exit da plataforma |
+| **Tempo Plataforma (s)** | Acumulado na zona da plataforma |
+| **Tempo Grade (s)** | Acumulado na zona da grade |
+| **Bouts Plataforma** | Quantas vezes entrou na plataforma |
+| **Bouts Grade** | Quantas vezes entrou na grade |
+| **Distância (m)** | Locomoção total em metros |
+| **Velocidade (m/s)** | Velocidade média durante a sessão |
+
+### Arena EI
+
+- **Tipo:** Quadrada com 2 zonas retangulares editáveis
+- **Zona 0:** Plataforma (elevated, tipicamente esquerda)
+- **Zona 1:** Grade (floor, tipicamente direita)
+- **Edição:** Shift+drag para mover, scroll para redimensionar (igual CC)
+
+### Sequência de Dias
+
+```
+Dia 1:     TR (Treino)
+Dia 2:     E1 (Extinção 1)
+Dia 3:     E2 (Extinção 2)
+...
+Dia 6:     E5 (Extinção 5, padrão)
+Dia 7:     RA (Reativação, opcional) ou TT (Teste)
+Dia 8:     TT (Teste, se com RA)
+```
+
+Customize com SpinBox `Dias de Extinção` (1–30).
+
+---
+
