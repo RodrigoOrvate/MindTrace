@@ -50,6 +50,7 @@
 
     <file alias="arenas.json">data/arenas.json</file>
     <file alias="arena_config_referencia.json">data/arena_config_referencia.json</file>
+    <file alias="arena_config_ei_referencia.json">data/arena_config_ei_referencia.json</file>
     <file>qml/core/SearchBrowser.qml</file>
 </qresource>
 </RCC>

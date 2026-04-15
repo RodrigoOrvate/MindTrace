@@ -383,12 +383,38 @@ void InferenceEngine::run()
     }
 }
 
+// ── Full-frame mode (EI) ──────────────────────────────────────────────────────
+
+void InferenceEngine::setFullFrameMode(bool enabled)
+{
+    m_fullFrame.store(enabled, std::memory_order_relaxed);
+}
+
 // ── Per-frame processing ──────────────────────────────────────────────────────
 
 void InferenceEngine::processJob(const Job& job)
 {
     if (job.frame.isNull() || job.videoW <= 0 || job.videoH <= 0) return;
 
+    // ── EI: frame completo → campo 0, sem corte de quadrante ─────────────────
+    // Para Esquiva Inibitória (câmera única cobrindo a arena inteira),
+    // o frame 720×480 é redimensionado para 360×240 e processado como campo 0.
+    // Os scale factors refletem o frame completo para que as coordenadas emitidas
+    // (em pixels do mosaico) cubram [0, videoW] × [0, videoH].
+    if (m_fullFrame.load(std::memory_order_relaxed)) {
+        const float scaleX = static_cast<float>(job.videoW) / MODEL_W;
+        const float scaleY = static_cast<float>(job.videoH) / MODEL_H;
+        QImage crop = job.frame.copy(0, 0, job.videoW, job.videoH);
+        if (crop.isNull()) return;
+        if (crop.width() != MODEL_W || crop.height() != MODEL_H)
+            crop = crop.scaled(MODEL_W, MODEL_H,
+                               Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        crop = crop.convertToFormat(QImage::Format_RGB888);
+        inferCrop(crop, 0, 0, 0, scaleX, scaleY);
+        return;
+    }
+
+    // ── Modo mosaico: 3 quadrantes half-size em paralelo ─────────────────────
     const int halfW = job.videoW / 2;
     const int halfH = job.videoH / 2;
     const float scaleX = static_cast<float>(halfW) / MODEL_W;

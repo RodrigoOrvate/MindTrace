@@ -25,8 +25,11 @@ public:
     // Carrega a configuração da arena (zonas, pontos) conforme o contexto e nome (pasta padrão)
     Q_INVOKABLE void loadConfig(const QString &context, const QString &expName);
     
-    // NOVO: Carrega a partir de um caminho de pasta absoluto (Desktop, HD Externo, etc)
+    // Carrega a partir de um caminho de pasta absoluto (Desktop, HD Externo, etc)
+    // Usa arena_config_referencia.json como fallback padrão (NOR/CA/CC)
     Q_INVOKABLE void loadConfigFromPath(const QString &folderPath);
+    // Sobrecarga: permite especificar o arquivo de referência (ex: EI usa arquivo próprio)
+    Q_INVOKABLE void loadConfigFromPath(const QString &folderPath, const QString &referenceFile);
 
     // Salva a configuração atual
     Q_INVOKABLE bool saveConfig(const QString &context, const QString &expName, const QString &pairId,

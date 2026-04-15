@@ -150,6 +150,10 @@ void InferenceController::setVelocity(int campo, float velocity) {
     m_engine->setVelocity(campo, velocity);
 }
 
+void InferenceController::setFullFrameMode(bool enabled) {
+    m_engine->setFullFrameMode(enabled);
+}
+
 bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int campo)
 {
     if (campo < 0 || campo >= 3) return false;

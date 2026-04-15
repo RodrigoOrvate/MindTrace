@@ -343,6 +343,8 @@ Item {
         displayPlayer.source = videoPath
         displayPlayer.playbackRate = pr
         displayPlayer.play()
+        // EI usa frame completo (720×480 → 360×240); demais aparatos usam quadrantes
+        inference.setFullFrameMode(aparato === "esquiva_inibitoria")
         // Start C++ backend (Model load + frame capture)
         inference.startAnalysis(videoPath, "")
         if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
@@ -604,25 +606,31 @@ Item {
         return (tNovo - tFam) / total
     }
 
-    // Coordenada local do rat dentro do quadrante (0..1)
+    // Coordenada local do rat dentro do quadrante/frame (0..1)
+    // Para EI (fullFrameMode), normX já cobre [0,1] o frame inteiro — sem *2.
+    // Para mosaico (NOR/CA/CC), cada campo é metade do frame: aplica o offset/escala.
     function ratLocalX(campo) {
         var nx = ratNormX[campo]
         if (nx < 0) return -1
+        if (recordingRoot.aparato === "esquiva_inibitoria") return nx
         return campo === 1 ? (nx - 0.5) * 2 : nx * 2
     }
     function ratLocalY(campo) {
         var ny = ratNormY[campo]
         if (ny < 0) return -1
+        if (recordingRoot.aparato === "esquiva_inibitoria") return ny
         return campo === 2 ? (ny - 0.5) * 2 : ny * 2
     }
     function bodyLocalX(campo) {
         var bx = bodyNormX[campo]
         if (bx < 0) return -1
+        if (recordingRoot.aparato === "esquiva_inibitoria") return bx
         return campo === 1 ? (bx - 0.5) * 2 : bx * 2
     }
     function bodyLocalY(campo) {
         var by = bodyNormY[campo]
         if (by < 0) return -1
+        if (recordingRoot.aparato === "esquiva_inibitoria") return by
         return campo === 2 ? (by - 0.5) * 2 : by * 2
     }
 
@@ -786,11 +794,13 @@ Item {
                                     opacity: 0.85
                                 }
 
-                                // Overlay para exibir Behavior Badge em tempo real
+                                // Overlay para exibir Behavior Badge — apenas no CC (Comportamento Complexo)
                                 Rectangle {
                                     id: behaviorBadge
                                     anchors { top: parent.top; left: parent.left; margins: 10 }
-                                    visible: recordingRoot.currentBehaviorString[campoCell.ci] !== "" && recordingRoot.isAnalyzing
+                                    visible: recordingRoot.aparato === "comportamento_complexo"
+                                          && recordingRoot.currentBehaviorString[campoCell.ci] !== ""
+                                          && recordingRoot.isAnalyzing
                                     color: "#cc0a0a16"
                                     border.color: ThemeManager.accent
                                     border.width: 1
@@ -818,7 +828,8 @@ Item {
                                     Connections {
                                         target: recordingRoot
                                         function onArenaPointsChanged() { arenaCanv.requestPaint() }
-                                        function onFloorPointsChanged() { arenaCanv.requestPaint() }
+                                        function onFloorPointsChanged()  { arenaCanv.requestPaint() }
+                                        function onZonesChanged()        { arenaCanv.requestPaint() }
                                     }
                                     onPaint: {
                                         var ctx = getContext("2d")
@@ -849,18 +860,35 @@ Item {
                                         }
 
                                         if (recordingRoot.aparato === "esquiva_inibitoria") {
-                                            // Grade (0-3 do floorPoints)
-                                            if (fp.length >= 4) {
-                                                var polyF = []
-                                                for(var k1=0;k1<4;k1++) polyF.push({x:fp[k1].x*w, y:fp[k1].y*h})
-                                                poly(polyF, "rgba(0,204,255,0.08)", "rgba(0,204,255,0.5)")
-                                            }
-                                            // Plataforma (4-7 do floorPoints)
+                                            // EI: desenha 4 paredes + Plataforma (0-3) + Grade (4-7)
+                                            // O "inner" da arena abrange os dois polígonos combinados:
+                                            //   canto TL  = fp[0] (Plataforma TL)
+                                            //   canto TR  = fp[5] (Grade TR — extremo direito)
+                                            //   canto BR  = fp[6] (Grade BR)
+                                            //   canto BL  = fp[3] (Plataforma BL)
                                             if (fp.length >= 8) {
-                                                var polyP = []
-                                                for(var k2=4;k2<8;k2++) polyP.push({x:fp[k2].x*w, y:fp[k2].y*h})
-                                                poly(polyP, "rgba(0,255,0,0.08)", "rgba(0,255,0,0.5)")
+                                                var pTL = {x:fp[0].x*w, y:fp[0].y*h}
+                                                var pBL = {x:fp[3].x*w, y:fp[3].y*h}
+                                                var gTR = {x:fp[5].x*w, y:fp[5].y*h}
+                                                var gBR = {x:fp[6].x*w, y:fp[6].y*h}
+                                                // Parede superior (vermelho)
+                                                poly([oTL,oTR,gTR,pTL], "rgba(255,0,0,0.10)",   "rgba(255,0,0,0.40)")
+                                                // Parede inferior (rosa)
+                                                poly([pBL,gBR,oBR,oBL], "rgba(255,0,255,0.10)", "rgba(255,0,255,0.40)")
+                                                // Parede esquerda (laranja)
+                                                poly([oTL,pTL,pBL,oBL], "rgba(255,170,0,0.10)", "rgba(255,170,0,0.40)")
+                                                // Parede direita (marrom escuro)
+                                                poly([oTR,oBR,gBR,gTR], "rgba(62,39,35,0.15)",  "rgba(62,39,35,0.50)")
+                                                // Plataforma (fp 0-3, verde)
+                                                var platPts = []
+                                                for(var k1=0;k1<4;k1++) platPts.push({x:fp[k1].x*w, y:fp[k1].y*h})
+                                                poly(platPts, "rgba(0,255,0,0.08)", "rgba(0,255,0,0.50)")
+                                                // Grade (fp 4-7, ciano)
+                                                var gradePts = []
+                                                for(var k2=4;k2<8;k2++) gradePts.push({x:fp[k2].x*w, y:fp[k2].y*h})
+                                                poly(gradePts, "rgba(0,204,255,0.08)", "rgba(0,204,255,0.50)")
                                             }
+                                            return  // Paredes específicas já desenhadas — não executa as genéricas
                                         } else if (recordingRoot.aparato === "campo_aberto") {
                                             var cr = recordingRoot.centroRatio
                                             var cTL = { x: iTL.x + (iBR.x - iTL.x)*(1-cr)/2, y: iTL.y + (iBR.y - iTL.y)*(1-cr)/2 }

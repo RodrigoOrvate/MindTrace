@@ -26,6 +26,8 @@ public:
     Q_INVOKABLE void setZones(int campo, const QList<QVariant>& zones);
     Q_INVOKABLE void setFloorPolygon(int campo, const QList<QVariant>& points);
     Q_INVOKABLE void setVelocity(int campo, float velocity);  // m/s para comportamento
+    // EI: processa frame completo em vez de quadrante. Chamar antes de startAnalysis.
+    Q_INVOKABLE void setFullFrameMode(bool enabled);
     Q_INVOKABLE void startAnalysis(const QString& videoPath, const QString& modelDir);
     Q_INVOKABLE void stopAnalysis();
     Q_INVOKABLE void setPlaybackRate(double rate);

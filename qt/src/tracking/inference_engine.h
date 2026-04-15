@@ -4,6 +4,7 @@
 #include <QWaitCondition>
 #include <QImage>
 #include <QString>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -29,6 +30,10 @@ public:
     void setZones(int campo, const std::vector<Zone>& zones);
     void setFloorPolygon(int campo, const std::vector<std::pair<float,float>>& poly);
     void setVelocity(int campo, float velocity);  // m/s para comportamento
+
+    // EI: quando true, campo 0 recebe o frame inteiro redimensionado (720x480 → 360x240)
+    // em vez do quadrante superior-esquerdo. Deve ser chamado antes de start().
+    void setFullFrameMode(bool enabled);
 
     // Thread-safe. Replaces any pending frame with the new one.
     void enqueueFrame(const QImage& frame, int videoW, int videoH);
@@ -93,6 +98,7 @@ private:
 
     bool                          m_hasLocref = false;
     bool                          m_behaviorEnabled = false;
+    std::atomic<bool>             m_fullFrame{false};  // EI: frame completo vs. quadrante
 
     QString        m_modelPath;
     QString        m_bModelDir;  // directory containing individual behavior .onnx files

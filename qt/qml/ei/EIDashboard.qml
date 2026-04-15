@@ -251,7 +251,7 @@ Item {
                     tableModel.loadCsv(path + "/tracking_data.csv")
                     workStack.currentIndex = 1
 
-                    ArenaConfigModel.loadConfigFromPath(path)
+                    ArenaConfigModel.loadConfigFromPath(path, ":/arena_config_ei_referencia.json")
 
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx  = meta.context || ""

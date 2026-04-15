@@ -63,6 +63,10 @@ void ArenaConfigModel::loadConfig(const QString &context, const QString &expName
 }
 
 void ArenaConfigModel::loadConfigFromPath(const QString &folderPath) {
+    loadConfigFromPath(folderPath, QStringLiteral(":/arena_config_referencia.json"));
+}
+
+void ArenaConfigModel::loadConfigFromPath(const QString &folderPath, const QString &referenceFile) {
     m_pairId = QString(); m_imageUrl = QString(); m_arenaPoints = QString(); m_floorPoints = QString();
     m_configured = false; m_zones.clear();
     for (int i = 0; i < 6; ++i) m_zones.append(defaultZone(i));
@@ -71,8 +75,8 @@ void ArenaConfigModel::loadConfigFromPath(const QString &folderPath) {
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
-        // Sem config salva — carrega a referência embutida como ponto de partida
-        QFile ref(QStringLiteral(":/arena_config_referencia.json"));
+        // Sem config salva — carrega o arquivo de referência fornecido como ponto de partida
+        QFile ref(referenceFile);
         if (ref.open(QIODevice::ReadOnly)) {
             QJsonObject refRoot = QJsonDocument::fromJson(ref.readAll()).object();
             applyZonesFromJson(refRoot, m_arenaPoints, m_floorPoints, m_zones);

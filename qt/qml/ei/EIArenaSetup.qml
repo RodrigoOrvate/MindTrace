@@ -24,21 +24,12 @@ Item {
     property real   videoAspectRatio: 1.5 // 720x480 padrão
 
     // Zonas: 2 zonas em formato {x, y, r} — r = metade da largura/altura normalizada
-    property var zones: [
-        { x: 0.25, y: 0.5, r: 0.15 },   // Zona 0 = Plataforma
-        { x: 0.70, y: 0.5, r: 0.25 }    // Zona 1 = Grade
-    ]
+    // Valores iniciais neutros; preenchidos via zoneInitTimer após carregar do modelo
+    property var zones:       [ { x: 0.25, y: 0.5, r: 0.15 }, { x: 0.70, y: 0.5, r: 0.25 } ]
 
-    // Paredes e chão — arrays de 4 pontos normalizados para o único campo
-    property var arenaPoints: [
-        [ {x:0.207,y:0.298}, {x:0.946,y:0.308}, {x:0.940,y:0.793}, {x:0.214,y:0.800} ]
-    ]
-    property var floorPoints: [
-        [
-            {x:0.308,y:0.371}, {x:0.406,y:0.369}, {x:0.409,y:0.713}, {x:0.306,y:0.718}, // P
-            {x:0.405,y:0.368}, {x:0.815,y:0.373}, {x:0.807,y:0.696}, {x:0.410,y:0.710}  // G
-        ]
-    ]
+    // Paredes e chão — preenchidos via zoneInitTimer (da referência EI ou do arquivo salvo)
+    property var arenaPoints: [[]]
+    property var floorPoints: [[]]
 
     signal zonasEditadas()
     signal analysisModeChangedExternally(string mode)
@@ -72,42 +63,9 @@ Item {
     // ── Carregar config ao abrir experimento ────────────────────────────────
     onExperimentPathChanged: {
         if (experimentPath === "") return
-        ArenaConfigModel.loadConfigFromPath(experimentPath)
-
-        function normalize(data, expectedCount) {
-            try {
-                if (!data || data === "") return null
-                var p = JSON.parse(data)
-                // Se for array de arrays, extrai o primeiro (já que EI só tem 1 campo)
-                if (Array.isArray(p) && p.length > 0 && Array.isArray(p[0])) p = p[0]
-                // Se for flat array de objetos {x,y}
-                if (Array.isArray(p) && p.length > 0 && p[0].x !== undefined) {
-                    // Preenche se faltar pontos
-                    while(p.length < expectedCount) p.push({x: 0.5, y: 0.5})
-                    return [p]
-                }
-                return null
-            } catch(e) { return null }
-        }
-
-        var savedArena = ArenaConfigModel.getArenaPoints()
-        var savedFloor = ArenaConfigModel.getFloorPoints() // Agora usado para 8 pontos (4 G, 4 P)
-        var normArena = normalize(savedArena, 4)
-        var normFloor = normalize(savedFloor, 8)
-
-        if (normArena) root.arenaPoints = normArena
-        else root.arenaPoints = [[
-            {x:0.20739, y:0.29797}, {x:0.94577, y:0.30751}, 
-            {x:0.93951, y:0.79261}, {x:0.21365, y:0.79976}
-        ]]
-
-        if (normFloor) root.floorPoints = normFloor
-        else root.floorPoints = [[
-            {x:0.30840, y:0.37068}, {x:0.40584, y:0.36949}, {x:0.40942, y:0.71275}, {x:0.30572, y:0.71752}, // P
-            {x:0.40495, y:0.36830}, {x:0.81526, y:0.37306}, {x:0.80721, y:0.69607}, {x:0.41031, y:0.71037}  // G
-        ]]
-
-        zoneInitTimer.restart()
+        // EI usa referência própria como fallback (sem arena_config.json salvo)
+        ArenaConfigModel.loadConfigFromPath(experimentPath, ":/arena_config_ei_referencia.json")
+        // arenaPoints, floorPoints e zones são aplicados em zoneInitTimer via onConfigChanged
     }
 
     Connections {
@@ -115,16 +73,37 @@ Item {
         function onConfigChanged() { zoneInitTimer.restart() }
     }
 
+    // Helper: parseia string JSON de pontos → [[{x,y},...]] com expectedCount mínimo
+    function normalizePoints(data, expectedCount) {
+        try {
+            if (!data || data === "") return null
+            var p = JSON.parse(data)
+            if (Array.isArray(p) && p.length > 0 && Array.isArray(p[0])) p = p[0]
+            if (Array.isArray(p) && p.length > 0 && p[0].x !== undefined) {
+                while (p.length < expectedCount) p.push({x: 0.5, y: 0.5})
+                return [p]
+            }
+            return null
+        } catch(e) { return null }
+    }
+
     Timer {
         id: zoneInitTimer; interval: 60; repeat: false
         onTriggered: {
+            // Aplica arenaPoints e floorPoints do modelo (vem do arquivo salvo ou da referência EI)
+            var normArena = root.normalizePoints(ArenaConfigModel.getArenaPoints(), 4)
+            var normFloor = root.normalizePoints(ArenaConfigModel.getFloorPoints(), 8)
+            if (normArena) root.arenaPoints = normArena
+            if (normFloor) root.floorPoints = normFloor
+
+            // Aplica zonas do modelo
             var n = ArenaConfigModel.zoneCount()
             if (n >= 2) {
                 var z0 = ArenaConfigModel.zone(0)
                 var z1 = ArenaConfigModel.zone(1)
                 zones = [
-                    { x: z0.xRatio || 0.25, y: z0.yRatio || 0.5,  r: z0.radiusRatio || 0.15 },
-                    { x: z1.xRatio || 0.70, y: z1.yRatio || 0.5,  r: z1.radiusRatio || 0.25 }
+                    { x: z0.xRatio || 0.25, y: z0.yRatio || 0.5, r: z0.radiusRatio || 0.15 },
+                    { x: z1.xRatio || 0.70, y: z1.yRatio || 0.5, r: z1.radiusRatio || 0.25 }
                 ]
             }
             root.zonasEditadas()
@@ -336,8 +315,13 @@ Item {
         }
     }
 
-    // ── Toast de salvo ────────────────────────────────────────────────────────
-    Toast { id: saveToast; z: 5000; successMode: true; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 } }
+    // ── Toast de salvo — renderizado no Overlay da janela para ficar acima de tudo ──
+    Toast {
+        id: saveToast
+        parent: Overlay.overlay
+        successMode: true
+        anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 20 }
+    }
 
     // ── VideoOutput oculto (source para o ShaderEffectSource) ────────────────
     Item {
