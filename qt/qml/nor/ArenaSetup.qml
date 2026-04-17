@@ -27,10 +27,11 @@ Item {
     property string saveDirectory: ""
 
     // CA mode: hides pair selectors, uses borda/centro zone labels
-    property string aparato:   "nor"
-    property bool   caMode:    aparato === "campo_aberto" || aparato === "comportamento_complexo"
+    property string aparato:         "nor"
+    property bool   caMode:          aparato === "campo_aberto" || aparato === "comportamento_complexo"
     // CC mode: caMode + sem zona de centro (sem centroRatio no canvas)
-    property bool   ccMode:    aparato === "comportamento_complexo"
+    property bool   ccMode:          aparato === "comportamento_complexo"
+    property bool   showObjectZones: true   // false = esconde círculos de zona em CC sem objetos
     property int    numCampos: 3
 
     signal pairsEdited(string p1, string p2, string p3)
@@ -711,7 +712,7 @@ Item {
                                 // ── Zona A (vinho) ────────────────────────────
                                 Rectangle {
                                     id: zoneA
-                                    visible: !root.caMode || root.ccMode
+                                    visible: (!root.caMode || root.ccMode) && root.showObjectZones
                                     property var zd: root.zones[campoCell.campoIndex * 2]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -739,7 +740,7 @@ Item {
                                 // ── Zona B (azul) ─────────────────────────────
                                 Rectangle {
                                     id: zoneB
-                                    visible: !root.caMode || root.ccMode
+                                    visible: (!root.caMode || root.ccMode) && root.showObjectZones
                                     property var zd: root.zones[campoCell.campoIndex * 2 + 1]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -841,6 +842,7 @@ Item {
 
                                         if (mouse.modifiers & Qt.ShiftModifier) {
                                             if (!root.devMode && !root.ccMode) return;  // Shift (objetos) requer devMode ou ccMode
+                                            if (root.ccMode && !root.showObjectZones) return;  // CC sem objetos: sem drag de zonas
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
                                             var cx0 = root.zones[i0].x * w, cy0 = root.zones[i0].y * h
                                             var cx1 = root.zones[i1].x * w, cy1 = root.zones[i1].y * h
@@ -884,8 +886,9 @@ Item {
                                         var my = Math.max(0, Math.min(h, mouse.y))
 
                                         if (dragZoneIdx >= 0) {
-                                            // Zonas podem ser arrastadas em devMode OU ccMode
+                                            // Zonas podem ser arrastadas em devMode OU ccMode (com objetos habilitados)
                                             if (!root.devMode && !root.ccMode) return;
+                                            if (root.ccMode && !root.showObjectZones) return;
                                             var nz = root.zones.slice()
                                             nz[dragZoneIdx] = { x: mx/w, y: my/h, r: root.zones[dragZoneIdx].r }
                                             root.zones = nz
@@ -911,8 +914,8 @@ Item {
                                     }
 
                                     onWheel: (wheel) => {
-                                        // Modo CC: scroll redimensiona zonas
-                                        if (root.ccMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.ShiftModifier))) {
+                                        // Modo CC: scroll redimensiona zonas (apenas se objetos habilitados)
+                                        if (root.ccMode && root.showObjectZones && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.ShiftModifier))) {
                                             wheel.accepted = true
                                             var i0 = campoCell.campoIndex * 2, i1 = i0 + 1
                                             var dx0 = wheel.x - root.zones[i0].x * arenaRect.width

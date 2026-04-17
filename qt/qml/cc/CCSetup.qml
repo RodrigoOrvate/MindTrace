@@ -17,9 +17,10 @@ Item {
     property string arenaId:      ""
     property string selectedPath: ""
     property int    sessionMinutes: 5    // 5 ou 20
+    property int    sessionDays:    5    // 1–30
 
-    // name, cols, includeDrug, sessionMinutes, hasObjectZones, savePath
-    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, string savePath)
+    // name, cols, includeDrug, sessionMinutes, hasObjectZones, sessionDays, savePath
+    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, int sessionDays, string savePath)
     signal backRequested()
 
     function doCreate() {
@@ -27,7 +28,8 @@ Item {
                     "Duração (min)", "Distância Total (m)", "Velocidade Média (m/s)"]
         if (drugCheck.checked) cols.push("Droga")
         root.experimentReady(nameField.text.trim(), cols,
-                             drugCheck.checked, root.sessionMinutes, objectZonesCheck.checked, root.selectedPath)
+                             drugCheck.checked, root.sessionMinutes, objectZonesCheck.checked,
+                             root.sessionDays, root.selectedPath)
     }
 
     FolderDialog {
@@ -184,6 +186,74 @@ Item {
 
                 Text {
                     text: "Para vídeos offline: o tracking encerra no tempo escolhido, mesmo que o vídeo seja mais longo."
+                    color: ThemeManager.textTertiary; font.pixelSize: 10
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+            }
+
+            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
+            // ── Dias de sessão ─────────────────────────────────────────────
+            ColumnLayout {
+                Layout.fillWidth: true; spacing: 12
+
+                Text {
+                    text: "DIAS DE SESSÃO"
+                    color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                }
+
+                RowLayout {
+                    spacing: 12
+
+                    Text {
+                        text: "Quantos dias de sessão este experimento terá?"
+                        color: ThemeManager.textTertiary; font.pixelSize: 12
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    // Botão decrementar
+                    Rectangle {
+                        width: 32; height: 32; radius: 8
+                        color: dayDecMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                        border.color: ThemeManager.border; border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text { anchors.centerIn: parent; text: "−"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+                        MouseArea {
+                            id: dayDecMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (root.sessionDays > 1) root.sessionDays--
+                        }
+                    }
+
+                    // Valor
+                    Rectangle {
+                        width: 52; height: 32; radius: 8
+                        color: ThemeManager.surfaceDim; border.color: "#7a3dab"; border.width: 1.5
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.sessionDays + " dia" + (root.sessionDays > 1 ? "s" : "")
+                            color: "#a855f7"; font.pixelSize: 12; font.weight: Font.Bold
+                        }
+                    }
+
+                    // Botão incrementar
+                    Rectangle {
+                        width: 32; height: 32; radius: 8
+                        color: dayIncMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                        border.color: ThemeManager.border; border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text { anchors.centerIn: parent; text: "+"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+                        MouseArea {
+                            id: dayIncMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (root.sessionDays < 30) root.sessionDays++
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Define quantos botões aparecem no seletor de dia ao salvar a sessão (máx. 30)."
                     color: ThemeManager.textTertiary; font.pixelSize: 10
                     Behavior on color { ColorAnimation { duration: 150 } }
                     wrapMode: Text.WordWrap; Layout.fillWidth: true

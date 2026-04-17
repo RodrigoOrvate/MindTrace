@@ -26,21 +26,23 @@ Item {
 
     // ── Propagate zones to inference engine ───────────────────────────────────────
     onZonesChanged: {
-        if (zones && zones.length > 0 && (aparato === "nor" || aparato === "comportamento_complexo")) {
+        if (aparato !== "nor" && aparato !== "comportamento_complexo") return
+        if (zones && zones.length > 0) {
             for (var c = 0; c < numCampos; c++) {
                 var campoZones = []
-                // Each field has 2 zones (object A and B)
                 for (var i = 0; i < 2; i++) {
                     var idx = c * 2 + i
-                    if (zones[idx]) {
-                        campoZones.push(zones[idx])
-                    }
+                    if (zones[idx]) campoZones.push(zones[idx])
                 }
-                if (campoZones.length > 0) {
-                    inference.setZones(c, campoZones)
-                }
+                inference.setZones(c, campoZones)
             }
             console.log("[LiveRecording] Zones propagated to inference:", zones.length, "zones")
+        } else {
+            // Limpa zonas no C++ para desabilitar sniffing quando não há objetos configurados
+            for (var fc = 0; fc < numCampos; fc++) {
+                inference.setZones(fc, [])
+            }
+            console.log("[LiveRecording] Zones cleared in inference (no object zones)")
         }
     }
 
@@ -105,6 +107,19 @@ Item {
 
     property var currentVelocity: [0.0, 0.0, 0.0]   // m/s por campo (última janela 100ms)
     property var totalDistance:   [0.0, 0.0, 0.0]   // metros acumulados por campo
+
+    // Velocidade média real = distância total / tempo decorrido por campo
+    readonly property var avgVelocityMeans: {
+        var res = [0.0, 0.0, 0.0]
+        for (var i = 0; i < 3; i++) {
+            // timesRemaining[i] pode ser 0 (falsy) quando sessão conclui — usar != null
+            var remaining = (timesRemaining[i] != null && timesRemaining[i] !== undefined)
+                            ? timesRemaining[i] : sessionDurationSeconds
+            var elapsed = sessionDurationSeconds - remaining
+            res[i] = elapsed > 1 ? (totalDistance[i] || 0) / elapsed : 0.0
+        }
+        return res
+    }
     
     // Trail support
     property bool showTrail: false
@@ -299,7 +314,7 @@ Item {
             logView.positionViewAtEnd()
             return
         }
-        timesRemaining   = [300, 300, 300]
+        timesRemaining   = [sessionDurationSeconds, sessionDurationSeconds, sessionDurationSeconds]
         timerStarted     = [false, false, false]
         fieldFinished    = [false, false, false]
         // Marca campos além de numCampos como já concluídos (1 ou 2 campos ativos)
@@ -571,7 +586,7 @@ Item {
         // ── Snapshot por minuto ──────────────────────────────────────────
         // Usa o maior timer restante para calcular minuto corrido
         var maxTimer = Math.max(timesRemaining[0], timesRemaining[1], timesRemaining[2])
-        var elapsedSec = 300 - maxTimer
+        var elapsedSec = sessionDurationSeconds - maxTimer
         var currentMin = Math.floor(elapsedSec / 60)
         if (currentMin > _lastMinuteSnap && elapsedSec >= 60) {
             _lastMinuteSnap = currentMin
@@ -919,10 +934,13 @@ Item {
                                     }
                                 }
 
-                                // Zona A (vinho) - visível quando não é CA
+                                // Zona A (vinho) - apenas quando há zonas configuradas
                                 Rectangle {
                                     id: zoneA
-                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "comportamento_complexo")
+                                    visible: recordingRoot.aparato === "nor"
+                                             ? (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
+                                             : (recordingRoot.aparato === "comportamento_complexo"
+                                                && recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2)
                                                      ? recordingRoot.zones[campoCell.ci*2] : {x:0.3,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)
@@ -933,10 +951,13 @@ Item {
                                     color: "#40ab3d4c"; border.width: 2
                                     opacity: 0.7
                                 }
-                                // Zona B (azul) - visível quando não é CA
+                                // Zona B (azul) - apenas quando há zonas configuradas
                                 Rectangle {
                                     id: zoneB
-                                    visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "comportamento_complexo")
+                                    visible: recordingRoot.aparato === "nor"
+                                             ? (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
+                                             : (recordingRoot.aparato === "comportamento_complexo"
+                                                && recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
                                                      ? recordingRoot.zones[campoCell.ci*2+1] : {x:0.7,y:0.5,r:0.12}
                                     width:  parent.width  * (zd.r > 0 ? zd.r * 2 : 0.24)

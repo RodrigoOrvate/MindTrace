@@ -363,7 +363,9 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
                                                const QString     &aparato,
                                                int                numCampos,
                                                double             centroRatio,
-                                               bool               hasObjectZones)
+                                               bool               hasObjectZones,
+                                               int                sessionMinutes,
+                                               int                sessionDays)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
         emit errorOccurred(QStringLiteral("Contexto ou nome inválido."));
@@ -406,7 +408,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
         return false;
     }
 
-    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio, hasObjectZones);
+    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio, hasObjectZones, sessionMinutes, sessionDays);
     writeCsv(folderPath, columns, 0);
 
     scanAndUpdateModel();
@@ -531,6 +533,15 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("centroRatio")]     = obj.contains(QStringLiteral("centroRatio"))
                                                 ? obj[QStringLiteral("centroRatio")].toDouble(0.5)
                                                 : 0.5;
+    result[QStringLiteral("hasObjectZones")]  = obj.contains(QStringLiteral("hasObjectZones"))
+                                                ? obj[QStringLiteral("hasObjectZones")].toBool(true)
+                                                : true;
+    result[QStringLiteral("sessionMinutes")] = obj.contains(QStringLiteral("sessionMinutes"))
+                                                ? obj[QStringLiteral("sessionMinutes")].toInt(5)
+                                                : 5;
+    result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
+                                                ? obj[QStringLiteral("sessionDays")].toInt(5)
+                                                : 5;
     return result;
 }
 
@@ -573,6 +584,15 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("centroRatio")]     = obj.contains(QStringLiteral("centroRatio"))
                                                 ? obj[QStringLiteral("centroRatio")].toDouble(0.5)
                                                 : 0.5;
+    result[QStringLiteral("hasObjectZones")]  = obj.contains(QStringLiteral("hasObjectZones"))
+                                                ? obj[QStringLiteral("hasObjectZones")].toBool(true)
+                                                : true;
+    result[QStringLiteral("sessionMinutes")] = obj.contains(QStringLiteral("sessionMinutes"))
+                                                ? obj[QStringLiteral("sessionMinutes")].toInt(5)
+                                                : 5;
+    result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
+                                                ? obj[QStringLiteral("sessionDays")].toInt(5)
+                                                : 5;
     return result;
 }
 
@@ -717,7 +737,9 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        const QString     &aparato,
                                        int                numCampos,
                                        double             centroRatio,
-                                       bool               hasObjectZones) const
+                                       bool               hasObjectZones,
+                                       int                sessionMinutes,
+                                       int                sessionDays) const
 {
     QJsonArray colArray;
     for (const QString &col : columns)
@@ -735,7 +757,10 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
     meta[QStringLiteral("hasReactivation")] = hasReactivation;
     meta[QStringLiteral("aparato")]     = aparato;
     meta[QStringLiteral("numCampos")]   = numCampos;
-    meta[QStringLiteral("centroRatio")] = centroRatio;
+    meta[QStringLiteral("centroRatio")]    = centroRatio;
+    meta[QStringLiteral("hasObjectZones")]  = hasObjectZones;
+    meta[QStringLiteral("sessionMinutes")] = sessionMinutes;
+    meta[QStringLiteral("sessionDays")]    = sessionDays;
     meta[QStringLiteral("createdAt")]   =
         QDateTime::currentDateTime().toString(Qt::ISODate);
     meta[QStringLiteral("version")]     = QStringLiteral("1.2");

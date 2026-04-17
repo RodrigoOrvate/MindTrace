@@ -101,7 +101,9 @@ public:
                                               const QString &aparato = QStringLiteral("nor"),
                                               int numCampos = 3,
                                               double centroRatio = 0.5,
-                                              bool hasObjectZones = true);
+                                              bool hasObjectZones = true,
+                                              int sessionMinutes = 5,
+                                              int sessionDays = 5);
 
     Q_INVOKABLE bool    updateCentroRatio(const QString &folderPath, double ratio);
 
@@ -167,7 +169,9 @@ private:
                           const QString &aparato = QStringLiteral("nor"),
                           int            numCampos = 3,
                           double         centroRatio = 0.5,
-                          bool           hasObjectZones = true) const;
+                          bool           hasObjectZones = true,
+                          int            sessionMinutes = 5,
+                          int            sessionDays = 5) const;
     void    writeCsv(const QString &folderPath,
                      const QStringList &columns,
                      int animalCount) const;

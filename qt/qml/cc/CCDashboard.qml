@@ -39,13 +39,42 @@ Item {
     property string pendingDeleteName: ""
 
     // ── B-SOiD ────────────────────────────────────────────────────────────
-    property bool   bsoidRunning:  false
-    property int    bsoidProgress: 0
-    property var    bsoidGroups:   []   // lista de {clusterId, frameCount, percentage, ...}
-    property string bsoidError:    ""
-    property bool   bsoidDone:     false
-    property double bsoidFps:      30.0
+    property bool   bsoidRunning:   false
+    property int    bsoidProgress:  0
+    property var    bsoidGroups:    []   // lista de {clusterId, frameCount, percentage, ...}
+    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editáveis)
+    property string bsoidError:     ""
+    property bool   bsoidDone:      false
+    property double bsoidFps:       30.0
     property string bsoidVideoPath: ""
+    property int    bsoidCampo:     0    // campo selecionado para análise (0=C1, 1=C2, 2=C3)
+
+    // ── Estatísticas de comportamento (computadas após B-SOiD) ────────────
+    property var    behaviorStats:    []   // [{name, seconds, bouts, color}]
+
+    function computeBehaviorStats(fps) {
+        var mapping = bsoidAnalyzer.getFrameMapping()
+        var counts  = [0,0,0,0,0]
+        var bouts   = [0,0,0,0,0]
+        var prev    = -1
+        for (var i = 0; i < mapping.length; i++) {
+            var lbl = mapping[i].ruleLabel
+            if (lbl >= 0 && lbl < 5) {
+                counts[lbl]++
+                if (lbl !== prev) bouts[lbl]++
+            }
+            prev = (lbl >= 0 && lbl < 5) ? lbl : prev
+        }
+        var names  = ["Walking","Sniffing","Grooming","Resting","Rearing"]
+        var colors = ["#8b5cf6","#f97316","#eab308","#3b82f6","#10b981"]
+        var result = []
+        var safeFps = fps > 0 ? fps : 30.0
+        for (var j = 0; j < 5; j++) {
+            result.push({ name: names[j], seconds: (counts[j] / safeFps).toFixed(1),
+                          bouts: bouts[j], color: colors[j] })
+        }
+        return result
+    }
 
     // ── Snippets ──────────────────────────────────────────────────────────
     property bool   snippetsRunning:  false
@@ -63,16 +92,22 @@ Item {
             root.bsoidGroups   = groups
             root.bsoidError    = ""
             root.bsoidProgress = 100
+            // Inicializa nomes em branco para cada cluster
+            var names = []
+            for (var n = 0; n < groups.length; n++) names.push("")
+            root.bsoidGroupNames = names
+            // Computa estatísticas por comportamento
+            root.behaviorStats = root.computeBehaviorStats(root.bsoidFps)
             // Preenche timeline dupla a partir de C++ (mais eficiente que iterar em JS)
             Qt.callLater(function() {
                 ruleTimeline.clear()
                 clusterTimeline.clear()
-                // Cores para regras nativas
-                ruleTimeline.setLabelColor(0, "#10b981")  // Walking
-                ruleTimeline.setLabelColor(1, "#3b82f6")  // Sniffing
-                ruleTimeline.setLabelColor(2, "#ec4899")  // Grooming
-                ruleTimeline.setLabelColor(3, "#6b7280")  // Resting
-                ruleTimeline.setLabelColor(4, "#f97316")  // Rearing
+                // Cores para regras nativas — alinhadas com badges e legenda
+                ruleTimeline.setLabelColor(0, "#8b5cf6")  // Walking  → violeta
+                ruleTimeline.setLabelColor(1, "#f97316")  // Sniffing → laranja
+                ruleTimeline.setLabelColor(2, "#eab308")  // Grooming → amarelo
+                ruleTimeline.setLabelColor(3, "#3b82f6")  // Resting  → azul
+                ruleTimeline.setLabelColor(4, "#10b981")  // Rearing  → verde
                 // Cores para clusters B-SOiD
                 var colors = root.bsoidColors
                 for (var i = 0; i < colors.length; i++)
@@ -93,11 +128,23 @@ Item {
         }
     }
 
-    // Cores dos clusters B-SOiD (até 12 clusters)
+    // Cores dos clusters B-SOiD — família vermelhos/amarelos/violetas,
+    // deliberadamente distintas das regras nativas:
+    // Walking=#10b981(verde), Sniffing=#3b82f6(azul), Grooming=#ec4899(rosa),
+    // Resting=#6b7280(cinza), Rearing=#f97316(laranja)
     readonly property var bsoidColors: [
-        "#6366f1","#f59e0b","#10b981","#ef4444","#3b82f6",
-        "#8b5cf6","#ec4899","#14b8a6","#f97316","#84cc16",
-        "#06b6d4","#a855f7"
+        "#ef4444",  // vermelho      G1
+        "#eab308",  // amarelo       G2
+        "#8b5cf6",  // violeta       G3
+        "#d946ef",  // fúcsia        G4
+        "#6366f1",  // índigo        G5
+        "#dc2626",  // vermelho esc  G6
+        "#ca8a04",  // ouro          G7
+        "#7c3aed",  // violeta esc   G8
+        "#c026d3",  // magenta       G9
+        "#be123c",  // carmim        G10
+        "#a21caf",  // magenta esc   G11
+        "#4f46e5"   // índigo esc    G12
     ]
 
     function bsoidRuleName(ruleId) {
@@ -105,22 +152,24 @@ Item {
         return (ruleId >= 0 && ruleId < names.length) ? names[ruleId] : "?"
     }
 
-    function startBsoidAnalysis(campo) {
+    function startBsoidAnalysis() {
         if (root.bsoidRunning) return
+        var campo = root.bsoidCampo
         var sessionPath = workArea.selectedPath  // pasta do experimento
         if (!sessionPath) { root.bsoidError = "Nenhum experimento selecionado."; return }
-        // Usa o mesmo timestamp que exportBehaviorFeatures criaria
         var csvPath = sessionPath + "/bsoid_features_campo" + (campo + 1) + "_tmp.csv"
         var ok = liveRecordingTab.exportBehaviorFeatures(csvPath, campo)
         if (!ok) { root.bsoidError = "Nenhum dado de features disponível. Execute uma análise primeiro."; return }
         // Captura FPS e caminho do vídeo para timeline e snippets
         root.bsoidFps       = (liveRecordingTab.dlcFps > 0) ? liveRecordingTab.dlcFps : 30.0
         root.bsoidVideoPath = liveRecordingTab.videoPath
-        root.bsoidRunning   = true
-        root.bsoidDone      = false
-        root.bsoidGroups    = []
-        root.bsoidError     = ""
-        root.bsoidProgress  = 0
+        root.bsoidRunning    = true
+        root.bsoidDone       = false
+        root.bsoidGroups     = []
+        root.bsoidGroupNames = []
+        root.behaviorStats   = []
+        root.bsoidError      = ""
+        root.bsoidProgress   = 0
         root.snippetsComplete = false
         root.snippetsOutDir   = ""
         root.snippetsError    = ""
@@ -159,7 +208,7 @@ Item {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show("Sessão registrada!")
-                innerTabs.currentIndex = 3  // aba Dados
+                innerTabs.currentIndex = 2  // aba Classificação
             }
         }
     }
@@ -353,6 +402,7 @@ Item {
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
+                property int    sessionDays:      5
 
                 function loadExperiment(name, path) {
                     selectedName = name
@@ -370,12 +420,13 @@ Item {
                     hasObjectZones  = meta.hasObjectZones !== false
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
+                    sessionDays     = meta.sessionDays || 5
 
                     // Propaga pontos de arena para aba Gravação
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                     liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
                     
-                    // Propaga zonas sehasObjectZones
+                    // Propaga zonas se hasObjectZones; limpa explicitamente se não
                     if (workArea.hasObjectZones) {
                         var src = ArenaConfigModel.zones || []
                         if (src.length > 0) {
@@ -390,6 +441,8 @@ Item {
                             }
                             liveRecordingTab.zones = converted
                         }
+                    } else {
+                        liveRecordingTab.zones = []
                     }
 
                     colCount = tableModel.columnCount()
@@ -498,6 +551,7 @@ Item {
                                 aparato: "comportamento_complexo"
                                 caMode: true   // sem objetos NOR
                                 ccMode: true   // sem centro
+                                showObjectZones: workArea.hasObjectZones
 
                                 onAnalysisModeChangedExternally: mode => {
                                     workArea.analysisMode  = mode
@@ -506,7 +560,7 @@ Item {
 
                                 // Propagação ao vivo Arena → Gravação
                                 onZonasEditadas: {
-                                    liveRecordingTab.zones        = tabArenaSetup.zones
+                                    liveRecordingTab.zones        = workArea.hasObjectZones ? tabArenaSetup.zones : []
                                     liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
                                     liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
                                 }
@@ -535,13 +589,14 @@ Item {
 
                                 onSessionEnded: {
                                     ccResultDialog.totalDistance  = liveRecordingTab.totalDistance
-                                    ccResultDialog.avgVelocity    = liveRecordingTab.currentVelocity
+                                    ccResultDialog.avgVelocity    = liveRecordingTab.avgVelocityMeans
                                     ccResultDialog.perMinuteData  = liveRecordingTab.perMinuteData
                                     ccResultDialog.includeDrug    = workArea.includeDrug
                                     ccResultDialog.experimentName = workArea.selectedName
                                     ccResultDialog.experimentPath = workArea.selectedPath
                                     ccResultDialog.numCampos      = workArea.activeNumCampos
                                     ccResultDialog.videoPath      = tabArenaSetup.videoPath
+                                    ccResultDialog.maxDias        = workArea.sessionDays
                                     ccResultDialog.open()
                                 }
 
@@ -780,11 +835,53 @@ Item {
                                                             }
                                                         }
 
+                                                        // Seletor de campo
+                                                        RowLayout {
+                                                            spacing: 4
+                                                            Text {
+                                                                text: "Campo:"
+                                                                color: ThemeManager.textSecondary; font.pixelSize: 11
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                            Repeater {
+                                                                model: workArea.activeNumCampos
+                                                                delegate: Rectangle {
+                                                                    width: 36; height: 26; radius: 6
+                                                                    property bool sel: root.bsoidCampo === index
+                                                                    color:        sel ? "#1a0d2e" : (cma.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
+                                                                    border.color: sel ? "#7c3aed" : ThemeManager.border; border.width: sel ? 2 : 1
+                                                                    Behavior on color        { ColorAnimation { duration: 150 } }
+                                                                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                                    Text {
+                                                                        anchors.centerIn: parent
+                                                                        text: "C" + (index + 1)
+                                                                        color: sel ? "#a78bfa" : ThemeManager.textSecondary
+                                                                        font.pixelSize: 11; font.weight: Font.Bold
+                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    }
+                                                                    MouseArea {
+                                                                        id: cma; anchors.fill: parent
+                                                                        cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                                                                        onClicked: {
+                                                                            if (root.bsoidCampo !== index) {
+                                                                                root.bsoidCampo   = index
+                                                                                root.bsoidDone    = false
+                                                                                root.bsoidGroups  = []
+                                                                                root.bsoidGroupNames = []
+                                                                                root.behaviorStats   = []
+                                                                                root.bsoidError   = ""
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
                                                         // Botão Analisar
                                                         Button {
                                                             visible: !root.bsoidRunning
                                                             text: root.bsoidDone ? "↻ Re-analisar" : "▶ Analisar"
-                                                            onClicked: root.startBsoidAnalysis(0)
+                                                            onClicked: root.startBsoidAnalysis()
                                                             background: Rectangle {
                                                                 radius: 7
                                                                 color: parent.hovered ? "#5b21b6" : "#7c3aed"
@@ -838,62 +935,164 @@ Item {
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
 
-                                                    // Resultados: grupos descobertos
+                                                    // ── Estatísticas por comportamento (pós B-SOiD) ─────────────────────
                                                     ColumnLayout {
-                                                        visible: root.bsoidDone && root.bsoidGroups.length > 0
+                                                        visible: root.bsoidDone && root.behaviorStats.length > 0
                                                         Layout.fillWidth: true; spacing: 6
 
+                                                        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
                                                         Text {
-                                                            text: "GRUPOS DESCOBERTOS — " + root.bsoidGroups.length + " clusters"
+                                                            text: "COMPORTAMENTOS — DURAÇÃO E BOUTS  ·  C" + (root.bsoidCampo + 1)
                                                             color: ThemeManager.textSecondary
                                                             font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
+                                                        // Cabeçalho tabela
+                                                        RowLayout {
+                                                            Layout.fillWidth: true; spacing: 0
+                                                            Text { text: "Comportamento"; width: 100; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold }
+                                                            Text { text: "Tempo (s)";     width: 80;  color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
+                                                            Text { text: "Bouts";         width: 60;  color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
+                                                            Item { Layout.fillWidth: true }
+                                                        }
+
                                                         Repeater {
+                                                            model: root.behaviorStats
+                                                            delegate: RowLayout {
+                                                                Layout.fillWidth: true; spacing: 0
+                                                                Rectangle { width: 10; height: 10; radius: 5; color: modelData.color }
+                                                                Item { width: 6 }
+                                                                Text { text: modelData.name;    width: 88; color: ThemeManager.textPrimary; font.pixelSize: 11 }
+                                                                Text { text: modelData.seconds + " s"; width: 80; color: ThemeManager.textSecondary; font.pixelSize: 11; horizontalAlignment: Text.AlignRight }
+                                                                Text { text: modelData.bouts;   width: 60; color: ThemeManager.textSecondary; font.pixelSize: 11; horizontalAlignment: Text.AlignRight }
+                                                                Item { Layout.fillWidth: true }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // Resultados: grupos descobertos
+                                                    ColumnLayout {
+                                                        visible: root.bsoidDone && root.bsoidGroups.length > 0
+                                                        Layout.fillWidth: true; spacing: 6
+
+                                                        RowLayout {
+                                                            Layout.fillWidth: true
+                                                            Text {
+                                                                text: "GRUPOS DESCOBERTOS — " + root.bsoidGroups.length + " clusters  ·  C" + (root.bsoidCampo + 1)
+                                                                color: ThemeManager.textSecondary
+                                                                font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
+                                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                            }
+                                                        }
+
+                                                        // Dica: ver clips antes de nomear
+                                                        Rectangle {
+                                                            Layout.fillWidth: true; radius: 7
+                                                            color: "#120a1e"; border.color: "#4c1d95"; border.width: 1
+                                                            implicitHeight: hintRow.implicitHeight + 12
+                                                            RowLayout {
+                                                                id: hintRow
+                                                                anchors { left: parent.left; right: parent.right; margins: 10; verticalCenter: parent.verticalCenter }
+                                                                spacing: 8
+                                                                Text { text: "💡"; font.pixelSize: 13 }
+                                                                Text {
+                                                                    Layout.fillWidth: true
+                                                                    text: "Extraia os clips abaixo, assista a cada grupo e nomeie o comportamento que está vendo."
+                                                                    color: "#c4b5fd"; font.pixelSize: 10; wrapMode: Text.WordWrap
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Repeater {
+                                                            id: groupsRepeater
                                                             model: root.bsoidGroups
                                                             delegate: Rectangle {
-                                                                Layout.fillWidth: true; height: 38; radius: 8
+                                                                Layout.fillWidth: true; radius: 8
+                                                                implicitHeight: grpCol.implicitHeight + 14
                                                                 color: ThemeManager.surface
                                                                 border.color: ThemeManager.border; border.width: 1
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
 
                                                                 property var grp: modelData
                                                                 property color clusterColor: root.bsoidColors[grp.clusterId % root.bsoidColors.length]
+                                                                property int grpIdx: index
 
-                                                                RowLayout {
-                                                                    anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-                                                                    spacing: 10
+                                                                ColumnLayout {
+                                                                    id: grpCol
+                                                                    anchors { left: parent.left; right: parent.right; margins: 10; top: parent.top; topMargin: 7 }
+                                                                    spacing: 6
 
-                                                                    Rectangle {
-                                                                        width: 12; height: 12; radius: 6
-                                                                        color: parent.parent.clusterColor
-                                                                    }
-                                                                    Text {
-                                                                        text: "Grupo " + (grp.clusterId + 1)
-                                                                        color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
-                                                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                                                    }
-                                                                    Rectangle {
-                                                                        Layout.fillWidth: true; height: 6; radius: 3
-                                                                        color: ThemeManager.border
-                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                                    RowLayout {
+                                                                        spacing: 10
                                                                         Rectangle {
-                                                                            width: parent.width * (grp.percentage / 100)
-                                                                            height: parent.height; radius: parent.radius
-                                                                            color: parent.parent.parent.parent.clusterColor
-                                                                            Behavior on width { NumberAnimation { duration: 300 } }
+                                                                            width: 12; height: 12; radius: 6
+                                                                            color: parent.parent.parent.clusterColor
+                                                                        }
+                                                                        Text {
+                                                                            text: "Grupo " + (grp.clusterId + 1)
+                                                                            color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
+                                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                                        }
+                                                                        Rectangle {
+                                                                            Layout.fillWidth: true; height: 6; radius: 3
+                                                                            color: ThemeManager.border
+                                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                                            Rectangle {
+                                                                                width: parent.width * (grp.percentage / 100)
+                                                                                height: parent.height; radius: parent.radius
+                                                                                color: parent.parent.parent.parent.parent.clusterColor
+                                                                                Behavior on width { NumberAnimation { duration: 300 } }
+                                                                            }
+                                                                        }
+                                                                        Text {
+                                                                            text: grp.percentage.toFixed(1) + "%"
+                                                                            color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold
+                                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                                        }
+                                                                        Text {
+                                                                            text: "≈ " + root.bsoidRuleName(grp.dominantRule)
+                                                                            color: ThemeManager.textTertiary; font.pixelSize: 10
+                                                                            Behavior on color { ColorAnimation { duration: 150 } }
                                                                         }
                                                                     }
-                                                                    Text {
-                                                                        text: grp.percentage.toFixed(1) + "%"
-                                                                        color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold
-                                                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                                                    }
-                                                                    Text {
-                                                                        text: "≈ " + root.bsoidRuleName(grp.dominantRule)
-                                                                        color: ThemeManager.textTertiary; font.pixelSize: 10
-                                                                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                                    // Campo de nomeação do grupo
+                                                                    RowLayout {
+                                                                        spacing: 6
+                                                                        Text {
+                                                                            text: "Nome:"
+                                                                            color: ThemeManager.textTertiary; font.pixelSize: 10
+                                                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                                                        }
+                                                                        TextField {
+                                                                            id: groupNameField
+                                                                            Layout.fillWidth: true; height: 26
+                                                                            // Sem binding reativo — inicializa uma vez; onTextEdited atualiza o array
+                                                                            Component.onCompleted: {
+                                                                                text = (root.bsoidGroupNames && root.bsoidGroupNames.length > grpIdx)
+                                                                                       ? (root.bsoidGroupNames[grpIdx] || "") : ""
+                                                                            }
+                                                                            placeholderText: "Ex.: Exploração, Repouso, Grooming…"
+                                                                            color: ThemeManager.textPrimary
+                                                                            placeholderTextColor: ThemeManager.textTertiary
+                                                                            font.pixelSize: 11
+                                                                            leftPadding: 8; rightPadding: 8; topPadding: 4; bottomPadding: 4
+                                                                            background: Rectangle {
+                                                                                radius: 6; color: ThemeManager.surfaceDim
+                                                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                                                border.color: groupNameField.activeFocus ? "#7c3aed" : ThemeManager.border; border.width: 1
+                                                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                                            }
+                                                                            onTextEdited: {
+                                                                                if (root.bsoidGroupNames && root.bsoidGroupNames.length > grpIdx) {
+                                                                                    var names = root.bsoidGroupNames.slice()
+                                                                                    names[grpIdx] = text
+                                                                                    root.bsoidGroupNames = names
+                                                                                }
+                                                                            }
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -987,17 +1186,36 @@ Item {
                                                             Text {
                                                                 Layout.fillWidth: true
                                                                 text: root.snippetsComplete
-                                                                    ? "📁 " + root.snippetsOutDir
+                                                                    ? "📁 Clips salvos em: " + root.snippetsOutDir
                                                                     : root.snippetsRunning
                                                                         ? "⏳ Extraindo... " + root.snippetsProgress + "%"
                                                                         : root.snippetsError !== ""
                                                                             ? "⚠️ " + root.snippetsError
-                                                                            : "Extrai 3 clips representativos por grupo para identificação visual. Requer FFmpeg no PATH ou pasta do app."
+                                                                            : "Extrai até 3 clips .mp4 por grupo. Requer ffmpeg.exe no PATH ou na pasta do app. Sem FFmpeg, salva apenas timestamps.csv."
                                                                 color: root.snippetsComplete ? ThemeManager.success
                                                                      : root.snippetsError !== "" ? "#ef4444"
                                                                      : ThemeManager.textTertiary
                                                                 font.pixelSize: 10; wrapMode: Text.WordWrap
                                                                 Behavior on color { ColorAnimation { duration: 200 } }
+                                                            }
+
+                                                            // Abre pasta no Explorer
+                                                            Button {
+                                                                visible: root.snippetsComplete && !root.snippetsRunning
+                                                                text: "📂 Abrir"
+                                                                onClicked: Qt.openUrlExternally("file:///" + root.snippetsOutDir)
+                                                                background: Rectangle {
+                                                                    radius: 7
+                                                                    color: parent.hovered ? ThemeManager.surfaceHover : ThemeManager.surfaceDim
+                                                                    border.color: ThemeManager.border; border.width: 1
+                                                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                                                }
+                                                                contentItem: Text {
+                                                                    text: parent.text; color: ThemeManager.textPrimary
+                                                                    font.pixelSize: 11; font.weight: Font.Bold
+                                                                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                                                }
+                                                                leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                                             }
 
                                                             Button {

@@ -50,6 +50,7 @@ ApplicationWindow {
     property string pendingCcContext:      "Padrão"
     property string pendingCcArenaId:      "cc_3campos"
     property int    pendingCcSessionMin:   5
+    property int    pendingCcSessionDays: 5
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
     property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
 
@@ -321,15 +322,17 @@ ApplicationWindow {
     Component {
         id: ccSetupComponent
         CCSetup {
-            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, sessionDays, savePath) {
                 ExperimentManager.loadContext(root.pendingCcContext)
-                root.pendingCcSessionMin = sessionMinutes
+                root.pendingCcSessionMin  = sessionMinutes
+                root.pendingCcSessionDays = sessionDays
                 root.pendingCcHasObjectZones = hasObjectZones
                 root.awaitingCreation    = true
                 root.pendingCcFlow       = true
                 ExperimentManager.createExperimentFull(
                     name, cols, "", "", "", includeDrug, false, savePath,
-                    "comportamento_complexo", root.pendingCcNumCampos, 0.5, hasObjectZones)
+                    "comportamento_complexo", root.pendingCcNumCampos, 0.5, hasObjectZones,
+                    sessionMinutes, sessionDays)
             }
             onBackRequested: stack.pop()
         }

@@ -36,11 +36,13 @@ Popup {
     focus:  true
     closePolicy: Popup.CloseOnEscape
 
+    property int selectedDia: 1
+    property int maxDias:     5   // injetado pelo CCDashboard (meta.sessionDays)
+
     onOpened: {
-        diaField.text = "1"
+        root.selectedDia   = 1
         root._animalTexts = ["", "", ""]
         root._drogaTexts  = ["", "", ""]
-        diaField.forceActiveFocus()
     }
 
     background: Rectangle {
@@ -54,7 +56,7 @@ Popup {
     // ── Função de inserção ────────────────────────────────────────────────
     function doInsert() {
         var v   = root.videoPath.replace("file:///", "")
-        var dia = diaField.text.trim() || "1"
+        var dia = String(root.selectedDia)
 
         var rows = []
         for (var ci = 0; ci < root.numCampos; ci++) {
@@ -148,54 +150,49 @@ Popup {
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
-            Text {
-                text: "DIA DA SESSÃO"
-                color: ThemeManager.textSecondary
-                font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
-                Behavior on color { ColorAnimation { duration: 150 } }
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "DIA DA SESSÃO"
+                    color: ThemeManager.textSecondary
+                    font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: "Dia " + root.selectedDia
+                    color: "#a855f7"; font.pixelSize: 11; font.weight: Font.Bold
+                }
             }
 
-            RowLayout {
-                spacing: 8
+            // Grid de botões (wrap) — sem scroll horizontal
+            Flow {
+                Layout.fillWidth: true
+                spacing: 6
+
                 Repeater {
-                    model: ["1", "2", "3", "4", "5"]
+                    model: root.maxDias
                     delegate: Rectangle {
-                        height: 34; width: 40; radius: 8
-                        property bool isSelected: diaField.text === modelData
+                        width: 38; height: 34; radius: 8
+                        property int dayNum: index + 1
+                        property bool isSelected: root.selectedDia === dayNum
                         color:        isSelected ? "#1a0d2e" : (dayMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
                         border.color: isSelected ? "#7a3dab" : ThemeManager.border
                         border.width: isSelected ? 2 : 1
                         Behavior on color        { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         Text {
-                            anchors.centerIn: parent; text: modelData
+                            anchors.centerIn: parent; text: dayNum
                             color: isSelected ? "#a855f7" : ThemeManager.textSecondary
-                            font.pixelSize: 13; font.weight: Font.Bold
+                            font.pixelSize: 12; font.weight: Font.Bold
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
                         MouseArea {
                             id: dayMa; anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                            onClicked: diaField.text = modelData
+                            onClicked: root.selectedDia = dayNum
                         }
                     }
-                }
-                TextField {
-                    id: diaField
-                    width: 52; height: 34; text: "1"
-                    color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold
-                    leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                    background: Rectangle {
-                        radius: 8; color: ThemeManager.surfaceDim
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                        border.color: diaField.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                    }
-                }
-                Text {
-                    text: "Dia " + (diaField.text || "?")
-                    color: ThemeManager.textTertiary; font.pixelSize: 11
-                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
         }
