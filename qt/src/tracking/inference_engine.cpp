@@ -547,15 +547,15 @@ void InferenceEngine::inferCrop(const QImage& crop, int campo,
     // Rule-based classifier using classifySimple()
     int simpleResult = m_scanners[campo].classifySimple();
     
-    // Get raw values for debug
-    std::vector<float> feats = m_scanners[campo].getFeatures();
-    static const char* BEH_NAMES[] = {"Walking","Sniffing","Grooming","Resting","Rearing"};
-    qDebug() << "[Behavior] Simple:" << BEH_NAMES[simpleResult] 
-             << "noseMov=" << feats[0] << "bodyMov=" << feats[1] 
-             << "roll2s=" << feats[6]
-             << "noseXY=" << pNose.x << "," << pNose.y 
-             << "bodyXY=" << pBody.x << "," << pBody.y
-             << "dy=" << (pBody.y - pNose.y);
+    // Get raw values for debug (comentado - debug apenas em CC via QML)
+    //std::vector<float> feats = m_scanners[campo].getFeatures();
+    //static const char* BEH_NAMES[] = {"Walking","Sniffing","Grooming","Resting","Rearing"};
+    //qDebug() << "[Behavior] Simple:" << BEH_NAMES[simpleResult] 
+    //         << "noseMov=" << feats[0] << "bodyMov=" << feats[1] 
+    //         << "roll2s=" << feats[6]
+    //         << "noseXY=" << pNose.x << "," << pNose.y 
+    //         << "bodyXY=" << pBody.x << "," << pBody.y
+    //         << "dy=" << (pBody.y - pNose.y);
     
     emit behaviorResult(campo, simpleResult);
 }

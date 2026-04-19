@@ -23,6 +23,7 @@ Popup {
     property var totalDistance: [0.0, 0.0, 0.0]
     property var avgVelocity:   [0.0, 0.0, 0.0]
     property var perMinuteData: [[], [], []]
+    property int sessionMinutes: 5   // duração real da sessão em minutos
 
     // Textos dos campos (preenchidos pelos CampoBlock via onAnimalChanged / onDrogaChanged)
     property var _animalTexts: ["", "", ""]
@@ -67,6 +68,7 @@ Popup {
                 aText,
                 String(ci + 1),
                 dia,
+                String(root.sessionMinutes),
                 parseFloat((root.totalDistance[ci] || 0).toFixed(3)),
                 parseFloat((root.avgVelocity[ci]   || 0).toFixed(3))
             ]

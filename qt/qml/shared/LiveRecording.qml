@@ -1358,7 +1358,7 @@ Item {
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 5
                                                 Rectangle { width: 8; height: 8; radius: 4; color: "#ab3d4c" }
-                                                Text { text: "OBJ " + campoCard.la + "  (familiar)"; color: "#cc5566"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Text { text: "OBJ " + campoCard.la; color: "#cc5566"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
                                             }
@@ -1379,7 +1379,7 @@ Item {
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 5
                                                 Rectangle { width: 8; height: 8; radius: 4; color: "#4466aa" }
-                                                Text { text: "OBJ " + campoCard.lb + "  (novo)"; color: "#5577bb"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Text { text: "OBJ " + campoCard.lb; color: "#5577bb"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
                                             }
@@ -1401,19 +1401,19 @@ Item {
                                                 id: diBox
                                                 Layout.fillWidth: true; height: 26; radius: 4
                                                 property real dv: recordingRoot.discriminationIndex(campoCard.ci)
-                                                color: ThemeManager.surfaceDim; border.color: isNaN(diBox.dv) ? ThemeManager.border : (diBox.dv > 0 ? ThemeManager.success : ThemeManager.accent); border.width: 1
+                                                color: ThemeManager.surfaceDim; border.color: isNaN(diBox.dv) ? ThemeManager.border : (diBox.dv > 0.199 ? ThemeManager.success : ThemeManager.accent); border.width: 1
                                                 RowLayout {
                                                     anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
                                                     Text { text: "DI"; color: ThemeManager.textTertiary; font.pixelSize: 9; font.weight: Font.Bold }
                                                     Item { Layout.fillWidth: true }
                                                     Text {
                                                         text: isNaN(diBox.dv) ? "—" : (diBox.dv >= 0 ? "+" : "") + diBox.dv.toFixed(3)
-                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0 ? "#5aaa70" : "#ff5566")
+                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0.199 ? "#5aaa70" : "#ff5566")
                                                         font.pixelSize: 12; font.bold: true; font.family: "Consolas"
                                                     }
                                                     Text {
-                                                        text: isNaN(diBox.dv) ? "" : (diBox.dv > 0 ? "↑ novo" : diBox.dv < 0 ? "↓ fam" : "=")
-                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0 ? "#5aaa70" : "#ff5566")
+                                                        text: isNaN(diBox.dv) ? "" : (diBox.dv > 0.199 ? "↑ novo" : diBox.dv < 0 ? "↓ fam" : "=")
+                                                        color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0.199 ? "#5aaa70" : "#ff5566")
                                                         font.pixelSize: 9
                                                     }
                                                 }

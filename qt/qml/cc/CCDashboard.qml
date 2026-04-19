@@ -597,6 +597,7 @@ Item {
                                     ccResultDialog.numCampos      = workArea.activeNumCampos
                                     ccResultDialog.videoPath      = tabArenaSetup.videoPath
                                     ccResultDialog.dayNames       = workArea.dayNames
+                                    ccResultDialog.sessionMinutes = workArea.sessionMinutes || 5
                                     ccResultDialog.open()
                                 }
 
@@ -1275,126 +1276,11 @@ Item {
                                 }
                             }
 
-                            // ── Tab 3: Dados ──────────────────────────────
-                            Item {
-                                ColumnLayout {
-                                    anchors { fill: parent; margins: 24 }
-                                    spacing: 12
-
-                                    RowLayout {
-                                        spacing: 8
-                                        BusyIndicator {
-                                            visible: tableModel.fetchingMore; running: tableModel.fetchingMore
-                                            implicitWidth: 20; implicitHeight: 20
-                                        }
-                                        Text {
-                                            text: tableView.rows > 0 ? tableView.rows + " linha(s)" : ""
-                                            color: ThemeManager.textTertiary; font.pixelSize: 11
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                        }
-                                        Item { Layout.fillWidth: true }
-                                        GhostButton { text: "＋ Linha"; onClicked: tableModel.addRow() }
-                                        Button {
-                                            text: "📤 Exportar"
-                                            onClicked: {
-                                                if (tableModel.exportCsv(workArea.selectedPath + "/export_" +
-                                                    new Date().toISOString().substring(0, 10) + ".csv"))
-                                                    savedFeedback.show("Exportado!")
-                                            }
-                                            background: Rectangle {
-                                                radius: 7
-                                                color: parent.hovered ? ThemeManager.successLight : ThemeManager.success
-                                                border.color: ThemeManager.successLight; border.width: 1
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                            }
-                                            contentItem: Text {
-                                                text: parent.text; color: ThemeManager.buttonText
-                                                font.pixelSize: 12; font.weight: Font.Bold
-                                                verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
-                                            }
-                                            leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
-                                        }
-                                        Button {
-                                            text: "💾 Salvar"
-                                            onClicked: { if (tableModel.saveCsv()) savedFeedback.show("Salvo!") }
-                                            background: Rectangle {
-                                                radius: 7; color: parent.hovered ? "#6a2d9a" : "#7a3dab"
-                                                Behavior on color { ColorAnimation { duration: 200 } }
-                                            }
-                                            contentItem: Text {
-                                                text: parent.text; color: ThemeManager.buttonText
-                                                font.pixelSize: 12; font.weight: Font.Bold
-                                                verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
-                                            }
-                                            leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
-                                        }
-                                    }
-
-                                    Row {
-                                        Layout.fillWidth: true
-                                        Repeater {
-                                            model: workArea.colCount
-                                            delegate: Rectangle {
-                                                width: Math.max(100, tableView.width / Math.max(1, workArea.colCount))
-                                                height: 32; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
-                                                border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
-                                                Text {
-                                                    anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
-                                                    text: tableModel.headerData(index, Qt.Horizontal, Qt.DisplayRole) || ""
-                                                    color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold
-                                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                                    verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    TableView {
-                                        id: tableView
-                                        Layout.fillWidth: true; Layout.fillHeight: true
-                                        clip: true; model: tableModel; reuseItems: true
-                                        onWidthChanged: forceLayout()
-                                        columnWidthProvider: function(col) {
-                                            return Math.max(100, tableView.width / Math.max(1, tableModel.columnCount()))
-                                        }
-                                        rowHeightProvider: function() { return 32 }
-                                        ScrollBar.vertical:   ScrollBar { policy: ScrollBar.AsNeeded; contentItem: Rectangle { implicitWidth: 6; radius: 3; color: ThemeManager.borderLight } }
-                                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded; contentItem: Rectangle { implicitHeight: 6; radius: 3; color: ThemeManager.borderLight } }
-
-                                        delegate: Rectangle {
-                                            implicitWidth: 120; implicitHeight: 32
-                                            color: rowDelMa.containsMouse ? ThemeManager.surfaceHover
-                                                 : (row % 2 === 0) ? ThemeManager.surface : ThemeManager.surfaceAlt
-                                            Behavior on color { ColorAnimation { duration: 200 } }
-                                            border.color: ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 200 } }
-
-                                            Rectangle {
-                                                anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 4 }
-                                                visible: column === 0 && rowDelMa.containsMouse
-                                                width: 20; height: 20; radius: 4
-                                                color: rowDelBtnMa.containsMouse ? "#3d2d6a" : "#1a0d2e"; Behavior on color { ColorAnimation { duration: 200 } }
-                                                border.color: "#7a3dab"; border.width: 1
-                                                Text { anchors.centerIn: parent; text: "✕"; color: "#7a3dab"; font.pixelSize: 9; font.weight: Font.Bold }
-                                                MouseArea {
-                                                    id: rowDelBtnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: { tableModel.removeRow(row); tableModel.saveCsv() }
-                                                }
-                                            }
-
-                                            TextInput {
-                                                anchors { fill: parent; leftMargin: 8; rightMargin: (column === 0 && rowDelMa.containsMouse) ? 28 : 8 }
-                                                text: model.display !== undefined ? model.display : ""
-                                                color: ThemeManager.textPrimary; font.pixelSize: 13; Behavior on color { ColorAnimation { duration: 150 } }
-                                                verticalAlignment: Text.AlignVCenter; clip: true; selectByMouse: true
-                                                onEditingFinished: tableModel.setData(tableModel.index(row, column), text, Qt.EditRole)
-                                            }
-
-                                            MouseArea { id: rowDelMa; anchors.fill: parent; hoverEnabled: true; onPressed: mouse.accepted = false }
-                                        }
-                                    }
-                                }
-
-                                Toast { id: savedFeedback; successMode: true; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 } }
+                            // ── Tab 3: Dados — Layout aparato-específico
+                            DataView {
+                                anchors.fill: parent
+                                tableModel: tableModel
+                                workArea: workArea
                             }
                         }
                     }

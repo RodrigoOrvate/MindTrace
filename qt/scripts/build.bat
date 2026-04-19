@@ -150,21 +150,20 @@ for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll DirectML.dll onnxru
 )
 echo [INFO] Prioridade GPU: CUDA (NVIDIA) -> DirectML (AMD/Intel) -> CPU
 
-:: Copia modelo ONNX para build\
+:: Copia modelo ONNX de pose para build\
 echo [INFO] Coletando modelos...
-for %%M in (Network-MemoryLab-v2.onnx pose_cfg.yaml Behavior.onnx) do (
-    if exist "%%M" (
-        echo [INFO] Copiando %%M para a pasta build...
-        copy /y "%%M" "build\" >nul
-        if errorlevel 1 (
-            echo [ERRO] Falha ao copiar %%M. Verifique permissoes ou espaco em disco.
-        ) else (
-            echo [OK] Modelo copiado: %%M
-        )
+if exist "Network-MemoryLab-v2.onnx" (
+    echo [INFO] Copiando Network-MemoryLab-v2.onnx para a pasta build...
+    copy /y "Network-MemoryLab-v2.onnx" "build\" >nul
+    if errorlevel 1 (
+        echo [ERRO] Falha ao copiar Network-MemoryLab-v2.onnx. Verifique permissoes ou espaco em disco.
     ) else (
-        echo [AVISO] Modelo %%M nao encontrado na pasta qt/.
+        echo [OK] Modelo copiado: Network-MemoryLab-v2.onnx
     )
+) else (
+    echo [AVISO] Network-MemoryLab-v2.onnx nao encontrado na pasta qt/.
 )
+:: Nota: Behavior.onnx e carregado em runtime pelo usuario — nao e necessario no build.
 
 echo [4/4] Finalizando build...
 if not exist "build\MindTrace.exe" (

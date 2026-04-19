@@ -243,7 +243,7 @@ MindTrace/
     │   └── analysis/       — BSoidAnalyzer.h/cpp (PCA + K-Means + snippets)
     ├── qml/
     │   ├── core/           — Navegação e componentes base (main.qml, GhostButton, Theme/)
-    │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml (comuns)
+    │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml, **DataView.qml + 5 aparato-views**
     │   ├── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
     │   ├── ca/             — CADashboard, CAArenaSelection, CASetup, CAMetadataDialog
     │   ├── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
@@ -298,6 +298,13 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 - **Análise B-SOiD (Não-Supervisionada):** Descoberta de padrões comportamentais via clustering nativo (PCA + K-Means).
   - **Timeline Dupla:** Visualização comparativa entre Regras (supervisionadas) e B-SOiD (descobertas).
   - **Extração de Clips:** Segmentação automática de vídeo para validação visual dos grupos descobertos.
+- **Abas de Dados com Tema Aparato-Específico:** Cada dashboard (NOR, CA, CC, EI) possui uma aba "Dados" que exibe os resultados com **detecção automática de aparato** e **theming único**:
+  - **NOR:** Tema vermelho (#ab3d4c) — Vídeo, Animal, Campo, Dia, Par de Objetos, Tratamento
+  - **CA:** Tema azul (#3d7aab) — Animal, Campo, Dia, Distância Total, Velocidade Média, Tratamento
+  - **CC:** Tema roxo (#7a3dab) — Comportamento Complexo com locomoção e velocidade
+  - **EI:** Tema verde (#2f7a4b) com **color-coding semântico**: Latência (vermelho), Tempo/Bouts Plataforma (verde), Tempo/Bouts Grade (azul)
+  - **Detecção automática:** Componente `DataView` escaneia headers CSV e renderiza view apropriada sem intervenção manual
+  - **Recursos:** Botões Exportar/Salvar, BusyIndicator, scroll, edição de células, legends contextualizadas
 - **Zonas Editáveis (CC)**: Em modo Comportamento Complexo, as zonas podem ser editadas na ArenaSetup (Shift+drag para mover, scroll para redimensionar). Tamanho e posição são salvos/restaurados.
 
 ---

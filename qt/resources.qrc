@@ -46,6 +46,12 @@
 
     <file>qml/shared/LiveRecording.qml</file>
     <file>qml/shared/SessionResultDialog.qml</file>
+    <file>qml/shared/DataView.qml</file>
+    <file>qml/shared/NORDataView.qml</file>
+    <file>qml/shared/CADataView.qml</file>
+    <file>qml/shared/CCDataView.qml</file>
+    <file>qml/shared/EIDataView.qml</file>
+    <file>qml/shared/GenericDataView.qml</file>
     <file>qml/shared/qmldir</file>
 
     <file alias="arenas.json">data/arenas.json</file>

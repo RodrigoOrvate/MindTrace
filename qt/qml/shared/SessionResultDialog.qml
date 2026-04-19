@@ -364,17 +364,44 @@ Popup {
         var rows = []
 
         if (animal1Field.text.trim()) {
-            var r1 = [v, animal1Field.text.trim(), "1", dia, root.pair1]
+            var zi0_1 = 0, zi1_1 = 1
+            var tA1 = root.sessionExplorationTimes[zi0_1] || 0
+            var tB1 = root.sessionExplorationTimes[zi1_1] || 0
+            var tot1 = tA1 + tB1
+            var di1  = tot1 > 0 ? ((tB1 - tA1) / tot1).toFixed(3) : "0.000"
+            // Ordem Correta da NORSetupScreen: Vídeo, Animal, Campo, Dia, Par de Objetos, ExpA, ExpB, Total, DI, Dist, Vel
+            var r1 = [v, animal1Field.text.trim(), "1", dia, root.pair1,
+                      tA1.toFixed(2), tB1.toFixed(2), tot1.toFixed(2), di1,
+                      (root.sessionTotalDistance[0] || 0).toFixed(3),
+                      (root.sessionAvgVelocity[0]   || 0).toFixed(3)]
             if (root.includeDrug) r1.push(droga1Field.text.trim())
             rows.push(r1)
         }
         if (animal2Field.text.trim()) {
-            var r2 = [v, animal2Field.text.trim(), "2", dia, root.pair2]
+            var zi0_2 = 2, zi1_2 = 3
+            var tA2 = root.sessionExplorationTimes[zi0_2] || 0
+            var tB2 = root.sessionExplorationTimes[zi1_2] || 0
+            var tot2 = tA2 + tB2
+            var di2  = tot2 > 0 ? ((tB2 - tA2) / tot2).toFixed(3) : "0.000"
+            // Ordem Correta da NORSetupScreen: Vídeo, Animal, Campo, Dia, Par de Objetos, ExpA, ExpB, Total, DI, Dist, Vel
+            var r2 = [v, animal2Field.text.trim(), "2", dia, root.pair2,
+                      tA2.toFixed(2), tB2.toFixed(2), tot2.toFixed(2), di2,
+                      (root.sessionTotalDistance[1] || 0).toFixed(3),
+                      (root.sessionAvgVelocity[1]   || 0).toFixed(3)]
             if (root.includeDrug) r2.push(droga2Field.text.trim())
             rows.push(r2)
         }
         if (animal3Field.text.trim()) {
-            var r3 = [v, animal3Field.text.trim(), "3", dia, root.pair3]
+            var zi0_3 = 4, zi1_3 = 5
+            var tA3 = root.sessionExplorationTimes[zi0_3] || 0
+            var tB3 = root.sessionExplorationTimes[zi1_3] || 0
+            var tot3 = tA3 + tB3
+            var di3  = tot3 > 0 ? ((tB3 - tA3) / tot3).toFixed(3) : "0.000"
+            // Ordem Correta da NORSetupScreen: Vídeo, Animal, Campo, Dia, Par de Objetos, ExpA, ExpB, Total, DI, Dist, Vel
+            var r3 = [v, animal3Field.text.trim(), "3", dia, root.pair3,
+                      tA3.toFixed(2), tB3.toFixed(2), tot3.toFixed(2), di3,
+                      (root.sessionTotalDistance[2] || 0).toFixed(3),
+                      (root.sessionAvgVelocity[2]   || 0).toFixed(3)]
             if (root.includeDrug) r3.push(droga3Field.text.trim())
             rows.push(r3)
         }
