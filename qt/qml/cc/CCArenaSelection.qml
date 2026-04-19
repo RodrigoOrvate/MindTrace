@@ -92,52 +92,99 @@ Item {
                         property real cellH: (height - 6) / 2
                         property bool ctx:   root.selectedContext === "Contextual"
 
-                        property var fieldDefs: [
-                            { cx: 0,             cy: 0,             active: root.selectedNumCampos >= 1 },
-                            { cx: cellW + 6,     cy: 0,             active: root.selectedNumCampos >= 2 },
-                            { cx: 0,             cy: cellH + 6,     active: root.selectedNumCampos >= 3 }
-                        ]
+                        // Campo 1 (topo-esq)
+                        Rectangle {
+                            x: 0; y: 0
+                            width: grid.cellW; height: grid.cellH
+                            radius: 6
+                            color: root.selectedNumCampos >= 1 ? "#0d0d22" : "#0a0a18"
+                            border.color: root.selectedNumCampos >= 1 ? "#7a3dab" : "#1a1a2e"
+                            border.width: 1; clip: true
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                        Repeater {
-                            model: 3
-                            delegate: Rectangle {
-                                x: grid.fieldDefs[index].cx
-                                y: grid.fieldDefs[index].cy
-                                width: grid.cellW; height: grid.cellH
-                                radius: 6
-                                color:        grid.fieldDefs[index].active ? "#0d0d22" : "#0a0a18"
-                                border.color: grid.fieldDefs[index].active ? "#7a3dab" : "#1a1a2e"
-                                border.width: 1; clip: true
+                            Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
+                                        height: 4; color: "#ab3d4c"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 1 }
+                            Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: "#6aab3d"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 1 }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.selectedNumCampos >= 1 ? "Campo 1" : "—"
+                                color: root.selectedNumCampos >= 1 ? "#7a3dab" : "#1a1a2e"
+                                font.pixelSize: Math.max(8, parent.width * 0.13)
+                                font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
-                                Behavior on border.color { ColorAnimation { duration: 200 } }
-                                visible: grid.fieldDefs[index].active
+                            }
+                        }
 
-                                // Contexto topo
-                                Rectangle {
-                                    anchors { top: parent.top; left: parent.left; right: parent.right }
-                                    height: 4; color: "#ab3d4c"; opacity: 0.8
-                                    visible: grid.ctx
-                                }
-                                // Contexto lado
-                                Rectangle {
-                                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                    width: 4; color: "#6aab3d"; opacity: 0.8
-                                    visible: grid.ctx
-                                }
+                        // Campo 2 (topo-dir)
+                        Rectangle {
+                            x: grid.cellW + 6; y: 0
+                            width: grid.cellW; height: grid.cellH
+                            radius: 6
+                            color: root.selectedNumCampos >= 2 ? "#0d0d22" : "#0a0a18"
+                            border.color: root.selectedNumCampos >= 2 ? "#7a3dab" : "#1a1a2e"
+                            border.width: 1; clip: true
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
 
-                                // Label C1/C2/C3
-                                Text {
-                                    anchors { top: parent.top; left: parent.left; margins: 6 }
-                                    text: "C" + (index + 1)
-                                    color: "#7a3dab"; font.pixelSize: 11; font.weight: Font.Bold
-                                }
+                            Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
+                                        height: 4; color: "#ab3d4c"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 2 }
+                            Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: "#ab8a3d"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 2 }
 
-                                // Chão interior (sem círculos de objetos, sem centro)
-                                Rectangle {
-                                    anchors { fill: parent; margins: parent.width * 0.15 }
-                                    color: "transparent"
-                                    border.color: "#7a3dab"; border.width: 1; radius: 3; opacity: 0.5
-                                }
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.selectedNumCampos >= 2 ? "Campo 2" : "—"
+                                color: root.selectedNumCampos >= 2 ? "#7a3dab" : "#1a1a2e"
+                                font.pixelSize: Math.max(8, parent.width * 0.13)
+                                font.weight: Font.Bold
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                            }
+                        }
+
+                        // Campo 3 (baixo-esq)
+                        Rectangle {
+                            x: 0; y: grid.cellH + 6
+                            width: grid.cellW; height: grid.cellH
+                            radius: 6
+                            color: root.selectedNumCampos >= 3 ? "#0d0d22" : "#0a0a18"
+                            border.color: root.selectedNumCampos >= 3 ? "#7a3dab" : "#1a1a2e"
+                            border.width: 1; clip: true
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                            Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                                        height: 4; color: "#3d7aab"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 3 }
+                            Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: "#6aab3d"; opacity: 0.8
+                                        visible: grid.ctx && root.selectedNumCampos >= 3 }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.selectedNumCampos >= 3 ? "Campo 3" : "—"
+                                color: root.selectedNumCampos >= 3 ? "#7a3dab" : "#1a1a2e"
+                                font.pixelSize: Math.max(8, parent.width * 0.13)
+                                font.weight: Font.Bold
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                            }
+                        }
+
+                        // Célula inferior-dir: sempre inativa
+                        Rectangle {
+                            x: grid.cellW + 6; y: grid.cellH + 6
+                            width: grid.cellW; height: grid.cellH
+                            radius: 6; color: "#0a0a18"
+                            border.color: "#1a1a2e"; border.width: 1
+                            Text {
+                                anchors.centerIn: parent; text: "—"; color: "#1a1a2e"
+                                font.pixelSize: Math.max(10, parent.width * 0.15); font.weight: Font.Bold
                             }
                         }
                     }

@@ -312,6 +312,7 @@ Item {
                 property string pair3:       ""
                 property bool   includeDrug: true
                 property bool   hasReactivation: false
+                property var    dayNames:        []
                 property bool   hasObjectZones: true
                 property string analysisMode: "offline"
                 property string saveDirectory: ""
@@ -344,8 +345,9 @@ Item {
                     pair1          = meta.pair1 || ""
                     pair2          = meta.pair2 || ""
                     pair3          = meta.pair3 || ""
-                    includeDrug    = meta.includeDrug !== false
+                    includeDrug     = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
+                    dayNames        = meta.dayNames || (meta.hasReactivation ? ["Treino", "Reativação", "Teste"] : ["Treino", "Teste"])
                     activeNumCampos = meta.numCampos || 3
 
                     // Carrega configuração da arena usando o path direto (já atualizado no C++)
@@ -956,6 +958,7 @@ Item {
         pair2:            workArea.pair2
         pair3:            workArea.pair3
         hasReactivation:  workArea.hasReactivation
+        dayNames:         workArea.dayNames
         includeDrug:      workArea.includeDrug
         analysisMode:     workArea.analysisMode
         saveDirectory:    workArea.saveDirectory

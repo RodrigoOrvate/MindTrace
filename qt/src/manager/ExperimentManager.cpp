@@ -723,6 +723,23 @@ void ExperimentManager::removeFromRegistry(const QString &name, const QString &c
         regFile.write(QJsonDocument(updated).toJson());
 }
 
+bool ExperimentManager::updateDayNames(const QString &folderPath, const QStringList &dayNames)
+{
+    const QString metaPath = folderPath + QStringLiteral("/metadata.json");
+    QFile file(metaPath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QJsonObject meta = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+
+    QJsonArray arr;
+    for (const QString &n : dayNames) arr.append(n);
+    meta[QStringLiteral("dayNames")] = arr;
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    file.write(QJsonDocument(meta).toJson(QJsonDocument::Indented));
+    return true;
+}
+
 // ── Helpers de escrita ───────────────────────────────────────────────────────
 
 void ExperimentManager::writeMetadata(const QString    &folderPath,

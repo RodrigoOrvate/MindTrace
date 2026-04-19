@@ -18,7 +18,8 @@ Popup {
     property string videoPath:       ""
     property int    numCampos:       3
     property bool   includeDrug:     true
-    property bool   hasReactivation: false
+    property bool   hasReactivation: false  // kept for compat
+    property var    dayNames:        []
 
     // Resultados da sessão (vindos do LiveRecording)
     property var totalDistance: [0.0, 0.0, 0.0]
@@ -44,15 +45,8 @@ Popup {
     // ── Função de inserção ────────────────────────────────────────────────
     function doInsert() {
         var v    = root.videoPath.replace("file:///", "")
-        var fase = phaseField.text.toUpperCase().trim()
-
-        function parseDay(p) {
-            if (p === "TR") return "1"
-            if (p === "RA") return "2"
-            if (p === "TT") return root.hasReactivation ? "3" : "2"
-            return ""
-        }
-        var dia = parseDay(fase)
+        var fase = dayCombo.currentText
+        var dia  = String(dayCombo.currentIndex + 1)
 
         var rows = []
         for (var ci = 0; ci < root.numCampos; ci++) {
@@ -130,72 +124,68 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Fase ─────────────────────────────────────────────────────────
+        // ── Dia da sessão ─────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
             Text {
-                text: "FASE DA SESSÃO"
+                text: "DIA DA SESSÃO"
                 color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             RowLayout {
-                spacing: 8
+                spacing: 10
 
-                Repeater {
-                    model: ["TR", "RA", "TT"]
-                    delegate: Rectangle {
-                        height: 34; width: 54; radius: 8
-                        property bool isSelected: phaseField.text.toUpperCase() === modelData
-                        property bool isAvailable: modelData !== "RA" || root.hasReactivation
-                        color:        (!isAvailable) ? ThemeManager.surfaceDim
-                                    : isSelected ? ThemeManager.accentDim
-                                    : (phaseBtnMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
-                        border.color: (!isAvailable) ? ThemeManager.border
-                                    : isSelected ? "#3d7aab" : ThemeManager.border
-                        border.width: isSelected ? 2 : 1
-                        opacity: isAvailable ? 1.0 : 0.4
-                        Behavior on color        { ColorAnimation { duration: 150 } }
+                ComboBox {
+                    id: dayCombo
+                    model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
+                    Layout.fillWidth: true
+                    font.pixelSize: 13; font.weight: Font.Bold
+
+                    contentItem: Text {
+                        leftPadding: 12
+                        text: dayCombo.displayText
+                        color: ThemeManager.textPrimary; font: dayCombo.font
+                        verticalAlignment: Text.AlignVCenter
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    background: Rectangle {
+                        radius: 8; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: dayCombo.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 150 } }
-
-                        Text {
-                            anchors.centerIn: parent; text: modelData
-                            color: isSelected ? "#3d7aab" : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold
+                    }
+                    delegate: ItemDelegate {
+                        width: dayCombo.width
+                        contentItem: Text {
+                            text: modelData
+                            color: dayCombo.currentIndex === index ? "#3d7aab" : ThemeManager.textPrimary
+                            font.pixelSize: 13; font.weight: Font.Bold
+                            verticalAlignment: Text.AlignVCenter
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
-                        MouseArea {
-                            id: phaseBtnMa; anchors.fill: parent; hoverEnabled: true
-                            enabled: parent.isAvailable; cursorShape: Qt.PointingHandCursor
-                            onClicked: phaseField.text = modelData
+                        background: Rectangle {
+                            color: hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                            Behavior on color { ColorAnimation { duration: 100 } }
                         }
                     }
-                }
-
-                TextField {
-                    id: phaseField
-                    width: 60; height: 34
-                    text: "TR"
-                    color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold
-                    leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                    background: Rectangle {
-                        radius: 8; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
-                        border.color: phaseField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
-                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    popup: Popup {
+                        y: dayCombo.height; width: dayCombo.width; padding: 0
+                        background: Rectangle { color: ThemeManager.surfaceDim; border.color: "#3d7aab"; radius: 8; Behavior on color { ColorAnimation { duration: 200 } } }
+                        contentItem: ListView { implicitHeight: contentHeight; model: dayCombo.delegateModel; clip: true }
                     }
                 }
 
-                Text {
-                    text: {
-                        var f = phaseField.text.toUpperCase()
-                        if (f === "TR") return "Treino · Dia 1"
-                        if (f === "RA") return root.hasReactivation ? "Reativação · Dia 2" : "⚠ RA não habilitado"
-                        if (f === "TT") return root.hasReactivation ? "Teste · Dia 3" : "Teste · Dia 2"
-                        return ""
+                Rectangle {
+                    radius: 6; color: ThemeManager.surfaceDim
+                    border.color: "#3d7aab"; border.width: 1
+                    implicitWidth: diaLbl.implicitWidth + 16; height: 34
+                    Text {
+                        id: diaLbl; anchors.centerIn: parent
+                        text: "Dia " + (dayCombo.currentIndex + 1)
+                        color: "#3d7aab"; font.pixelSize: 13; font.weight: Font.Bold
                     }
-                    color: (phaseField.text.toUpperCase() === "RA" && !root.hasReactivation)
-                           ? "#ff5566" : ThemeManager.textTertiary
-                    font.pixelSize: 11
-                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
         }
@@ -262,12 +252,7 @@ Popup {
 
             Button {
                 text: "Salvar Sessão"
-                onClicked: {
-                    var f = phaseField.text.toUpperCase().trim()
-                    if (f !== "TR" && f !== "RA" && f !== "TT") { errorPhasePopup.open(); return }
-                    if (f === "RA" && !root.hasReactivation)   { errorPhasePopup.open(); return }
-                    root.doInsert()
-                }
+                onClicked: root.doInsert()
 
                 background: Rectangle {
                     radius: 8; color: parent.hovered ? "#2d5f8a" : "#3d7aab"
@@ -347,7 +332,7 @@ Popup {
 
                 ColumnLayout {
                     spacing: 2
-                    Text { text: "DROGA"; color: ThemeManager.textSecondary; font.pixelSize: 9; font.letterSpacing: 1 }
+                    Text { text: "TRATAMENTO"; color: ThemeManager.textSecondary; font.pixelSize: 9; font.letterSpacing: 1 }
                     TextField {
                         id: drogaField
                         width: 200; height: 26
@@ -366,23 +351,4 @@ Popup {
         }
     }
 
-    // ── Popup erro de fase ────────────────────────────────────────────────
-    Popup {
-        id: errorPhasePopup
-        anchors.centerIn: parent; width: 280; height: 110
-        modal: true; closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { radius: 10; color: "#1a1a2e"; border.color: "#ab3d4c" }
-        ColumnLayout {
-            anchors.centerIn: parent; spacing: 8
-            Text { text: "Fase inválida"; color: "#ff5566"; font.pixelSize: 14; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-            Text { text: "Use TR, RA ou TT."; color: "#aaaacc"; font.pixelSize: 12; Layout.alignment: Qt.AlignHCenter }
-            Button {
-                Layout.alignment: Qt.AlignHCenter; text: "OK"
-                onClicked: errorPhasePopup.close()
-                background: Rectangle { radius: 6; color: "#ab3d4c" }
-                contentItem: Text { text: parent.text; color: "white"; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                leftPadding: 20; rightPadding: 20; topPadding: 6; bottomPadding: 6
-            }
-        }
-    }
 }

@@ -259,6 +259,7 @@ Item {
                 property int    colCount:     0
                 property bool   includeDrug:      true
                 property bool   hasReactivation:  false
+                property var    dayNames:         []
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  root.numCampos
 
@@ -274,9 +275,10 @@ Item {
                     var ctx  = meta.context || ""
                     ExperimentManager.setActiveContext(ctx)
 
-                    includeDrug      = meta.includeDrug !== false
-                    hasReactivation  = meta.hasReactivation === true
-                    activeNumCampos  = meta.numCampos || root.numCampos
+                    includeDrug     = meta.includeDrug !== false
+                    hasReactivation = meta.hasReactivation === true
+                    dayNames        = meta.dayNames || (meta.hasReactivation ? ["Treino", "Reativação", "Teste"] : ["Treino", "Teste"])
+                    activeNumCampos = meta.numCampos || root.numCampos
 
                     innerTabs.currentIndex = 0
                 }
@@ -435,6 +437,7 @@ Item {
                                     caResultDialog.perMinuteData   = liveRecordingTab.perMinuteData
                                     caResultDialog.includeDrug     = workArea.includeDrug
                                     caResultDialog.hasReactivation = workArea.hasReactivation
+                                    caResultDialog.dayNames        = workArea.dayNames
                                     caResultDialog.experimentName  = workArea.selectedName
                                     caResultDialog.experimentPath  = workArea.selectedPath
                                     caResultDialog.numCampos       = workArea.activeNumCampos

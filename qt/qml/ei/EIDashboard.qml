@@ -21,8 +21,6 @@ Item {
     property bool   searchMode: false
     property int    currentTabIndex: 0
     property string initialExperimentName: ""
-    property int    extincaoDays: 5
-    property bool   hasReactivation: false
 
     signal backRequested()
 
@@ -244,6 +242,7 @@ Item {
                 property bool   includeDrug:      true
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  1
+                property var    dayNames:         []
 
                 function loadExperiment(name, path) {
                     selectedName = name
@@ -258,6 +257,17 @@ Item {
                     ExperimentManager.setActiveContext(ctx)
 
                     includeDrug = meta.includeDrug !== false
+
+                    if (meta.dayNames && meta.dayNames.length > 0) {
+                        dayNames = meta.dayNames
+                    } else {
+                        var ext = meta.extincaoDays || 5
+                        var names = ["Treino"]
+                        for (var i = 1; i <= ext; i++) names.push("E" + i)
+                        if (meta.hasReactivation) names.push("Reativação")
+                        names.push("Teste")
+                        dayNames = names
+                    }
 
                     colCount = tableModel.columnCount()
                 }
@@ -397,11 +407,10 @@ Item {
                                     eiResultDialog.boutsGrade      = (explorationBouts[1] || []).length
                                     eiResultDialog.totalDistance   = totalDistance[0] || 0
                                     eiResultDialog.avgVelocity     = currentVelocity[0] || 0
-                                    eiResultDialog.includeDrug     = workArea.includeDrug
-                                    eiResultDialog.experimentName  = workArea.selectedName
-                                    eiResultDialog.videoPath       = tabArenaSetup.videoPath
-                                    eiResultDialog.extincaoDays    = root.extincaoDays
-                                    eiResultDialog.hasReactivation = root.hasReactivation
+                                    eiResultDialog.includeDrug    = workArea.includeDrug
+                                    eiResultDialog.experimentName = workArea.selectedName
+                                    eiResultDialog.videoPath      = tabArenaSetup.videoPath
+                                    eiResultDialog.dayNames       = workArea.dayNames
                                     eiResultDialog.open()
                                 }
 

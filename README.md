@@ -284,7 +284,8 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
 ## 11. Funcionalidades Principais
 
 - **Registry System:** Salve experimentos em qualquer HD/Partição; o MindTrace gerencia o atalho no `registry.json`.
-- **Session Codes:** Use `TR` (Treino), `RA` (Reativação) e `TT` (Teste). O sistema calcula o dia e valida a configuração automaticamente.
+- **Sistema de Dias Customizável:** Na criação de qualquer experimento (NOR, CA, CC, EI), defina os nomes dos dias livremente via editor de chips (ex.: "Treino", "E1", "E2", "Teste"). O popup pós-sessão apresenta um ComboBox com esses nomes para seleção. Experimentos antigos são compatíveis via fallback automático.
+- **Tratamento (ex-Droga):** Campo renomeado de "Droga" para "Tratamento" em todos os formulários e CSVs.
 - **Excel Fix:** Suporte nativo a acentos em CSVs via UTF-8 BOM.
 - **Offline Path:** Preenchimento automático do diretório de vídeo em análises offline.
 - **Velocidade:** Análise offline em 1x, 2x ou 4x com sincronização automática entre display e inferência.
@@ -337,20 +338,18 @@ Para realizar a descoberta de novos comportamentos após uma sessão de Comporta
 | Timeline B-SOiD | Implementado `populateTimelines()` nativo para preenchimento ultra-rápido de etogramas via SceneGraph. |
 ---
 
-## 12. Esquiva Inibitória (EI) — Novo Paradigma
+## 12. Esquiva Inibitória (EI)
 
-**Novo:** Paradigma de **memória aversiva passiva** (step-through) para análise de medo e aprendizado associativo.
+Paradigma de **memória aversiva passiva** (step-through) para análise de medo e aprendizado associativo.
 
 ### Configuração Rápida
 
 1. **Na tela inicial:** Clique no card ⚡ "Esquiva Inibitória"
-2. **EISetup:** 
-   - Nome do experimento
-   - Diretório (opcional)
-   - ✅ Reativação (habilita fase RA)
-   - ✅ Drogas (coluna extra no CSV)
-   - 📅 **Dias de Extinção** (SpinBox: 1–30, padrão 5)
-3. **Fluxo automático:** TR → E1–EN (Extinção) → [RA] → TT
+2. **EISetup:**
+   - Nome do experimento + diretório (opcional)
+   - ✅ Tratamento (coluna extra no CSV)
+   - 📅 **Editor de dias:** chips editáveis com nomes livres (padrão: Treino, E1–E5, Teste). Adicione/remova dias com "+ Dia" e "×".
+3. **Pós-sessão:** ComboBox com os dias definidos no setup.
 
 ### Métricas Coletadas
 
@@ -370,20 +369,6 @@ Para realizar a descoberta de novos comportamentos após uma sessão de Comporta
 - **Zona 0:** Plataforma (elevated, tipicamente esquerda)
 - **Zona 1:** Grade (floor, tipicamente direita)
 - **Edição:** Shift+drag para mover, scroll para redimensionar (igual CC)
-
-### Sequência de Dias
-
-```
-Dia 1:     TR (Treino)
-Dia 2:     E1 (Extinção 1)
-Dia 3:     E2 (Extinção 2)
-...
-Dia 6:     E5 (Extinção 5, padrão)
-Dia 7:     RA (Reativação, opcional) ou TT (Teste)
-Dia 8:     TT (Teste, se com RA)
-```
-
-Customize com SpinBox `Dias de Extinção` (1–30).
 
 ---
 

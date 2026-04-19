@@ -21,7 +21,8 @@ Popup {
     property string sessionTypeLabel: ""
     property string dia:              ""
     property bool   includeDrug:      true
-    property bool   hasReactivation:  false
+    property bool   hasReactivation:  false  // kept for compat; dayNames preferred
+    property var    dayNames:         []
     property string analysisMode:     "offline"  // "offline" ou "ao_vivo"
     property string saveDirectory:    ""
     property string videoPath:        ""
@@ -38,8 +39,7 @@ Popup {
     property var sessionPerMinuteData:    [{}, {}, {}]  // por campo
 
     // ── Validação ─────────────────────────────────────────────────────────
-    property bool animalsOk: sessaoField.text.trim().length > 0
-                          && (animal1Field.text.trim() !== "" || animal2Field.text.trim() !== "" || animal3Field.text.trim() !== "")
+    property bool animalsOk: (animal1Field.text.trim() !== "" || animal2Field.text.trim() !== "" || animal3Field.text.trim() !== "")
     property bool dirOk:     true // Path is automatically captured
     property bool allFilled: animalsOk
 
@@ -55,14 +55,14 @@ Popup {
     closePolicy: Popup.CloseOnEscape
 
     onOpened: {
-        sessaoField.text    = ""
-        animal1Field.text   = ""
-        animal2Field.text   = ""
-        animal3Field.text   = ""
-        droga1Field.text    = ""
-        droga2Field.text    = ""
-        droga3Field.text    = ""
-        sessaoField.forceActiveFocus()
+        dayCombo.currentIndex = 0
+        animal1Field.text     = ""
+        animal2Field.text     = ""
+        animal3Field.text     = ""
+        droga1Field.text      = ""
+        droga2Field.text      = ""
+        droga3Field.text      = ""
+        animal1Field.forceActiveFocus()
     }
 
     background: Rectangle {
@@ -87,7 +87,7 @@ Popup {
                     color: "#e8e8f0"; font.pixelSize: 16; font.weight: Font.Bold
                 }
                 Text {
-                    text: "Preencha a Fase: TR (Treino), RA (Reat.) ou TT (Teste)"
+                    text: "Selecione o dia desta sessão"
                     color: "#ab3d4c"; font.pixelSize: 11
                 }
             }
@@ -103,50 +103,72 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: "#2d2d4a" }
 
-        // ── Fase da sessão (campo único para os 3 ratos) ──────────────────
+        // ── Dia da sessão (ComboBox com dayNames) ─────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
             ColumnLayout {
                 spacing: 4
                 Text {
-                    text: "FASE"
+                    text: "DIA"
                     color: "#8888aa"; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                 }
                 Text {
-                    text: "Mesma para os 3 campos"
+                    text: "Mesmo para os " + (root.pair1 ? "3 campos" : "campos ativos")
                     color: "#444466"; font.pixelSize: 9
                 }
             }
 
-            TextField {
-                id: sessaoField
-                width: 100
-                placeholderText: "TR / RA / TT"
-                color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 13; font.weight: Font.Bold
-                leftPadding: 12; rightPadding: 12; topPadding: 8; bottomPadding: 8
+            ComboBox {
+                id: dayCombo
+                model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
+                Layout.fillWidth: true
+                font.pixelSize: 13; font.weight: Font.Bold
+
+                contentItem: Text {
+                    leftPadding: 12
+                    text: dayCombo.displayText
+                    color: "#e8e8f0"; font: dayCombo.font
+                    verticalAlignment: Text.AlignVCenter
+                }
                 background: Rectangle {
                     radius: 6; color: "#12122a"
-                    border.color: sessaoField.activeFocus ? "#ab3d4c"
-                                : sessaoField.text.trim().length > 0 ? "#4a4a8c"
-                                : "#3a3a5c"
-                    border.width: 1
+                    border.color: dayCombo.activeFocus ? "#ab3d4c" : "#4a4a8c"; border.width: 1
                     Behavior on border.color { ColorAnimation { duration: 150 } }
                 }
-                Keys.onReturnPressed: animal1Field.forceActiveFocus()
+                delegate: ItemDelegate {
+                    width: dayCombo.width
+                    contentItem: Text {
+                        text: modelData
+                        color: dayCombo.currentIndex === index ? "#ff7788" : "#e8e8f0"
+                        font.pixelSize: 13; font.weight: Font.Bold
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: hovered ? "#2a2a4a" : "#12122a"
+                    }
+                }
+                popup: Popup {
+                    y: dayCombo.height
+                    width: dayCombo.width
+                    padding: 0
+                    background: Rectangle { color: "#12122a"; border.color: "#4a4a8c"; radius: 6 }
+                    contentItem: ListView {
+                        implicitHeight: contentHeight
+                        model: dayCombo.delegateModel
+                        clip: true
+                    }
+                }
             }
 
-            Item { Layout.fillWidth: true }
-
-            // Badge com a fase validada
+            // Badge dia selecionado
             Rectangle {
-                visible: sessaoField.text.trim().length > 0
                 radius: 5; color: "#1f0d10"
                 border.color: "#ab3d4c"; border.width: 1
                 implicitWidth: faseLbl.implicitWidth + 16; implicitHeight: 28
                 Text {
                     id: faseLbl; anchors.centerIn: parent
-                    text: sessaoField.text.trim().toUpperCase()
+                    text: "Dia " + (dayCombo.currentIndex + 1)
                     color: "#ff7788"; font.pixelSize: 13; font.weight: Font.Bold
                 }
             }
@@ -194,7 +216,7 @@ Popup {
                     id: droga1Field
                     Layout.fillWidth: true
                     visible: root.includeDrug
-                    placeholderText: "Droga"
+                    placeholderText: "Tratamento"
                     color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                     background: Rectangle {
@@ -246,7 +268,7 @@ Popup {
                     id: droga2Field
                     Layout.fillWidth: true
                     visible: root.includeDrug
-                    placeholderText: "Droga"
+                    placeholderText: "Tratamento"
                     color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                     background: Rectangle {
@@ -297,7 +319,7 @@ Popup {
                     id: droga3Field
                     Layout.fillWidth: true
                     visible: root.includeDrug
-                    placeholderText: "Droga"
+                    placeholderText: "Tratamento"
                     color: "#e8e8f0"; placeholderTextColor: "#8888aa"; font.pixelSize: 12
                     leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                     background: Rectangle {
@@ -319,19 +341,7 @@ Popup {
             Button {
                 text: "✓ Inserir Dados"
                 enabled: root.allFilled
-                onClicked: {
-                    var fase = sessaoField.text.toUpperCase().trim()
-                    var p = fase
-                    if (p !== "TR" && p !== "RA" && p !== "TT") {
-                        errorPopup.open()
-                        return
-                    }
-                    if (p === "RA" && !root.hasReactivation) {
-                        reactivationPromptPopup.open()
-                        return
-                    }
-                    root.doInsert()
-                }
+                onClicked: root.doInsert()
                 background: Rectangle {
                     radius: 8
                     color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
@@ -348,18 +358,10 @@ Popup {
     }
 
     function doInsert() {
-        var v = root.videoPath.replace("file:///", "")
-        var fase = sessaoField.text.toUpperCase().trim()
+        var v    = root.videoPath.replace("file:///", "")
+        var fase = dayCombo.currentText
+        var dia  = String(dayCombo.currentIndex + 1)
         var rows = []
-
-        function parseDay(p) {
-            if (p === "TR") return "1"
-            if (p === "RA") return "2"
-            if (p === "TT") return root.hasReactivation ? "3" : "2"
-            return ""
-        }
-
-        var dia = parseDay(fase)
 
         if (animal1Field.text.trim()) {
             var r1 = [v, animal1Field.text.trim(), "1", dia, root.pair1]
@@ -430,52 +432,4 @@ Popup {
         root.close()
     }
 
-    Popup {
-        id: errorPopup
-        anchors.centerIn: parent
-        width: 300; height: 120; modal: true
-        background: Rectangle { radius: 10; color: "#1a1a2e"; border.color: "#ab3d4c" }
-        ColumnLayout {
-            anchors.centerIn: parent; spacing: 10
-            Text { text: "Fase Inválida!"; color: "#ff5566"; font.weight: Font.Bold; font.pixelSize: 14 }
-            Text { text: "Use apenas TR, RA ou TT."; color: "#e8e8f0"; font.pixelSize: 12 }
-            Button { text: "OK"; onClicked: errorPopup.close() }
-        }
-    }
-
-    Popup {
-        id: reactivationPromptPopup
-        anchors.centerIn: parent
-        width: 350; height: 160; modal: true
-        background: Rectangle { radius: 10; color: "#1a1a2e"; border.color: "#ffaa00" }
-        ColumnLayout {
-            anchors.fill: parent; anchors.margins: 16; spacing: 10
-            Text { text: "Reativação não prevista!"; color: "#ffaa00"; font.weight: Font.Bold; font.pixelSize: 14 }
-            Text { text: "Você digitou RA, mas o experimento foi criado sem reativação. Deseja alterar a configuração para incluir reativação?"; color: "#e8e8f0"; font.pixelSize: 12; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-            RowLayout {
-                Layout.alignment: Qt.AlignRight
-                GhostButton { text: "Cancelar"; onClicked: reactivationPromptPopup.close() }
-                Button {
-                    text: "Sim, Incluir"
-                    onClicked: {
-                        ExperimentManager.setExperimentReactivation(root.experimentName, true)
-                        root.hasReactivation = true
-                        reactivationPromptPopup.close()
-                        root.doInsert()  // re-calls doInsert with updated hasReactivation
-                    }
-                    background: Rectangle {
-                        radius: 8
-                        color: parent.enabled ? (parent.hovered ? "#8a2e3b" : "#ab3d4c") : "#2d2d4a"
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-                    contentItem: Text {
-                        text: parent.text; color: "#e8e8f0"
-                        font.pixelSize: 13; font.weight: Font.Bold
-                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                    }
-                    leftPadding: 18; rightPadding: 18; topPadding: 9; bottomPadding: 9
-                }
-            }
-        }
-    }
 }

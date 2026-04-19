@@ -144,6 +144,9 @@ public:
     // Re-varre o disco e atualiza o modelo (útil após exclusão externa de pasta).
     Q_INVOKABLE void refreshModel();
 
+    // Persiste dayNames no metadata.json existente do experimento.
+    Q_INVOKABLE bool updateDayNames(const QString &folderPath, const QStringList &dayNames);
+
 signals:
     void activeContextChanged();
     void experimentCreated(const QString &name, const QString &path);

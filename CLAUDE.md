@@ -176,11 +176,13 @@ O `ExperimentManager` utiliza um arquivo `registry.json` na raiz da pasta de dad
 - `createExperimentFull`: Permite especificar um `savePath`.
 - `loadAllContexts`: Mescla a pasta padrão com os caminhos registrados no `registry.json`.
 
-### Códigos de Sessão e Metadados de Reativação
-O sistema utiliza metadados (`hasReactivation`) para determinar o fluxo de sessões no popup de finalização (`SessionResultDialog.qml`):
-- **TR** (Treino): Dia 1.
-- **RA** (Reativação): Dia 2 (Habilita dinamicamente o metadado se necessário).
-- **TT** (Teste): Dia 2 ou 3 (Auto-detectado com base em `hasReactivation`).
+### Sistema de Dias (dayNames)
+Todos os 4 tipos de experimento (NOR, CA, CC, EI) usam um array `dayNames: var` definido no setup via editor de chips editáveis (TextInput por dia, botão "+ Dia", botão "×" para remover). O array é salvo em `metadata.json` via `ExperimentManager.updateDayNames(path, dayNames)` logo após `createExperimentFull`. Nos dashboards, `loadExperiment()` lê `meta.dayNames` e popula um `ComboBox` no diálogo pós-sessão. Experimentos antigos sem `dayNames` recebem um fallback automático que reconstrói a sequência a partir de `hasReactivation`/`extincaoDays` (apenas leitura — nunca escrito em novos experimentos).
+
+Defaults por tipo:
+- **NOR / CA:** `["Treino", "Teste"]`
+- **CC:** `["Treino", "Teste"]`
+- **EI:** `["Treino", "E1", "E2", "E3", "E4", "E5", "Teste"]`
 
 ### Fluxo Campo Aberto (CA)
 O módulo CA reutiliza o mesmo `ExperimentManager` do NOR. Diferenças:
@@ -188,7 +190,7 @@ O módulo CA reutiliza o mesmo `ExperimentManager` do NOR. Diferenças:
 - `pendingCaFlow: bool` em `main.qml` diferencia NOR × CA no handler global `onExperimentCreated`
 - `context` pode ser `"Padrão"` ou `"Contextual"` (3 campos força "Sem Contexto" via `CAArenaSelection`)
 - `arenaId` segue padrão `"ca_Ncampos"` (ex: `"ca_3campos"`, `"ca_2campos"`, `"ca_1campo"`)
-- CSV: `["Diretório do Vídeo", "Animal", "Campo", "Dia", "Distância Total (m)", "Velocidade Média (m/s)"]` + opcional "Droga"
+- CSV: `["Diretório do Vídeo", "Animal", "Campo", "Dia", "Distância Total (m)", "Velocidade Média (m/s)"]` + opcional "Tratamento"
 - JSON de sessão: `aparato: "campo_aberto"`, sem bouts de exploração, inclui `porMinuto` com distância e velocidade por minuto
 
 ### Fluxo Comportamento Complexo (CC)
@@ -331,6 +333,9 @@ O sistema de temas é gerido por dois singletons QML em `qml/core/Theme/`:
 | Comportamentos trocados na UI (walking aparecia como resting) | Ordem dos BEHAVIORS no `merge_to_onnx.py` era `[walking, sniffing, grooming, resting, rearing]` mas `behaviorNames` no QML era `[Walking, Resting, Rearing, Grooming, Sniffing, Thigmotaxis]`. Corrigido alinhando QML com a ordem do script e removendo Thigmotaxis. |
 | B-SOiD retornava "Nenhum dado de features" mesmo após análise | `liveRecordingTab.inference` era `undefined` — IDs QML são escopados ao arquivo do componente e não acessíveis de fora. Corrigido com função pública `LiveRecording::exportBehaviorFeatures()` que delega internamente. |
 | Timeline dupla e snippets de vídeo pendentes | Implementados: `BSoidAnalyzer::populateTimelines()` (preenche dois `BehaviorTimeline` de C++), `extractSnippets()` (FFmpeg via QProcess em background thread), UI em CCDashboard com dual timeline + botão "Extrair Clips". |
+| Sistema de dias rígido (TR/RA/TT hardcoded) | Substituído por `dayNames: var[]` definido no setup via editor de chips. Salvo em `metadata.json` via `updateDayNames()`. Diálogos pós-sessão usam ComboBox. Fallback automático para experimentos antigos. |
+| "Droga" em formulários e CSVs | Renomeado para "Tratamento" em todos os 4 tipos de experimento (setup screens + metadata dialogs). |
+| "Zona de objetos" em CCSetup | Renomeado para "Sniffing" (checkbox que habilita detecção de sniffing vs resting). |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
@@ -457,23 +462,22 @@ Paradigma de **memória aversiva passiva** (step-through, passive avoidance) par
 **Fluxo:**
 - **Pasta módulo:** `qml/ei/` (EISetup, EIDashboard, EIMetadataDialog)
 - **Aparato:** `"esquiva_inibitoria"` (sempre 1 campo)
-- **Sequência:** TR (Treino) → E1–E5 (Extinção, dias 2–6) → [RA (Reativação, opcional)] → TT (Teste)
+- **Dias:** definidos livremente via editor de chips em EISetup (default: Treino, E1–E5, Teste)
 - **Duração:** 5 min/sessão (timer fixo, não escalável)
 
 ### Configuração
 
 Em **EISetup.qml**:
 - Nome experimento + diretório (opcional)
-- ✅ Checkbox: Reativação (default false) — habilita fase RA
-- ✅ Checkbox: Drogas (default true) — coluna extra no CSV
-- ✅ **SpinBox: Dias de Extinção** (padrão 5, range 1–30) — define quantas sessões E1...EN
+- ✅ Checkbox: Tratamento (default true) — coluna extra no CSV
+- 📅 **Editor de dias:** chips com TextInput editável (padrão: Treino, E1, E2, E3, E4, E5, Teste). Adicione/remova livremente.
 
 Colunas CSV geradas:
 ```
-["Diretório do Vídeo", "Animal", "Fase", "Dia",
+["Diretório do Vídeo", "Animal", "Dia",
  "Latência (s)", "Tempo Plataforma (s)", "Tempo Grade (s)",
  "Bouts Plataforma", "Bouts Grade",
- "Distância Total (m)", "Velocidade Média (m/s)", "Droga" (opcional)]
+ "Distância Total (m)", "Velocidade Média (m/s)", "Tratamento" (opcional)]
 ```
 
 ### Métricas
@@ -496,19 +500,9 @@ Colunas CSV geradas:
 - **Rastreamento:** Body point (como CA) — zone detection usa ray-casting
 - **Sincronização:** Via `ArenaSetup` embebido (igual CC)
 
-### Fases Dinâmicas (EIMetadataDialog)
+### Seleção de Dia (EIMetadataDialog)
 
-Botões gerados automaticamente:
-```
-TR → E1 → E2 → ... → EN → [RA] → TT
-```
-Onde N = `extincaoDays` (padrão 5).
-
-**Mapeamento Dia:**
-- TR → Dia 1
-- E1 → Dia 2, E2 → Dia 3, ..., EN → Dia (1+N)
-- RA → Dia (1+N+1) — apenas se `hasReactivation`
-- TT → Dia (1+N+1) ou (1+N+2) com RA
+ComboBox populado com `dayNames` carregado de `metadata.json`. O índice selecionado + 1 é o número do dia gravado no CSV. Experimentos antigos (sem `dayNames`) recebem fallback automático que reconstrói Treino/E1-EN/Reativação/Teste a partir dos campos legados `extincaoDays`/`hasReactivation`.
 
 ### LiveRecording para EI
 
@@ -527,10 +521,10 @@ Sinais para C++:
 
 ### Post-Sessão (EIMetadataDialog)
 
-1. Seleciona fase (botões dinâmicos)
+1. Seleciona dia (ComboBox com `dayNames`)
 2. Insere animal ID
 3. Exibe métricas (read-only)
-4. Opcionalmente: Droga (texto livre)
+4. Opcionalmente: Tratamento (texto livre)
 5. "Salvar Sessão" → insere linha em `tracking_data.csv`, salva JSON metadados
 
 JSON metadados:

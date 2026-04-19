@@ -36,13 +36,12 @@ Popup {
     focus:  true
     closePolicy: Popup.CloseOnEscape
 
-    property int selectedDia: 1
-    property int maxDias:     5   // injetado pelo CCDashboard (meta.sessionDays)
+    property var dayNames:    []
 
     onOpened: {
-        root.selectedDia   = 1
-        root._animalTexts = ["", "", ""]
-        root._drogaTexts  = ["", "", ""]
+        dayCombo.currentIndex = 0
+        root._animalTexts     = ["", "", ""]
+        root._drogaTexts      = ["", "", ""]
     }
 
     background: Rectangle {
@@ -55,8 +54,9 @@ Popup {
 
     // ── Função de inserção ────────────────────────────────────────────────
     function doInsert() {
-        var v   = root.videoPath.replace("file:///", "")
-        var dia = String(root.selectedDia)
+        var v    = root.videoPath.replace("file:///", "")
+        var fase = dayCombo.currentText
+        var dia  = String(dayCombo.currentIndex + 1)
 
         var rows = []
         for (var ci = 0; ci < root.numCampos; ci++) {
@@ -79,6 +79,7 @@ Popup {
         // JSON rico de sessão
         var sessionMeta = {
             "timestamp": new Date().toISOString(),
+            "fase":      fase,
             "dia":       dia,
             "videoPath": v,
             "aparato":   "comportamento_complexo",
@@ -150,48 +151,63 @@ Popup {
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "DIA DA SESSÃO"
-                    color: ThemeManager.textSecondary
-                    font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: "Dia " + root.selectedDia
-                    color: "#a855f7"; font.pixelSize: 11; font.weight: Font.Bold
-                }
+            Text {
+                text: "DIA DA SESSÃO"
+                color: ThemeManager.textSecondary
+                font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Grid de botões (wrap) — sem scroll horizontal
-            Flow {
-                Layout.fillWidth: true
-                spacing: 6
+            RowLayout {
+                spacing: 10
 
-                Repeater {
-                    model: root.maxDias
-                    delegate: Rectangle {
-                        width: 38; height: 34; radius: 8
-                        property int dayNum: index + 1
-                        property bool isSelected: root.selectedDia === dayNum
-                        color:        isSelected ? "#1a0d2e" : (dayMa.containsMouse ? ThemeManager.surfaceHover : ThemeManager.surfaceDim)
-                        border.color: isSelected ? "#7a3dab" : ThemeManager.border
-                        border.width: isSelected ? 2 : 1
-                        Behavior on color        { ColorAnimation { duration: 150 } }
+                ComboBox {
+                    id: dayCombo
+                    model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
+                    Layout.fillWidth: true
+                    font.pixelSize: 13; font.weight: Font.Bold
+
+                    contentItem: Text {
+                        leftPadding: 12
+                        text: dayCombo.displayText
+                        color: ThemeManager.textPrimary; font: dayCombo.font
+                        verticalAlignment: Text.AlignVCenter
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    background: Rectangle {
+                        radius: 8; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: dayCombo.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 150 } }
-                        Text {
-                            anchors.centerIn: parent; text: dayNum
-                            color: isSelected ? "#a855f7" : ThemeManager.textSecondary
-                            font.pixelSize: 12; font.weight: Font.Bold
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    delegate: ItemDelegate {
+                        width: dayCombo.width
+                        contentItem: Text {
+                            text: modelData
+                            color: dayCombo.currentIndex === index ? "#a855f7" : ThemeManager.textPrimary
+                            font.pixelSize: 13; font.weight: Font.Bold
+                            verticalAlignment: Text.AlignVCenter
                         }
-                        MouseArea {
-                            id: dayMa; anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor; hoverEnabled: true
-                            onClicked: root.selectedDia = dayNum
+                        background: Rectangle {
+                            color: hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                            Behavior on color { ColorAnimation { duration: 100 } }
                         }
+                    }
+                    popup: Popup {
+                        y: dayCombo.height; width: dayCombo.width; padding: 0
+                        background: Rectangle { color: ThemeManager.surfaceDim; border.color: "#7a3dab"; radius: 8; Behavior on color { ColorAnimation { duration: 200 } } }
+                        contentItem: ListView { implicitHeight: contentHeight; model: dayCombo.delegateModel; clip: true }
+                    }
+                }
+
+                Rectangle {
+                    radius: 6; color: "#1a0d2e"
+                    border.color: "#7a3dab"; border.width: 1
+                    implicitWidth: diaLbl.implicitWidth + 16; height: 34
+                    Text {
+                        id: diaLbl; anchors.centerIn: parent
+                        text: "Dia " + (dayCombo.currentIndex + 1)
+                        color: "#a855f7"; font.pixelSize: 13; font.weight: Font.Bold
                     }
                 }
             }
@@ -339,7 +355,7 @@ Popup {
                 ColumnLayout {
                     spacing: 3
                     Text {
-                        text: "DROGA / TRATAMENTO"
+                        text: "TRATAMENTO"
                         color: ThemeManager.textSecondary
                         font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                         Behavior on color { ColorAnimation { duration: 150 } }

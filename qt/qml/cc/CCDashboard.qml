@@ -65,7 +65,7 @@ Item {
             }
             prev = (lbl >= 0 && lbl < 5) ? lbl : prev
         }
-        var names  = ["Walking","Sniffing","Grooming","Resting","Rearing"]
+        var names  = ["Walking","Zonas de objetos","Grooming","Resting","Rearing"]
         var colors = ["#8b5cf6","#f97316","#eab308","#3b82f6","#10b981"]
         var result = []
         var safeFps = fps > 0 ? fps : 30.0
@@ -104,7 +104,7 @@ Item {
                 clusterTimeline.clear()
                 // Cores para regras nativas — alinhadas com badges e legenda
                 ruleTimeline.setLabelColor(0, "#8b5cf6")  // Walking  → violeta
-                ruleTimeline.setLabelColor(1, "#f97316")  // Sniffing → laranja
+                ruleTimeline.setLabelColor(1, "#f97316")  // Zonas de objetos → laranja
                 ruleTimeline.setLabelColor(2, "#eab308")  // Grooming → amarelo
                 ruleTimeline.setLabelColor(3, "#3b82f6")  // Resting  → azul
                 ruleTimeline.setLabelColor(4, "#10b981")  // Rearing  → verde
@@ -148,7 +148,7 @@ Item {
     ]
 
     function bsoidRuleName(ruleId) {
-        var names = ["Walking","Sniffing","Grooming","Resting","Rearing"]
+        var names = ["Walking","Zonas de objetos","Grooming","Resting","Rearing"]
         return (ruleId >= 0 && ruleId < names.length) ? names[ruleId] : "?"
     }
 
@@ -402,7 +402,7 @@ Item {
                 property string analysisMode:     "offline"
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
-                property int    sessionDays:      5
+                property var    dayNames:         []
 
                 function loadExperiment(name, path) {
                     selectedName = name
@@ -420,7 +420,7 @@ Item {
                     hasObjectZones  = meta.hasObjectZones !== false
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
-                    sessionDays     = meta.sessionDays || 5
+                    dayNames        = meta.dayNames || Array.from({length: meta.sessionDays || 5}, function(_, i) { return "Dia " + (i+1) })
 
                     // Propaga pontos de arena para aba Gravação
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
@@ -596,7 +596,7 @@ Item {
                                     ccResultDialog.experimentPath = workArea.selectedPath
                                     ccResultDialog.numCampos      = workArea.activeNumCampos
                                     ccResultDialog.videoPath      = tabArenaSetup.videoPath
-                                    ccResultDialog.maxDias        = workArea.sessionDays
+                                    ccResultDialog.dayNames       = workArea.dayNames
                                     ccResultDialog.open()
                                 }
 
@@ -668,7 +668,7 @@ Item {
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
                                                         Text {
-                                                            text: "Sniffing · Rearing · Resting · Grooming · Walking — sem modelo ONNX"
+                                                            text: "Zonas de objetos · Rearing · Resting · Grooming · Walking — sem modelo ONNX"
                                                             color: ThemeManager.textSecondary; font.pixelSize: 11
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
@@ -718,7 +718,7 @@ Item {
                                                                     if (bhvName === "Resting")  return "#3b82f6"
                                                                     if (bhvName === "Rearing")  return "#10b981"
                                                                     if (bhvName === "Grooming") return "#eab308"
-                                                                    if (bhvName === "Sniffing") return "#f97316"
+                                                                    if (bhvName === "Zonas de objetos") return "#f97316"
                                                                     return ThemeManager.surfaceAlt
                                                                 }
                                                                 color: badgeColor
@@ -750,7 +750,7 @@ Item {
                                                     spacing: 16
                                                     Item { Layout.fillWidth: true }
                                                     Repeater {
-                                                        model: ["Walking|#8b5cf6", "Sniffing|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
+                                                        model: ["Walking|#8b5cf6", "Zonas de objetos|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
                                                         delegate: RowLayout {
                                                             spacing: 6
                                                             Rectangle { width: 14; height: 14; radius: 7; color: modelData.split("|")[1] }

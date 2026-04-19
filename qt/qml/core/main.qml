@@ -50,14 +50,14 @@ ApplicationWindow {
     property string pendingCcContext:      "Padrão"
     property string pendingCcArenaId:      "cc_3campos"
     property int    pendingCcSessionMin:   5
-    property int    pendingCcSessionDays: 5
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
     property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
 
     // ── Estado acumulado durante o fluxo de criação IA ──────────────────────────────────
-    property bool   pendingEiFlow:         false
-    property int    pendingEiExtincaoDays: 5
-    property bool   pendingEiHasReactivation: false
+    property bool   pendingEiFlow:     false
+
+    // ── Nomes dos dias — compartilhado por todos os fluxos ─────────────────
+    property var    pendingDayNames:   []
 
     // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
     onActiveChanged: {
@@ -77,13 +77,18 @@ ApplicationWindow {
             if (!root.awaitingCreation) return
             root.awaitingCreation = false
 
+            // Persist day names into metadata.json
+            if (root.pendingDayNames.length > 0)
+                ExperimentManager.updateDayNames(path, root.pendingDayNames)
+
+            // Pop back to HomeScreen (depth 2) so Back from dashboard lands there
+            while (stack.depth > 2) stack.pop(StackView.Immediate)
+
             if (root.pendingEiFlow) {
                 root.pendingEiFlow = false
                 stack.push(eiDashboardComponent, {
                     "searchMode":            false,
-                    "initialExperimentName": name,
-                    "extincaoDays":          root.pendingEiExtincaoDays,
-                    "hasReactivation":       root.pendingEiHasReactivation
+                    "initialExperimentName": name
                 })
             } else if (root.pendingCcFlow) {
                 root.pendingCcFlow = false
@@ -231,16 +236,17 @@ ApplicationWindow {
     Component {
         id: norSetupComponent
         NORSetupScreen {
-            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath) {
+            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingContext)
                 root.pendingPair1       = pair1
                 root.pendingPair2       = pair2
                 root.pendingPair3       = pair3
                 root.pendingIncludeDrug = includeDrug
+                root.pendingDayNames    = dayNames
                 root.awaitingCreation   = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, pair1, pair2, pair3, includeDrug, hasReactivation, savePath,
-                    "nor", root.pendingNorNumCampos)
+                    name, cols, pair1, pair2, pair3, includeDrug, false, savePath,
+                    "nor", root.pendingNorNumCampos, 0.5, true, 5, dayNames.length)
             }
             onBackRequested: stack.pop()
         }
@@ -278,13 +284,14 @@ ApplicationWindow {
     Component {
         id: caSetupComponent
         CASetup {
-            onExperimentReady: function(name, cols, includeDrug, hasReactivation, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingCaContext)
+                root.pendingDayNames  = dayNames
                 root.awaitingCreation = true
                 root.pendingCaFlow    = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, "", "", "", includeDrug, hasReactivation, savePath,
-                    "campo_aberto", root.pendingCaNumCampos)
+                    name, cols, "", "", "", includeDrug, false, savePath,
+                    "campo_aberto", root.pendingCaNumCampos, 0.5, false, 5, dayNames.length)
             }
             onBackRequested: stack.pop()
         }
@@ -322,17 +329,17 @@ ApplicationWindow {
     Component {
         id: ccSetupComponent
         CCSetup {
-            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, sessionDays, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingCcContext)
-                root.pendingCcSessionMin  = sessionMinutes
-                root.pendingCcSessionDays = sessionDays
+                root.pendingCcSessionMin     = sessionMinutes
                 root.pendingCcHasObjectZones = hasObjectZones
-                root.awaitingCreation    = true
-                root.pendingCcFlow       = true
+                root.pendingDayNames         = dayNames
+                root.awaitingCreation        = true
+                root.pendingCcFlow           = true
                 ExperimentManager.createExperimentFull(
                     name, cols, "", "", "", includeDrug, false, savePath,
                     "comportamento_complexo", root.pendingCcNumCampos, 0.5, hasObjectZones,
-                    sessionMinutes, sessionDays)
+                    sessionMinutes, dayNames.length)
             }
             onBackRequested: stack.pop()
         }
@@ -353,15 +360,14 @@ ApplicationWindow {
     Component {
         id: eiSetupComponent
         EISetup {
-            onExperimentReady: function(name, cols, includeDrug, hasReactivation, extincaoDays, savePath) {
-                root.pendingEiExtincaoDays = extincaoDays
-                root.pendingEiHasReactivation = hasReactivation
+            onExperimentReady: function(name, cols, includeDrug, dayNames, savePath) {
+                root.pendingDayNames  = dayNames
                 ExperimentManager.loadContext("Padrão")
                 root.awaitingCreation = true
-                root.pendingEiFlow = true
+                root.pendingEiFlow    = true
                 ExperimentManager.createExperimentFull(
                     name, cols, "", "", "", includeDrug, false, savePath,
-                    "esquiva_inibitoria", 1)
+                    "esquiva_inibitoria", 1, 0.5, true, 5, dayNames.length)
             }
             onBackRequested: {
                 root.pendingEiFlow = false

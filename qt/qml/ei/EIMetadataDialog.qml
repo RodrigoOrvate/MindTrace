@@ -1,5 +1,5 @@
 // qml/ei/EIMetadataDialog.qml
-// Diálogo pós-sessão para Esquiva Inibitória com fases dinâmicas e métricas específicas.
+// Diálogo pós-sessão para Esquiva Inibitória — seleção de dia via ComboBox.
 
 import QtQuick
 import QtQuick.Layouts
@@ -13,7 +13,7 @@ Popup {
 
     anchors.centerIn: parent
     width: 500
-    height: 580
+    height: 560
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape
@@ -22,8 +22,7 @@ Popup {
     property string videoPath: ""
     property int    numCampos: 1
     property bool   includeDrug: true
-    property int    extincaoDays: 5
-    property bool   hasReactivation: false
+    property var    dayNames: []
 
     // Métricas recebidas da sessão
     property real   latencia: 0
@@ -34,37 +33,7 @@ Popup {
     property real   totalDistance: 0
     property real   avgVelocity: 0
 
-    // Gera lista de fases dinamicamente
-    readonly property var allPhases: {
-        var p = ["TR"]
-        for (var i = 1; i <= root.extincaoDays; i++) p.push("E" + i)
-        if (root.hasReactivation) p.push("RA")
-        p.push("TT")
-        return p
-    }
-
-    function parseDay(fase) {
-        if (fase === "TR") return "1"
-        var n = parseInt(fase.substring(1))
-        if (!isNaN(n)) return String(1 + n)  // E1→2, E2→3
-        if (fase === "RA") return String(1 + root.extincaoDays + 1)
-        if (fase === "TT") return root.hasReactivation
-            ? String(1 + root.extincaoDays + 2)
-            : String(1 + root.extincaoDays + 1)
-        return fase
-    }
-
-    function getPhaseDescription(fase) {
-        if (fase === "TR") return "Treino · Dia 1"
-        var n = parseInt(fase.substring(1))
-        if (!isNaN(n)) return "Extinção " + n + " · Dia " + (1 + n)
-        if (fase === "RA") return "Reativação · Dia " + (1 + root.extincaoDays + 1)
-        if (fase === "TT") {
-            var dia = root.hasReactivation ? (1 + root.extincaoDays + 2) : (1 + root.extincaoDays + 1)
-            return "Teste · Dia " + dia
-        }
-        return ""
-    }
+    onOpened: { dayCombo.currentIndex = 0 }
 
     function doInsert() {
         var animalText = animalField.text.trim()
@@ -73,13 +42,12 @@ Popup {
             return
         }
 
-        var fase = phaseField.text.toUpperCase()
-        var dia = parseDay(fase)
+        var fase = dayCombo.currentText
+        var dia  = String(dayCombo.currentIndex + 1)
 
         var row = [
             videoPath,
             animalText,
-            fase,
             dia,
             latencia.toFixed(2),
             tempoPlataf.toFixed(2),
@@ -92,6 +60,26 @@ Popup {
         if (root.includeDrug) row.push(drugField.text.trim())
 
         ExperimentManager.insertSessionResult(root.experimentName, [row])
+
+        var sessionMeta = {
+            "timestamp": new Date().toISOString(),
+            "fase":      fase,
+            "dia":       dia,
+            "videoPath": videoPath.replace("file:///", ""),
+            "aparato":   "esquiva_inibitoria",
+            "animal":    animalText,
+            "latencia_s":          parseFloat(latencia.toFixed(2)),
+            "tempo_plataforma_s":  parseFloat(tempoPlataf.toFixed(2)),
+            "tempo_grade_s":       parseFloat(tempoGrade.toFixed(2)),
+            "bouts_plataforma":    boutsPlataf,
+            "bouts_grade":         boutsGrade,
+            "distancia_total_m":   parseFloat(totalDistance.toFixed(2)),
+            "velocidade_media_ms": parseFloat(avgVelocity.toFixed(2)),
+            "droga":               root.includeDrug ? drugField.text.trim() : ""
+        }
+        ExperimentManager.saveSessionMetadata(
+            root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animalText)
+
         Toast.show("Sessão salva com sucesso.")
         root.close()
         root.closed()
@@ -110,12 +98,27 @@ Popup {
         spacing: 12
 
         // ── Título ───────────────────────────────────────────────────
-        Text {
-            text: "Dados da Sessão"
-            color: ThemeManager.textPrimary
-            font.pixelSize: 18
-            font.weight: Font.Bold
-            Behavior on color { ColorAnimation { duration: 150 } }
+        RowLayout {
+            spacing: 10
+            Text { text: "🪤"; font.pixelSize: 20 }
+            ColumnLayout {
+                spacing: 2
+                Text {
+                    text: "Sessão Concluída"
+                    color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+                Text {
+                    text: "Esquiva Inibitória — informe o dia e o animal"
+                    color: "#3d7aab"; font.pixelSize: 11
+                }
+            }
+            Item { Layout.fillWidth: true }
+            Text {
+                text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14
+                Behavior on color { ColorAnimation { duration: 150 } }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.close(); root.closed() } }
+            }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -129,12 +132,82 @@ Popup {
                 width: root.width - 48
                 spacing: 14
 
+                // ── Dia da sessão ─────────────────────────────────────
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 6
+
+                    Text {
+                        text: "DIA DA SESSÃO"
+                        color: ThemeManager.textSecondary
+                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+
+                    RowLayout {
+                        spacing: 10
+
+                        ComboBox {
+                            id: dayCombo
+                            model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
+                            Layout.fillWidth: true
+                            font.pixelSize: 13; font.weight: Font.Bold
+
+                            contentItem: Text {
+                                leftPadding: 12
+                                text: dayCombo.displayText
+                                color: ThemeManager.textPrimary; font: dayCombo.font
+                                verticalAlignment: Text.AlignVCenter
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                            }
+                            background: Rectangle {
+                                radius: 8; color: ThemeManager.surfaceDim
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                                border.color: dayCombo.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
+                            delegate: ItemDelegate {
+                                width: dayCombo.width
+                                contentItem: Text {
+                                    text: modelData
+                                    color: dayCombo.currentIndex === index ? "#3d7aab" : ThemeManager.textPrimary
+                                    font.pixelSize: 13; font.weight: Font.Bold
+                                    verticalAlignment: Text.AlignVCenter
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+                                background: Rectangle {
+                                    color: hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+                                }
+                            }
+                            popup: Popup {
+                                y: dayCombo.height; width: dayCombo.width; padding: 0
+                                background: Rectangle { color: ThemeManager.surfaceDim; border.color: "#3d7aab"; radius: 8; Behavior on color { ColorAnimation { duration: 200 } } }
+                                contentItem: ListView { implicitHeight: contentHeight; model: dayCombo.delegateModel; clip: true }
+                            }
+                        }
+
+                        Rectangle {
+                            radius: 6; color: ThemeManager.surfaceDim
+                            border.color: "#3d7aab"; border.width: 1
+                            implicitWidth: diaLbl.implicitWidth + 16; height: 34
+                            Text {
+                                id: diaLbl; anchors.centerIn: parent
+                                text: "Dia " + (dayCombo.currentIndex + 1)
+                                color: "#3d7aab"; font.pixelSize: 13; font.weight: Font.Bold
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
                 // Animal ID
                 ColumnLayout {
                     spacing: 6
                     Text {
                         text: "ID DO ANIMAL"
                         color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     TextField {
                         id: animalField
@@ -151,71 +224,13 @@ Popup {
                     }
                 }
 
-                // Fase (botões dinâmicos)
-                ColumnLayout {
-                    spacing: 6
-                    Text {
-                        text: "FASE"
-                        color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-
-                        Repeater {
-                            model: root.allPhases
-                            Button {
-                                id: phaseBtn
-                                text: modelData
-                                width: 50
-                                height: 32
-                                flat: true
-
-                                property bool isSelected: phaseField.text.toUpperCase() === modelData
-
-                                background: Rectangle {
-                                    radius: 6
-                                    color: phaseBtn.isSelected
-                                        ? "#3d7aab"
-                                        : (phaseBtn.hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim)
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                }
-                                contentItem: Text {
-                                    text: phaseBtn.text
-                                    color: phaseBtn.isSelected ? ThemeManager.buttonText : ThemeManager.textPrimary
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                }
-                                onClicked: phaseField.text = modelData
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    // Hidden phase field
-                    TextField {
-                        id: phaseField
-                        visible: false
-                        text: "TR"
-                    }
-
-                    // Phase description
-                    Text {
-                        text: root.getPhaseDescription(phaseField.text)
-                        color: ThemeManager.textSecondary
-                        font.pixelSize: 11
-                    }
-                }
-
                 Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
                 // ── Métricas (display only) ──────────────────────────────
                 Text {
                     text: "MÉTRICAS"
                     color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
 
                 GridLayout {
@@ -225,53 +240,47 @@ Popup {
                     rowSpacing: 10
 
                     Text { text: "Latência (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.latencia.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.latencia.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Tempo Plataforma (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.tempoPlataf.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.tempoPlataf.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Tempo Grade (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.tempoGrade.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.tempoGrade.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Bouts Plataforma:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.boutsPlataf; color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.boutsPlataf; color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Bouts Grade:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.boutsGrade; color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.boutsGrade; color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Distância (m):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.totalDistance.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.totalDistance.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
                     Text { text: "Velocidade (m/s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.avgVelocity.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold }
+                    Text { text: root.avgVelocity.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
                 }
 
-                // Droga (se aplicável)
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: root.includeDrug ? 50 : 0
+                // Tratamento (se aplicável)
+                ColumnLayout {
                     visible: root.includeDrug
-                    color: "transparent"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: 6
-                        Text {
-                            text: "DROGA"
-                            color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
-                        }
-                        TextField {
-                            id: drugField
-                            Layout.fillWidth: true
-                            placeholderText: "Ex.: Saline, AMPH, etc."
-                            color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
-                            leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                            background: Rectangle {
-                                radius: 6; color: ThemeManager.surfaceDim
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                border.color: drugField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
-                            }
+                    spacing: 6
+                    Text {
+                        text: "TRATAMENTO"
+                        color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    TextField {
+                        id: drugField
+                        Layout.fillWidth: true
+                        placeholderText: "Ex.: Salina, Midazolam…"
+                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
+                        leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
+                        background: Rectangle {
+                            radius: 6; color: ThemeManager.surfaceDim
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                            border.color: drugField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
                     }
                 }
@@ -285,10 +294,7 @@ Popup {
 
             GhostButton {
                 text: "Cancelar"
-                onClicked: {
-                    root.close()
-                    root.closed()
-                }
+                onClicked: { root.close(); root.closed() }
             }
 
             Item { Layout.fillWidth: true }

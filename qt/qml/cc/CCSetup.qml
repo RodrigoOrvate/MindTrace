@@ -8,6 +8,7 @@ import "../core"
 import "../core/Theme"
 import QtQuick.Dialogs
 import MindTrace.Backend 1.0
+import "../core/dayNameUtils.js" as DayNameUtils
 
 Item {
     id: root
@@ -17,19 +18,20 @@ Item {
     property string arenaId:      ""
     property string selectedPath: ""
     property int    sessionMinutes: 5    // 5 ou 20
-    property int    sessionDays:    5    // 1–30
 
-    // name, cols, includeDrug, sessionMinutes, hasObjectZones, sessionDays, savePath
-    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, int sessionDays, string savePath)
+    // name, cols, includeDrug, sessionMinutes, hasObjectZones, dayNames, savePath
+    signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, var dayNames, string savePath)
     signal backRequested()
 
     function doCreate() {
         var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia",
                     "Duração (min)", "Distância Total (m)", "Velocidade Média (m/s)"]
-        if (drugCheck.checked) cols.push("Droga")
+        if (drugCheck.checked) cols.push("Tratamento")
+        var names = []
+        for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)
         root.experimentReady(nameField.text.trim(), cols,
                              drugCheck.checked, root.sessionMinutes, objectZonesCheck.checked,
-                             root.sessionDays, root.selectedPath)
+                             names, root.selectedPath)
     }
 
     FolderDialog {
@@ -194,69 +196,89 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Dias de sessão ─────────────────────────────────────────────
+            // ── Dias do experimento ────────────────────────────────────────
             ColumnLayout {
-                Layout.fillWidth: true; spacing: 12
+                Layout.fillWidth: true; spacing: 8
 
                 Text {
-                    text: "DIAS DE SESSÃO"
+                    text: "DIAS DO EXPERIMENTO"
                     color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
-                }
-
-                RowLayout {
-                    spacing: 12
-
-                    Text {
-                        text: "Quantos dias de sessão este experimento terá?"
-                        color: ThemeManager.textTertiary; font.pixelSize: 12
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    // Botão decrementar
-                    Rectangle {
-                        width: 32; height: 32; radius: 8
-                        color: dayDecMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
-                        border.color: ThemeManager.border; border.width: 1
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Text { anchors.centerIn: parent; text: "−"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
-                        MouseArea {
-                            id: dayDecMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.sessionDays > 1) root.sessionDays--
-                        }
-                    }
-
-                    // Valor
-                    Rectangle {
-                        width: 52; height: 32; radius: 8
-                        color: ThemeManager.surfaceDim; border.color: "#7a3dab"; border.width: 1.5
-                        Text {
-                            anchors.centerIn: parent
-                            text: root.sessionDays + " dia" + (root.sessionDays > 1 ? "s" : "")
-                            color: "#a855f7"; font.pixelSize: 12; font.weight: Font.Bold
-                        }
-                    }
-
-                    // Botão incrementar
-                    Rectangle {
-                        width: 32; height: 32; radius: 8
-                        color: dayIncMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
-                        border.color: ThemeManager.border; border.width: 1
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Text { anchors.centerIn: parent; text: "+"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
-                        MouseArea {
-                            id: dayIncMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.sessionDays < 30) root.sessionDays++
-                        }
-                    }
-                }
-
-                Text {
-                    text: "Define quantos botões aparecem no seletor de dia ao salvar a sessão (máx. 30)."
-                    color: ThemeManager.textTertiary; font.pixelSize: 10
                     Behavior on color { ColorAnimation { duration: 150 } }
-                    wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+
+                ListModel {
+                    id: dayNamesModel
+                    ListElement { dayName: "Treino" }
+                    ListElement { dayName: "Teste" }
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: dayNamesModel
+                        delegate: Rectangle {
+                            height: 34
+                            width: Math.max(110, dayLabel.width + dayNameInput.width + removeBtn.width + 28)
+                            radius: 8
+                            color: ThemeManager.surfaceDim
+                            border.color: ThemeManager.border; border.width: 1
+
+                            RowLayout {
+                                anchors { fill: parent; leftMargin: 10; rightMargin: 6 }
+                                spacing: 4
+                                Text {
+                                    id: dayLabel
+                                    text: "Dia " + (index + 1) + ":"
+                                    color: ThemeManager.textSecondary; font.pixelSize: 11
+                                }
+                                TextInput {
+                                    id: dayNameInput
+                                    text: model.dayName
+                                    color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
+                                    width: Math.max(48, contentWidth + 4)
+                                    selectByMouse: true
+                                    onTextChanged: dayNamesModel.setProperty(index, "dayName", text)
+                                    onEditingFinished: {
+                                        var n = DayNameUtils.normalizeDayName(text)
+                                        if (n !== text) text = n
+                                    }
+                                }
+                                Item { width: 2 }
+                                Rectangle {
+                                    id: removeBtn
+                                    width: 16; height: 16; radius: 8
+                                    color: removeHov.containsMouse ? "#c0392b" : "transparent"
+                                    visible: dayNamesModel.count > 1
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+                                    Text {
+                                        anchors.centerIn: parent; text: "×"
+                                        color: removeHov.containsMouse ? "white" : ThemeManager.textSecondary
+                                        font.pixelSize: 13; font.weight: Font.Bold
+                                    }
+                                    MouseArea {
+                                        id: removeHov; anchors.fill: parent
+                                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onClicked: dayNamesModel.remove(index)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 34; width: 76; radius: 8
+                        color: addDayHov.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                        border.color: ThemeManager.border; border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text { anchors.centerIn: parent; text: "+ Dia"; color: ThemeManager.textSecondary; font.pixelSize: 12 }
+                        MouseArea {
+                            id: addDayHov; anchors.fill: parent
+                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: dayNamesModel.append({ dayName: "Dia " + (dayNamesModel.count + 1) })
+                        }
+                    }
                 }
             }
 
@@ -294,7 +316,7 @@ Item {
             RowLayout {
                 spacing: 30
 
-                // Droga
+                // Tratamento
                 RowLayout {
                     spacing: 12
                     Rectangle {
@@ -310,7 +332,7 @@ Item {
                     }
                     ColumnLayout {
                         spacing: 2
-                        Text { text: "Incluir coluna \"Droga\""; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { text: "Incluir coluna \"Tratamento\""; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
                         Text { text: "Para tratamentos farmacológicos."; color: ThemeManager.textTertiary; font.pixelSize: 11 }
                     }
                 }
@@ -331,7 +353,7 @@ Item {
                     }
                     ColumnLayout {
                         spacing: 2
-                        Text { text: "Zonas de Objetos"; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { text: "Sniffing"; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
                         Text { text: "Habilita detecção sniffing vs resting."; color: ThemeManager.textTertiary; font.pixelSize: 11 }
                     }
                 }
