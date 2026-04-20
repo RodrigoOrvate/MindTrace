@@ -24,6 +24,7 @@ Item {
 
     function doCreate() {
         var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia",
+                    "Tempo no Centro (s)", "Tempo na Borda (s)", "Visitas ao Centro",
                     "Distância Total (m)", "Velocidade Média (m/s)"]
         if (drugCheck.checked) cols.push("Tratamento")
         var names = []

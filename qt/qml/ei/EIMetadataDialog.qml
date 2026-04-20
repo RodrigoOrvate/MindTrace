@@ -1,5 +1,5 @@
 // qml/ei/EIMetadataDialog.qml
-// Diálogo pós-sessão para Esquiva Inibitória — seleção de dia via ComboBox.
+// Diálogo pós-sessão para Esquiva Inibitória — dia + animal + tratamento.
 
 import QtQuick
 import QtQuick.Layouts
@@ -12,8 +12,8 @@ Popup {
     id: root
 
     anchors.centerIn: parent
-    width: 500
-    height: 560
+    width: 540
+    height: mainLayout.implicitHeight + 48
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape
@@ -24,7 +24,6 @@ Popup {
     property bool   includeDrug: true
     property var    dayNames: []
 
-    // Métricas recebidas da sessão
     property real   latencia: 0
     property real   tempoPlataf: 0
     property real   tempoGrade: 0
@@ -33,71 +32,68 @@ Popup {
     property real   totalDistance: 0
     property real   avgVelocity: 0
 
-    onOpened: { dayCombo.currentIndex = 0 }
+    property var _animalText: ""
+    property var _drogaText:  ""
+
+    onOpened: {
+        dayCombo.currentIndex = 0
+        _animalText = ""
+        _drogaText  = ""
+    }
 
     function doInsert() {
-        var animalText = animalField.text.trim()
-        if (!animalText) {
-            Toast.show("Digite o ID do animal.")
-            return
+        try {
+            var animalText = root._animalText.trim()
+            if (!animalText) return
+
+            var fase = dayCombo.currentText
+            var dia  = String(dayCombo.currentIndex + 1)
+            var tTotalJ    = tempoPlataf + tempoGrade
+            var vMediaReal = tTotalJ > 0.5 ? (totalDistance / tTotalJ) : 0.0
+
+            var row = [videoPath, animalText, dia,
+                latencia.toFixed(2), tempoPlataf.toFixed(2), tempoGrade.toFixed(2),
+                boutsGrade, totalDistance.toFixed(2), vMediaReal.toFixed(2)]
+            if (root.includeDrug) row.push(root._drogaText.trim())
+
+            ExperimentManager.insertSessionResult(root.experimentName, [row])
+
+            var sessionMeta = {
+                "timestamp": new Date().toISOString(),
+                "fase": fase, "dia": dia,
+                "videoPath": videoPath.replace("file:///", ""),
+                "aparato": "esquiva_inibitoria", "animal": animalText,
+                "latencia_s":          parseFloat(latencia.toFixed(2)),
+                "tempo_plataforma_s":  parseFloat(tempoPlataf.toFixed(2)),
+                "tempo_grade_s":       parseFloat(tempoGrade.toFixed(2)),
+                "bouts_plataforma":    boutsPlataf,
+                "bouts_grade":         boutsGrade,
+                "distancia_total_m":   parseFloat(totalDistance.toFixed(2)),
+                "velocidade_media_ms": parseFloat(vMediaReal.toFixed(2)),
+                "droga": root.includeDrug ? root._drogaText.trim() : ""
+            }
+            ExperimentManager.saveSessionMetadata(
+                root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animalText)
+        } catch (e) {
+            console.log("Erro ao salvar sessão EI:", e)
+        } finally {
+            root.close()
+            root.visible = false
         }
-
-        var fase = dayCombo.currentText
-        var dia  = String(dayCombo.currentIndex + 1)
-
-        var row = [
-            videoPath,
-            animalText,
-            dia,
-            latencia.toFixed(2),
-            tempoPlataf.toFixed(2),
-            tempoGrade.toFixed(2),
-            boutsPlataf,
-            boutsGrade,
-            totalDistance.toFixed(2),
-            avgVelocity.toFixed(2)
-        ]
-        if (root.includeDrug) row.push(drugField.text.trim())
-
-        ExperimentManager.insertSessionResult(root.experimentName, [row])
-
-        var sessionMeta = {
-            "timestamp": new Date().toISOString(),
-            "fase":      fase,
-            "dia":       dia,
-            "videoPath": videoPath.replace("file:///", ""),
-            "aparato":   "esquiva_inibitoria",
-            "animal":    animalText,
-            "latencia_s":          parseFloat(latencia.toFixed(2)),
-            "tempo_plataforma_s":  parseFloat(tempoPlataf.toFixed(2)),
-            "tempo_grade_s":       parseFloat(tempoGrade.toFixed(2)),
-            "bouts_plataforma":    boutsPlataf,
-            "bouts_grade":         boutsGrade,
-            "distancia_total_m":   parseFloat(totalDistance.toFixed(2)),
-            "velocidade_media_ms": parseFloat(avgVelocity.toFixed(2)),
-            "droga":               root.includeDrug ? drugField.text.trim() : ""
-        }
-        ExperimentManager.saveSessionMetadata(
-            root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animalText)
-
-        Toast.show("Sessão salva com sucesso.")
-        root.close()
-        root.closed()
     }
 
     background: Rectangle {
-        radius: 14
-        color: ThemeManager.surface
+        radius: 14; color: ThemeManager.surface
         Behavior on color { ColorAnimation { duration: 200 } }
-        border.color: "#3d7aab"
-        border.width: 1
+        border.color: "#c8a000"; border.width: 1.5
     }
 
     ColumnLayout {
-        anchors { fill: parent; margins: 24 }
-        spacing: 12
+        id: mainLayout
+        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+        spacing: 14
 
-        // ── Título ───────────────────────────────────────────────────
+        // ── Header ────────────────────────────────────────────────────────
         RowLayout {
             spacing: 10
             Text { text: "🪤"; font.pixelSize: 20 }
@@ -110,213 +106,215 @@ Popup {
                 }
                 Text {
                     text: "Esquiva Inibitória — informe o dia e o animal"
-                    color: "#3d7aab"; font.pixelSize: 11
+                    color: "#c8a000"; font.pixelSize: 11
                 }
             }
             Item { Layout.fillWidth: true }
             Text {
                 text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14
                 Behavior on color { ColorAnimation { duration: 150 } }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.close(); root.closed() } }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.close() }
             }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Scroll Area com campos ────────────────────────────────────
-        ScrollView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+        // ── Dia da sessão ─────────────────────────────────────────────────
+        ColumnLayout {
+            Layout.fillWidth: true; spacing: 6
 
-            ColumnLayout {
-                width: root.width - 48
-                spacing: 14
+            Text {
+                text: "DIA DA SESSÃO"
+                color: ThemeManager.textSecondary
+                font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
 
-                // ── Dia da sessão ─────────────────────────────────────
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 6
+            RowLayout {
+                spacing: 10
 
-                    Text {
-                        text: "DIA DA SESSÃO"
-                        color: ThemeManager.textSecondary
-                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-
-                    RowLayout {
-                        spacing: 10
-
-                        ComboBox {
-                            id: dayCombo
-                            model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
-                            Layout.fillWidth: true
-                            font.pixelSize: 13; font.weight: Font.Bold
-
-                            contentItem: Text {
-                                leftPadding: 12
-                                text: dayCombo.displayText
-                                color: ThemeManager.textPrimary; font: dayCombo.font
-                                verticalAlignment: Text.AlignVCenter
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                            }
-                            background: Rectangle {
-                                radius: 8; color: ThemeManager.surfaceDim
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                border.color: dayCombo.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
-                            }
-                            delegate: ItemDelegate {
-                                width: dayCombo.width
-                                contentItem: Text {
-                                    text: modelData
-                                    color: dayCombo.currentIndex === index ? "#3d7aab" : ThemeManager.textPrimary
-                                    font.pixelSize: 13; font.weight: Font.Bold
-                                    verticalAlignment: Text.AlignVCenter
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                }
-                                background: Rectangle {
-                                    color: hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-                                }
-                            }
-                            popup: Popup {
-                                y: dayCombo.height; width: dayCombo.width; padding: 0
-                                background: Rectangle { color: ThemeManager.surfaceDim; border.color: "#3d7aab"; radius: 8; Behavior on color { ColorAnimation { duration: 200 } } }
-                                contentItem: ListView { implicitHeight: contentHeight; model: dayCombo.delegateModel; clip: true }
-                            }
-                        }
-
-                        Rectangle {
-                            radius: 6; color: ThemeManager.surfaceDim
-                            border.color: "#3d7aab"; border.width: 1
-                            implicitWidth: diaLbl.implicitWidth + 16; height: 34
-                            Text {
-                                id: diaLbl; anchors.centerIn: parent
-                                text: "Dia " + (dayCombo.currentIndex + 1)
-                                color: "#3d7aab"; font.pixelSize: 13; font.weight: Font.Bold
-                            }
-                        }
-                    }
-                }
-
-                Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
-
-                // Animal ID
-                ColumnLayout {
-                    spacing: 6
-                    Text {
-                        text: "ID DO ANIMAL"
-                        color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-                    TextField {
-                        id: animalField
-                        Layout.fillWidth: true
-                        placeholderText: "Ex.: Rato_01"
-                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
-                        leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                        background: Rectangle {
-                            radius: 6; color: ThemeManager.surfaceDim
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: animalField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                    }
-                }
-
-                Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
-
-                // ── Métricas (display only) ──────────────────────────────
-                Text {
-                    text: "MÉTRICAS"
-                    color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                }
-
-                GridLayout {
+                ComboBox {
+                    id: dayCombo
+                    model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
                     Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 12
-                    rowSpacing: 10
+                    font.pixelSize: 13; font.weight: Font.Bold
 
-                    Text { text: "Latência (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.latencia.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Tempo Plataforma (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.tempoPlataf.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Tempo Grade (s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.tempoGrade.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Bouts Plataforma:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.boutsPlataf; color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Bouts Grade:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.boutsGrade; color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Distância (m):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.totalDistance.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-
-                    Text { text: "Velocidade (m/s):"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                    Text { text: root.avgVelocity.toFixed(2); color: ThemeManager.textPrimary; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
-                }
-
-                // Tratamento (se aplicável)
-                ColumnLayout {
-                    visible: root.includeDrug
-                    spacing: 6
-                    Text {
-                        text: "TRATAMENTO"
-                        color: ThemeManager.textSecondary; font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1
+                    contentItem: Text {
+                        leftPadding: 12; text: dayCombo.displayText
+                        color: ThemeManager.textPrimary; font: dayCombo.font
+                        verticalAlignment: Text.AlignVCenter
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
-                    TextField {
-                        id: drugField
-                        Layout.fillWidth: true
-                        placeholderText: "Ex.: Salina, Midazolam…"
-                        color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                        background: Rectangle {
-                            radius: 6; color: ThemeManager.surfaceDim
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: drugField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                    background: Rectangle {
+                        radius: 8; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: dayCombo.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
+                    delegate: ItemDelegate {
+                        width: dayCombo.width
+                        contentItem: Text {
+                            text: modelData
+                            color: dayCombo.currentIndex === index ? "#e0b800" : ThemeManager.textPrimary
+                            font.pixelSize: 13; font.weight: Font.Bold; verticalAlignment: Text.AlignVCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
                         }
+                        background: Rectangle {
+                            color: hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                            Behavior on color { ColorAnimation { duration: 100 } }
+                        }
+                    }
+                    popup: Popup {
+                        y: dayCombo.height; width: dayCombo.width; padding: 0
+                        background: Rectangle { color: ThemeManager.surfaceDim; border.color: "#c8a000"; radius: 8; Behavior on color { ColorAnimation { duration: 200 } } }
+                        contentItem: ListView { implicitHeight: contentHeight; model: dayCombo.delegateModel; clip: true }
+                    }
+                }
+
+                Rectangle {
+                    radius: 6; color: ThemeManager.surfaceDim
+                    border.color: "#c8a000"; border.width: 1
+                    implicitWidth: diaLbl.implicitWidth + 16; height: 34
+                    Text {
+                        id: diaLbl; anchors.centerIn: parent
+                        text: "Dia " + (dayCombo.currentIndex + 1)
+                        color: "#e0b800"; font.pixelSize: 13; font.weight: Font.Bold
                     }
                 }
             }
         }
 
-        // ── Botões ───────────────────────────────────────────────────
-        RowLayout {
+        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
+        // ── Campo único ───────────────────────────────────────────────────
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 12
+            radius: 10
+            color: ThemeManager.surfaceDim
+            border.color: ThemeManager.border; border.width: 1
+            implicitHeight: animalCol.implicitHeight + 24
+            Behavior on color { ColorAnimation { duration: 200 } }
 
-            GhostButton {
-                text: "Cancelar"
-                onClicked: { root.close(); root.closed() }
+            ColumnLayout {
+                id: animalCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
+                spacing: 10
+
+                RowLayout {
+                    spacing: 12
+
+                    Rectangle {
+                        width: 32; height: 22; radius: 5
+                        color: "#1a1600"; border.color: "#c8a000"; border.width: 1.5
+                        Text {
+                            anchors.centerIn: parent
+                            text: "C1"
+                            color: "#e0b800"; font.pixelSize: 11; font.weight: Font.Bold
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 1
+                        Text {
+                            text: root.totalDistance.toFixed(2) + " m"
+                            color: ThemeManager.textPrimary; font.pixelSize: 15; font.weight: Font.Bold
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                        Text {
+                            text: root.avgVelocity.toFixed(3) + " m/s média"
+                            color: ThemeManager.textSecondary; font.pixelSize: 10
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    ColumnLayout {
+                        spacing: 3
+                        Text {
+                            text: "ANIMAL"
+                            color: ThemeManager.textSecondary
+                            font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                        TextField {
+                            id: animalField
+                            width: 130; height: 30
+                            placeholderText: "ID ou nome"
+                            color: ThemeManager.textPrimary
+                            placeholderTextColor: ThemeManager.textTertiary
+                            font.pixelSize: 12
+                            leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                            background: Rectangle {
+                                radius: 7; color: ThemeManager.surface
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                                border.color: animalField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
+                            onTextChanged: root._animalText = text
+                        }
+                    }
+                }
+
+                RowLayout {
+                    visible: root.includeDrug; spacing: 12
+                    Item { width: 44 }
+                    ColumnLayout {
+                        spacing: 3
+                        Text {
+                            text: "TRATAMENTO"
+                            color: ThemeManager.textSecondary
+                            font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                        TextField {
+                            id: drogaField
+                            width: 260; height: 30
+                            placeholderText: "Ex.: Salina, Midazolam…"
+                            color: ThemeManager.textPrimary
+                            placeholderTextColor: ThemeManager.textTertiary
+                            font.pixelSize: 12
+                            leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                            background: Rectangle {
+                                radius: 7; color: ThemeManager.surface
+                                Behavior on color { ColorAnimation { duration: 200 } }
+                                border.color: drogaField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                            }
+                            onTextChanged: root._drogaText = text
+                        }
+                    }
+                }
+
+                Item { height: 2 }
             }
+        }
 
+        Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
+
+        // ── Botões ────────────────────────────────────────────────────────
+        RowLayout {
+            Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }
-
+            GhostButton { text: "Cancelar"; onClicked: root.close() }
             Button {
                 text: "Salvar Sessão"
-                enabled: animalField.text.trim().length > 0
-
+                enabled: root._animalText.trim().length > 0
+                onClicked: root.doInsert()
                 background: Rectangle {
-                    radius: 7
-                    color: parent.enabled ? (parent.hovered ? "#2d5f8a" : "#3d7aab") : "#2d2d4a"
+                    radius: 8
+                    color: parent.enabled ? (parent.hovered ? "#9a7800" : "#c8a000") : ThemeManager.border
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {
-                    text: parent.text; color: ThemeManager.buttonText
-                    font.pixelSize: 12; font.weight: Font.Bold
+                    text: parent.text; color: "#ffffff"
+                    font.pixelSize: 13; font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }
-                leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
-
-                onClicked: root.doInsert()
+                leftPadding: 20; rightPadding: 20; topPadding: 10; bottomPadding: 10
             }
         }
+
+        Item { height: 4 }
     }
 }

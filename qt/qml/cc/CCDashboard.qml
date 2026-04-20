@@ -10,6 +10,7 @@ import "../core"
 import "../core/Theme"
 import "../shared"
 import "../nor"
+import "../ei"
 import MindTrace.Backend 1.0
 import MindTrace.Analysis 1.0
 import MindTrace.Tracking 1.0
@@ -410,8 +411,6 @@ Item {
                     tableModel.loadCsv(path + "/tracking_data.csv")
                     workStack.currentIndex = 1
 
-                    ArenaConfigModel.loadConfigFromPath(path)
-
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx  = meta.context || ""
                     ExperimentManager.setActiveContext(ctx)
@@ -421,6 +420,18 @@ Item {
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
                     dayNames        = meta.dayNames || Array.from({length: meta.sessionDays || 5}, function(_, i) { return "Dia " + (i+1) })
+
+                    if (activeNumCampos === 1) {
+                        ArenaConfigModel.loadConfigFromPath(path, ":/arena_config_ei_referencia.json")
+                        Qt.callLater(function() {
+                            var fp = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                            var pts = (fp.length > 0 && Array.isArray(fp[0])) ? fp[0] : fp
+                            if (!Array.isArray(pts) || pts.length < 8)
+                                ArenaConfigModel.loadConfigFromPath("", ":/arena_config_ei_referencia.json")
+                        })
+                    } else {
+                        ArenaConfigModel.loadConfigFromPath(path)
+                    }
 
                     // Propaga pontos de arena para aba Gravação
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
@@ -543,39 +554,63 @@ Item {
                             currentIndex: innerTabs.currentIndex
 
                             // ── Tab 0: Arena ──────────────────────────────
-                            ArenaSetup {
-                                id: tabArenaSetup
-                                experimentPath: workArea.selectedPath
-                                context: root.context
-                                numCampos: workArea.activeNumCampos
-                                aparato: "comportamento_complexo"
-                                caMode: true   // sem objetos NOR
-                                ccMode: true   // sem centro
-                                showObjectZones: workArea.hasObjectZones
+                            Item {
+                                // ArenaSetup padrão — 2 ou 3 campos
+                                ArenaSetup {
+                                    id: tabArenaSetup
+                                    anchors.fill: parent
+                                    visible: workArea.activeNumCampos > 1
+                                    experimentPath: workArea.activeNumCampos > 1 ? workArea.selectedPath : ""
+                                    context: root.context
+                                    numCampos: workArea.activeNumCampos
+                                    aparato: "comportamento_complexo"
+                                    caMode: true
+                                    ccMode: true
+                                    showObjectZones: workArea.hasObjectZones
 
-                                onAnalysisModeChangedExternally: mode => {
-                                    workArea.analysisMode  = mode
-                                    innerTabs.currentIndex = 1
+                                    onAnalysisModeChangedExternally: mode => {
+                                        workArea.analysisMode = mode
+                                    }
+                                    onZonasEditadas: {
+                                        if (workArea.activeNumCampos === 1) return
+                                        liveRecordingTab.zones       = workArea.hasObjectZones ? tabArenaSetup.zones : []
+                                        liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
+                                        liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
+                                    }
                                 }
 
-                                // Propagação ao vivo Arena → Gravação
-                                onZonasEditadas: {
-                                    liveRecordingTab.zones        = workArea.hasObjectZones ? tabArenaSetup.zones : []
-                                    liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
-                                    liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
+                                // EIArenaSetup — 1 campo (arena EI adaptada para CC)
+                                EIArenaSetup {
+                                    id: eiArenaSetupCC
+                                    anchors.fill: parent
+                                    visible: workArea.activeNumCampos === 1
+                                    experimentPath: workArea.activeNumCampos === 1 ? workArea.selectedPath : ""
+                                    numCampos: 1
+                                    primaryColor:   "#7a3dab"
+                                    secondaryColor: "#6a2d9a"
+
+                                    onAnalysisModeChangedExternally: mode => {
+                                        workArea.analysisMode = mode
+                                    }
+                                    onZonasEditadas: {
+                                        liveRecordingTab.zones       = []
+                                        liveRecordingTab.arenaPoints = eiArenaSetupCC.arenaPoints
+                                        liveRecordingTab.floorPoints = eiArenaSetupCC.floorPoints
+                                    }
                                 }
                             }
 
                             // ── Tab 1: Gravação ───────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
-                                videoPath:    tabArenaSetup.videoPath
+                                videoPath: workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
                                 numCampos:    workArea.activeNumCampos
-                                aparato:      "comportamento_complexo"
+                                aparato:      workArea.activeNumCampos === 1 ? "esquiva_inibitoria" : "comportamento_complexo"
+                                ccMode:       true
                                 sessionDurationMinutes: workArea.sessionMinutes
 
-                                zones:        workArea.hasObjectZones ? tabArenaSetup.zones : []
+                                zones:        workArea.activeNumCampos === 1 ? [] : (workArea.hasObjectZones ? tabArenaSetup.zones : [])
                                 arenaPoints:  JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                                 floorPoints:  JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
 
@@ -591,11 +626,12 @@ Item {
                                     ccResultDialog.totalDistance  = liveRecordingTab.totalDistance
                                     ccResultDialog.avgVelocity    = liveRecordingTab.avgVelocityMeans
                                     ccResultDialog.perMinuteData  = liveRecordingTab.perMinuteData
+                                    ccResultDialog.behaviorCounts = liveRecordingTab.behaviorCounts
                                     ccResultDialog.includeDrug    = workArea.includeDrug
                                     ccResultDialog.experimentName = workArea.selectedName
                                     ccResultDialog.experimentPath = workArea.selectedPath
                                     ccResultDialog.numCampos      = workArea.activeNumCampos
-                                    ccResultDialog.videoPath      = tabArenaSetup.videoPath
+                                    ccResultDialog.videoPath      = workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
                                     ccResultDialog.dayNames       = workArea.dayNames
                                     ccResultDialog.sessionMinutes = workArea.sessionMinutes || 5
                                     ccResultDialog.open()

@@ -23,6 +23,7 @@ Popup {
     property var totalDistance: [0.0, 0.0, 0.0]
     property var avgVelocity:   [0.0, 0.0, 0.0]
     property var perMinuteData: [[], [], []]
+    property var behaviorCounts: [{}, {}, {}]
     property int sessionMinutes: 5   // duração real da sessão em minutos
 
     // Textos dos campos (preenchidos pelos CampoBlock via onAnimalChanged / onDrogaChanged)
@@ -63,6 +64,13 @@ Popup {
         for (var ci = 0; ci < root.numCampos; ci++) {
             var aText = root._animalTexts[ci] || ""
             if (!aText) continue
+            var bc = root.behaviorCounts[ci] || {}
+            var cWalk  = bc["Walking"] || 0
+            var cSniff = bc["Sniffing"] || 0
+            var cGroom = bc["Grooming"] || 0
+            var cRest  = bc["Resting"] || 0
+            var cRear  = bc["Rearing"] || 0
+
             var row = [
                 v,
                 aText,
@@ -70,7 +78,12 @@ Popup {
                 dia,
                 String(root.sessionMinutes),
                 parseFloat((root.totalDistance[ci] || 0).toFixed(3)),
-                parseFloat((root.avgVelocity[ci]   || 0).toFixed(3))
+                parseFloat((root.avgVelocity[ci]   || 0).toFixed(3)),
+                String(cWalk),
+                String(cSniff),
+                String(cGroom),
+                String(cRest),
+                String(cRear)
             ]
             if (root.includeDrug) row.push(root._drogaTexts[ci] || "")
             rows.push(row)
@@ -98,6 +111,7 @@ Popup {
                     "distancia_total_m":   parseFloat((root.totalDistance[cj] || 0).toFixed(3)),
                     "velocidade_media_ms": parseFloat((root.avgVelocity[cj]   || 0).toFixed(3))
                 },
+                "comportamentos_bouts": root.behaviorCounts[cj] || {},
                 "porMinuto": root.perMinuteData[cj] || []
             })
         }

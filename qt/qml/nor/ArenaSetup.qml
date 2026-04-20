@@ -72,6 +72,65 @@ Item {
     // Chamado pela aba Gravação quando o usuário quer carregar um novo vídeo
     function openVideoLoader() { analysisModePrompt.open() }
 
+    // ── Import Arena ──────────────────────────────────────────────────────────
+    property string _pendingImportPath: ""
+    property bool   _importWarnShape:   false
+    property bool   _importWarnZones:   false
+
+    function _arenaShape(arenaJson) {
+        try {
+            var pts = JSON.parse(arenaJson)
+            if (Array.isArray(pts) && pts.length > 0 && Array.isArray(pts[0])) pts = pts[0]
+            if (!Array.isArray(pts) || pts.length < 3) return "desconhecida"
+            var minX = pts[0].x, maxX = pts[0].x, minY = pts[0].y, maxY = pts[0].y
+            for (var i = 1; i < pts.length; i++) {
+                if (pts[i].x < minX) minX = pts[i].x; if (pts[i].x > maxX) maxX = pts[i].x
+                if (pts[i].y < minY) minY = pts[i].y; if (pts[i].y > maxY) maxY = pts[i].y
+            }
+            var ratio = (maxX - minX) / Math.max(maxY - minY, 0.001)
+            return (ratio > 1.4 || ratio < 0.714) ? "retangular" : "quadrada"
+        } catch(e) { return "desconhecida" }
+    }
+
+    function _zoneType(zoneCount, floorJson) {
+        if (zoneCount >= 4) return "objetos"
+        try {
+            var fp = JSON.parse(floorJson)
+            if (Array.isArray(fp) && fp.length > 0 && Array.isArray(fp[0])) fp = fp[0]
+            if (Array.isArray(fp) && fp.length >= 8) return "plataforma_grade"
+        } catch(e) {}
+        return "padrao"
+    }
+
+    function _startImport(sourcePath) {
+        if (!sourcePath || sourcePath === "" || experimentPath === "") return
+        // Lê dados da arena fonte
+        ArenaConfigModel.loadConfigFromPath(sourcePath)
+        var srcFloor     = ArenaConfigModel.getFloorPoints()
+        var srcZoneCount = ArenaConfigModel.zoneCount()
+        // Restaura arena atual
+        ArenaConfigModel.loadConfigFromPath(experimentPath)
+        var curFloor     = ArenaConfigModel.getFloorPoints()
+        var curZoneCount = ArenaConfigModel.zoneCount()
+        // Verifica apenas incompatibilidade de tipo de zona (shape detection removida — coords normalizadas são imprecisas)
+        var srcType  = _zoneType(srcZoneCount, srcFloor)
+        var curType  = _zoneType(curZoneCount, curFloor)
+        _pendingImportPath = sourcePath
+        _importWarnShape   = false
+        _importWarnZones   = (srcType !== curType)
+        if (_importWarnZones) {
+            importConfirmPopup.open()
+        } else {
+            _doImport()
+        }
+    }
+
+    function _doImport() {
+        ArenaConfigModel.loadConfigFromPath(_pendingImportPath)
+        _pendingImportPath = ""
+        saveToast.show("Arena importada! Clique em 'Salvar Configuração' para confirmar.")
+    }
+
     // 6 zonas, 2 por campo: { x: xRatio, y: yRatio, r: radiusRatio }
     property var zones: [
         {x: 0.3, y: 0.5, r: 0.12}, {x: 0.7, y: 0.5, r: 0.12},
@@ -210,6 +269,68 @@ Item {
             videoPlayer.stop()
             root.videoPath = selectedFile.toString()  // Qt 6: fileUrl → selectedFile
             videoPlayer.source = selectedFile
+        }
+    }
+
+    FileDialog {
+        id: importFolderDialog
+        title: "Selecionar arena_config.json do experimento de origem"
+        nameFilters: ["Configuração de Arena (arena_config.json)", "JSON (*.json)", "Todos os arquivos (*)"]
+        onAccepted: {
+            var filePath = selectedFile.toString().replace("file:///", "")
+            var folderPath = filePath.substring(0, filePath.lastIndexOf("/"))
+            root._startImport(folderPath)
+        }
+    }
+
+    // Popup: confirmar importação com avisos
+    Popup {
+        id: importConfirmPopup
+        anchors.centerIn: parent
+        width: 440; height: importConfirmLayout.implicitHeight + 48
+        modal: true; focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            radius: 14; color: ThemeManager.surface
+            Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: "#e0a000"; border.width: 1.5
+        }
+        ColumnLayout {
+            id: importConfirmLayout
+            anchors { fill: parent; margins: 24 }
+            spacing: 14
+            Text {
+                text: "⚠️ Atenção — Importar Arena"
+                color: ThemeManager.textPrimary; font.pixelSize: 15; font.weight: Font.Bold
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    var msg = ""
+                    if (root._importWarnShape)
+                        msg += "• A arena de origem tem <b>formato diferente</b> (quadrada ↔ retangular). As proporções serão mantidas, mas a posição dos elementos pode mudar.<br>"
+                    if (root._importWarnZones)
+                        msg += "• A arena de origem tem <b>configuração de zonas diferente</b> (ex: plataforma/grade vs. sem zonas, ou zonas de objetos). As zonas do destino podem ficar incompatíveis.<br>"
+                    msg += "<br>Deseja importar mesmo assim?"
+                    return msg
+                }
+                textFormat: Text.RichText
+                color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                Item { Layout.fillWidth: true }
+                GhostButton { text: "Cancelar"; onClicked: { importConfirmPopup.close(); root._pendingImportPath = "" } }
+                Button {
+                    text: "Importar Mesmo Assim"
+                    onClicked: { importConfirmPopup.close(); root._doImport() }
+                    background: Rectangle { radius: 7; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } } }
+                    contentItem: Text { text: parent.text; color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
+                }
+            }
         }
     }
 
@@ -490,6 +611,29 @@ Item {
                 
                 // Mantém a área de clique grande e o botão estável
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
+            }
+
+            // ── Importar Arena ───────────────────────────────────────────────
+            Button {
+                text: "📥 Importar Arena"
+                enabled: experimentPath !== ""
+                onClicked: importFolderDialog.open()
+                background: Rectangle {
+                    radius: 6
+                    color: parent.enabled ? (parent.hovered ? ThemeManager.surfaceAlt : ThemeManager.background) : ThemeManager.surfaceDim
+                    Behavior on color { ColorAnimation { duration: 200 } }
+                    border.color: parent.enabled ? (parent.hovered ? ThemeManager.accent : ThemeManager.borderLight) : ThemeManager.borderLight
+                    Behavior on border.color { ColorAnimation { duration: 200 } }
+                    border.width: 2
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: parent.enabled ? (parent.hovered ? ThemeManager.accent : ThemeManager.textSecondary) : ThemeManager.textTertiary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    font.pixelSize: 11; font.weight: Font.Bold
+                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                }
+                leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
 
             // ── Salvar Configuração ──────────────────────────────────────────
@@ -1133,7 +1277,7 @@ Item {
             RowLayout {
                 spacing: 16; Layout.fillWidth: true
                 visible: root.numCampos >= 3
-                Text { text: "C3"; color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold; Layout.preferredWidth: 20 }
+                Text { text: "Campo 3:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP3; Layout.fillWidth: true
                     color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: CC"

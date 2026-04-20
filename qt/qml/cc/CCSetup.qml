@@ -25,12 +25,14 @@ Item {
 
     function doCreate() {
         var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia",
-                    "Duração (min)", "Distância Total (m)", "Velocidade Média (m/s)"]
+                    "Duração (min)", "Distância Total (m)", "Velocidade Média (m/s)",
+                    "Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
         if (drugCheck.checked) cols.push("Tratamento")
         var names = []
         for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)
         root.experimentReady(nameField.text.trim(), cols,
-                             drugCheck.checked, root.sessionMinutes, objectZonesCheck.checked,
+                             drugCheck.checked, root.sessionMinutes,
+                             root.numCampos > 1 ? objectZonesCheck.checked : false,
                              names, root.selectedPath)
     }
 
@@ -337,8 +339,9 @@ Item {
                     }
                 }
 
-                // Zonas de Objetos
+                // Zonas de Objetos — oculto para 1 campo (arena EI não tem objetos)
                 RowLayout {
+                    visible: root.numCampos > 1
                     spacing: 12
                     Rectangle {
                         id: objectZonesCheck

@@ -10,6 +10,7 @@ import "../core"
 import "../core/Theme"
 import "../shared"
 import "../nor"
+import "../ei"
 import MindTrace.Backend 1.0
 
 Item {
@@ -269,8 +270,6 @@ Item {
                     tableModel.loadCsv(path + "/tracking_data.csv")
                     workStack.currentIndex = 1
 
-                    ArenaConfigModel.loadConfigFromPath(path)
-
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx  = meta.context || ""
                     ExperimentManager.setActiveContext(ctx)
@@ -279,6 +278,20 @@ Item {
                     hasReactivation = meta.hasReactivation === true
                     dayNames        = meta.dayNames || (meta.hasReactivation ? ["Treino", "Reativação", "Teste"] : ["Treino", "Teste"])
                     activeNumCampos = meta.numCampos || root.numCampos
+
+                    if (activeNumCampos === 1) {
+                        ArenaConfigModel.loadConfigFromPath(path, ":/arena_config_ei_referencia.json")
+                        // If stored config has NOR-format floorPoints (4 pts), EIArenaSetup pads
+                        // missing pts with {x:0.5,y:0.5}, creating bugged walls. Reset to EI ref.
+                        Qt.callLater(function() {
+                            var fp = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                            var pts = (fp.length > 0 && Array.isArray(fp[0])) ? fp[0] : fp
+                            if (!Array.isArray(pts) || pts.length < 8)
+                                ArenaConfigModel.loadConfigFromPath("", ":/arena_config_ei_referencia.json")
+                        })
+                    } else {
+                        ArenaConfigModel.loadConfigFromPath(path)
+                    }
 
                     innerTabs.currentIndex = 0
                 }
@@ -375,45 +388,68 @@ Item {
                             currentIndex: innerTabs.currentIndex
 
                             // ── Tab 0: Arena ──────────────────────────────────────
-                            ArenaSetup {
-                                id: tabArenaSetup
-                                experimentPath: workArea.selectedPath
-                                context: root.context
-                                numCampos: workArea.activeNumCampos
-                                aparato: "campo_aberto"
-                                caMode: true
+                            Item {
+                                // ArenaSetup padrão — 2 ou 3 campos
+                                ArenaSetup {
+                                    id: tabArenaSetup
+                                    anchors.fill: parent
+                                    visible: workArea.activeNumCampos > 1
+                                    experimentPath: workArea.activeNumCampos > 1 ? workArea.selectedPath : ""
+                                    context: root.context
+                                    numCampos: workArea.activeNumCampos
+                                    aparato: "campo_aberto"
+                                    caMode: true
 
-                                // Sincroniza a mudança de modo (offline/ao_vivo) com o resto do DASH
-                                onAnalysisModeChangedExternally: mode => {
-                                    workArea.analysisMode  = mode
-                                    innerTabs.currentIndex = 1  // Pula para aba Gravação
+                                    onAnalysisModeChangedExternally: mode => {
+                                        workArea.analysisMode = mode
+                                    }
+                                    onZonasEditadas: {
+                                        if (workArea.activeNumCampos === 1) return
+                                        liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
+                                        liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
+                                        liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
+                                    }
+                                    onCentroRatioChanged: {
+                                        if (workArea.activeNumCampos > 1)
+                                            liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
+                                    }
                                 }
 
-                                // Propaga arenaPoints/floorPoints/centroRatio ao vivo para aba Gravação
-                                // (sem necessidade de salvar — atualiza enquanto o usuário arrasta)
-                                onZonasEditadas: {
-                                    liveRecordingTab.arenaPoints = tabArenaSetup.arenaPoints
-                                    liveRecordingTab.floorPoints = tabArenaSetup.floorPoints
-                                    liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
-                                }
-                                onCentroRatioChanged: {
-                                    liveRecordingTab.centroRatio = tabArenaSetup.centroRatio
+                                // EIArenaSetup — 1 campo (arena EI adaptada para CA)
+                                EIArenaSetup {
+                                    id: eiArenaSetupCA
+                                    anchors.fill: parent
+                                    visible: workArea.activeNumCampos === 1
+                                    experimentPath: workArea.activeNumCampos === 1 ? workArea.selectedPath : ""
+                                    numCampos: 1
+                                    primaryColor:   "#3d7aab"
+                                    secondaryColor: "#2d5f8a"
+
+                                    onAnalysisModeChangedExternally: mode => {
+                                        workArea.analysisMode = mode
+                                    }
+                                    onZonasEditadas: {
+                                        liveRecordingTab.zones       = []
+                                        liveRecordingTab.centroRatio = 0
+                                        liveRecordingTab.arenaPoints = eiArenaSetupCA.arenaPoints
+                                        liveRecordingTab.floorPoints = eiArenaSetupCA.floorPoints
+                                    }
                                 }
                             }
 
                             // ── Tab 1: Gravação ───────────────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
-                                videoPath: tabArenaSetup.videoPath
+                                videoPath: workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
                                 numCampos:    workArea.activeNumCampos
-                                aparato: "campo_aberto"
+                                aparato: workArea.activeNumCampos === 1 ? "esquiva_inibitoria" : "campo_aberto"
 
                                 // CA usa pontos para desenhar Centro/Borda
                                 zones:       ArenaConfigModel.zones
                                 arenaPoints: JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                                 floorPoints: JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
-                                centroRatio: (function() {
+                                centroRatio: workArea.activeNumCampos === 1 ? 0 : (function() {
                                     var m = ExperimentManager.readMetadataFromPath(workArea.selectedPath)
                                     return m.centroRatio || 0.5
                                 })()
@@ -422,26 +458,30 @@ Item {
                                 Connections {
                                     target: ArenaConfigModel
                                     function onConfigChanged() {
-                                        var srcAP = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
-                                        var srcFP = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
-                                        liveRecordingTab.arenaPoints = srcAP
-                                        liveRecordingTab.floorPoints = srcFP
-                                        var m = ExperimentManager.readMetadataFromPath(workArea.selectedPath)
-                                        liveRecordingTab.centroRatio = m.centroRatio || 0.5
+                                        liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
+                                        liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
+                                        if (workArea.activeNumCampos > 1) {
+                                            var m = ExperimentManager.readMetadataFromPath(workArea.selectedPath)
+                                            liveRecordingTab.centroRatio = m.centroRatio || 0.5
+                                        } else {
+                                            liveRecordingTab.centroRatio = 0
+                                        }
                                     }
                                 }
 
                                 onSessionEnded: {
-                                    caResultDialog.totalDistance   = liveRecordingTab.totalDistance
-                                    caResultDialog.avgVelocity     = liveRecordingTab.currentVelocity
-                                    caResultDialog.perMinuteData   = liveRecordingTab.perMinuteData
-                                    caResultDialog.includeDrug     = workArea.includeDrug
-                                    caResultDialog.hasReactivation = workArea.hasReactivation
-                                    caResultDialog.dayNames        = workArea.dayNames
-                                    caResultDialog.experimentName  = workArea.selectedName
-                                    caResultDialog.experimentPath  = workArea.selectedPath
-                                    caResultDialog.numCampos       = workArea.activeNumCampos
-                                    caResultDialog.videoPath       = tabArenaSetup.videoPath
+                                    caResultDialog.totalDistance    = liveRecordingTab.totalDistance
+                                    caResultDialog.avgVelocity      = liveRecordingTab.avgVelocityMeans
+                                    caResultDialog.perMinuteData    = liveRecordingTab.perMinuteData
+                                    caResultDialog.explorationTimes = liveRecordingTab.explorationTimes
+                                    caResultDialog.explorationBouts = liveRecordingTab.explorationBouts
+                                    caResultDialog.includeDrug      = workArea.includeDrug
+                                    caResultDialog.hasReactivation  = workArea.hasReactivation
+                                    caResultDialog.dayNames         = workArea.dayNames
+                                    caResultDialog.experimentName   = workArea.selectedName
+                                    caResultDialog.experimentPath   = workArea.selectedPath
+                                    caResultDialog.numCampos        = workArea.activeNumCampos
+                                    caResultDialog.videoPath        = workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
                                     caResultDialog.open()
                                 }
 

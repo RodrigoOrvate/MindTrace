@@ -11,7 +11,7 @@ Item {
     property alias tableModel: placeholder.model
     property alias workArea: placeholder.workArea
 
-    readonly property color accentColor: "#2f7a4b"
+    readonly property color accentColor: "#c8a000"
     readonly property color rowEven: ThemeManager.surfaceDim
     readonly property color rowOdd:  ThemeManager.surface
 

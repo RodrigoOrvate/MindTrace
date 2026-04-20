@@ -302,10 +302,11 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
   - **NOR:** Tema vermelho (#ab3d4c) — Vídeo, Animal, Campo, Dia, Par de Objetos, Tratamento
   - **CA:** Tema azul (#3d7aab) — Animal, Campo, Dia, Distância Total, Velocidade Média, Tratamento
   - **CC:** Tema roxo (#7a3dab) — Comportamento Complexo com locomoção e velocidade
-  - **EI:** Tema verde (#2f7a4b) com **color-coding semântico**: Latência (vermelho), Tempo/Bouts Plataforma (verde), Tempo/Bouts Grade (azul)
+  - **EI:** Dashboard/Setup/popup e Aba Dados (`EIDataView`) todos em tema **amarelo (#c8a000)** com color-coding semântico nas células: Latência (vermelho), Tempo Plataforma (verde), Tempo Grade (azul)
   - **Detecção automática:** Componente `DataView` escaneia headers CSV e renderiza view apropriada sem intervenção manual
   - **Recursos:** Botões Exportar/Salvar, BusyIndicator, scroll, edição de células, legends contextualizadas
 - **Zonas Editáveis (CC)**: Em modo Comportamento Complexo, as zonas podem ser editadas na ArenaSetup (Shift+drag para mover, scroll para redimensionar). Tamanho e posição são salvos/restaurados.
+- **Importar Arena**: Botão "📥 Importar Arena" nas telas de configuração (`ArenaSetup.qml` e `EIArenaSetup.qml`). Selecione a pasta de outro experimento para copiar sua configuração de arena. Aviso automático se houver incompatibilidade de forma (quadrada ↔ retangular) ou tipo de zona (objetos / plataforma-grade / padrão).
 
 ---
 
@@ -343,6 +344,17 @@ Para realizar a descoberta de novos comportamentos após uma sessão de Comporta
 | CSV Behavior Summary | C++ agora emite o arquivo behavior_summary.csv separando % de tempo no CA/CC automaticamente. |
 | Erro `undefined inference` | Corrigido erro onde o QML não encontrava o InferenceController em LiveRecording através de um wrapper funcional. |
 | Timeline B-SOiD | Implementado `populateTimelines()` nativo para preenchimento ultra-rápido de etogramas via SceneGraph. |
+| `dayNames` não aparecia no popup pós-sessão | `readMetadataFromPath()` / `readMetadata()` em C++ nunca retornavam o campo `dayNames`. Adicionado parsing do array em ambas as funções. |
+| Nomes de dias corrompidos pelo normalizador | `dayNameUtils.js` usava fuzzy matching Levenshtein (distância ≤2) que corrompia nomes customizados ("Teste2"→"Teste"). Substituído por normalização simples sem fuzzy. |
+| Popups pós-sessão inconsistentes | NOR, CA e EI reescritos para o padrão CC-style com `CampoBlock`, altura dinâmica e cores por aparato: NOR=#ab3d4c, CA=#3d7aab, CC=#7a3dab, EI=#c8a000. |
+| Fim de vídeo não abria popup (CA, EI) | Re-entrância no `displayPlayer` ao chamar `stop()` de dentro de `onMediaStatusChanged`. Corrigido com `Qt.callLater()` em ambos os handlers. |
+| Timer nunca encerrava sessões 1/2-campo | `startSession()` resetava `timerStarted` após inicializar campos inativos como concluídos. Linha duplicada removida. |
+| Tema EI azul (deveria ser amarelo) | `EIDashboard`, `EISetup` e Excel export (`formatar_mindtrace.py`) atualizados de `#3d7aab` para `#c8a000`. |
+| Botão "Salvar Configuração" do CA aparecia amarelo | `EIArenaSetup` tinha cores hardcoded; CA e CC o reutilizam. Adicionadas props `primaryColor`/`secondaryColor`; cada aparato passa sua cor ao instanciar. |
+| Popup pós-sessão não aparecia ao fim do vídeo (CA/CC/EI) | Race condition `onAnalyzingChanged` vs `Qt.callLater`. Corrigido com `_guardedSessionEnded()` + flag `_manualStopRequested` em `LiveRecording.qml`. |
+| Aba Dados EI verde em vez de amarelo | `EIDataView.qml` tinha `accentColor: "#2f7a4b"`. Alterado para `"#c8a000"`. |
+| Popup EI nunca abria | `EIMetadataDialog` estava com `parent: root` em vez de `parent: Overlay.overlay`. |
+| Configuração de arena não reutilizável entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: detecta incompatibilidade de forma/zona e exibe popup de aviso antes de importar. |
 ---
 
 ## 12. Esquiva Inibitória (EI)

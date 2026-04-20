@@ -267,32 +267,6 @@ Item {
                         }
                     }
 
-                    // Botão "Novo" atualizado para abrir o Setup completo
-                    Button {
-                        Layout.fillWidth: true
-                        text: "＋ Novo Experimento"
-                        visible: !root.searchMode
-                        
-                        // CORREÇÃO: Sintaxe limpa para disparar a tela de configuração
-                        onClicked: {
-                            // Busca o componente definido no main.qml através do stack
-                            stack.push(norSetupComponent, {
-                                "context": root.context, 
-                                "arenaId": root.arenaId
-                            })
-                        }
-
-                        background: Rectangle {
-                            radius: 8
-                            color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 200 } }
-                        }
-                        contentItem: Text {
-                            text: parent.text; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
-                            font.pixelSize: 12; font.weight: Font.Bold
-                            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                        }
-                        topPadding: 9; bottomPadding: 9
-                    }
                 }
             }
 
@@ -641,7 +615,11 @@ Item {
                         // Colunas padrão NOR (sem droga por simplicidade neste atalho)
                         ExperimentManager.createExperimentWithConfig(
                             createNameField.text.trim(), 0,
-                            ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos"])
+                            ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos",
+                             "Exploração Obj1 (s)", "Bouts Obj1",
+                             "Exploração Obj2 (s)", "Bouts Obj2",
+                             "Exploração Total (s)", "DI",
+                             "Distância (m)", "Velocidade (m/s)"])
                     }
                     background: Rectangle {
                         radius: 8
@@ -820,6 +798,7 @@ Item {
         analysisMode:     workArea.analysisMode
         saveDirectory:    workArea.saveDirectory
         videoPath:        liveRecordingTab.videoPath
+        numCampos:        workArea.activeNumCampos
     }
 
     Toast { id: successToast; successMode: true;  anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }

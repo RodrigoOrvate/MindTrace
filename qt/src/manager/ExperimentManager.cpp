@@ -542,6 +542,12 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
                                                 ? obj[QStringLiteral("sessionDays")].toInt(5)
                                                 : 5;
+    if (obj.contains(QStringLiteral("dayNames"))) {
+        const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
+        QStringList names;
+        for (const QJsonValue &v : arr) names.append(v.toString());
+        result[QStringLiteral("dayNames")] = names;
+    }
     return result;
 }
 
@@ -593,6 +599,12 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
                                                 ? obj[QStringLiteral("sessionDays")].toInt(5)
                                                 : 5;
+    if (obj.contains(QStringLiteral("dayNames"))) {
+        const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
+        QStringList names;
+        for (const QJsonValue &v : arr) names.append(v.toString());
+        result[QStringLiteral("dayNames")] = names;
+    }
     return result;
 }
 

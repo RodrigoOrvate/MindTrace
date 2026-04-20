@@ -232,11 +232,11 @@ Item {
                 textSecondary: "#6a3d8a"
             }
             case "ei": return {
-                accent: "#2f7a4b",
-                accentLight: "#4d9d6a",
-                headerBg: "#eaf7ef",
-                text: "#0f4d27",
-                textSecondary: "#3d6a4d"
+                accent: "#c8a000",
+                accentLight: "#e0b800",
+                headerBg: "#fdf8e1",
+                text: "#5a4200",
+                textSecondary: "#7a5c00"
             }
             default: return {
                 accent: "#4b5563",

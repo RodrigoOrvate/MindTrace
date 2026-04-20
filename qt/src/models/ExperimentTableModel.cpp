@@ -35,7 +35,7 @@ static ExportTheme detectTheme(const QStringList &headers)
     }
     if (headers.contains(QStringLiteral("Latência (s)")) || headers.contains(QStringLiteral("Tempo Plataforma (s)"))) {
         return {QStringLiteral("Esquiva Inibitória (EI)"),
-                QStringLiteral("#2f7a4b"), QStringLiteral("#eaf7ef"), QStringLiteral("#0f4d27")};
+                QStringLiteral("#c8a000"), QStringLiteral("#fdf8e1"), QStringLiteral("#5a4200")};
     }
     if (headers.contains(QStringLiteral("Duração (min)"))) {
         return {QStringLiteral("Comportamento Complexo (CC)"),

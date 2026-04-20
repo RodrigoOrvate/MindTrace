@@ -138,7 +138,7 @@ Item {
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
                             radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: searchField.activeFocus ? "#3d7aab" : ThemeManager.borderLight; border.width: 1
+                            border.color: searchField.activeFocus ? "#c8a000" : ThemeManager.borderLight; border.width: 1
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
                         onTextChanged: ExperimentManager.setFilter(text)
@@ -170,7 +170,7 @@ Item {
                             width: experimentList.width; height: 36
                             property bool isSelected: experimentList.currentIndex === index
                             property bool isHovered: mainArea.containsMouse || trashArea.containsMouse
-                            color: isSelected ? "#3d7aab" : (isHovered ? ThemeManager.surfaceAlt : "transparent")
+                            color: isSelected ? "#c8a000" : (isHovered ? ThemeManager.surfaceAlt : "transparent")
                             Behavior on color { ColorAnimation { duration: 120 } }
 
                             Text {
@@ -188,7 +188,7 @@ Item {
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
                                     anchors.centerIn: parent; text: "🗑"; font.pixelSize: 13
-                                    color: trashArea.containsMouse ? "#5da3d5" : "#3d7aab"
+                                    color: trashArea.containsMouse ? "#e0b800" : "#c8a000"
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
                                 MouseArea {
@@ -330,7 +330,7 @@ Item {
                                         Rectangle {
                                             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                             height: parent.isActive ? 2 : (parent.isHovered ? 1 : 0)
-                                            color: parent.isActive ? "#3d7aab" : (parent.isHovered ? "#5da3d5" : "transparent")
+                                            color: parent.isActive ? "#c8a000" : (parent.isHovered ? "#e0b800" : "transparent")
                                             Behavior on color  { ColorAnimation { duration: 150 } }
                                             Behavior on height { NumberAnimation { duration: 150 } }
                                         }
@@ -397,8 +397,8 @@ Item {
                                 floorPoints: tabArenaSetup.floorPoints
 
                                 onSessionEnded: {
-                                    // Calcula latência como o primeiro bout na zona plataforma (explorationBouts[0][0])
-                                    var latencia = (explorationBouts[0] && explorationBouts[0].length > 0) ? explorationBouts[0][0] : 0
+                                    // Latência = tempo decorrido até primeira entrada na grade
+                                    var latencia = eiLatencySeconds >= 0 ? eiLatencySeconds : 0
 
                                     eiResultDialog.latencia        = latencia
                                     eiResultDialog.tempoPlataf     = explorationTimes[0] || 0
@@ -406,7 +406,7 @@ Item {
                                     eiResultDialog.boutsPlataf     = (explorationBouts[0] || []).length
                                     eiResultDialog.boutsGrade      = (explorationBouts[1] || []).length
                                     eiResultDialog.totalDistance   = totalDistance[0] || 0
-                                    eiResultDialog.avgVelocity     = currentVelocity[0] || 0
+                                    eiResultDialog.avgVelocity     = avgVelocityMeans[0] || 0
                                     eiResultDialog.includeDrug    = workArea.includeDrug
                                     eiResultDialog.experimentName = workArea.selectedName
                                     eiResultDialog.videoPath      = tabArenaSetup.videoPath
@@ -435,7 +435,8 @@ Item {
     // ── Diálogo de metadados pós-sessão ─────────────────────────────────
     EIMetadataDialog {
         id: eiResultDialog
-        parent: root
+        parent: Overlay.overlay
+        anchors.centerIn: parent
         onClosed: {
             ExperimentManager.refreshModel()
         }
@@ -447,7 +448,7 @@ Item {
         anchors.centerIn: parent; width: 400; height: 200
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#3d7aab"; border.width: 1 }
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#c8a000"; border.width: 1 }
 
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
@@ -464,7 +465,7 @@ Item {
                 Button {
                     text: "Continuar"
                     onClicked: { deleteStep1Popup.close(); delConfirmField.text = ""; deleteStep2Popup.open() }
-                    background: Rectangle { radius: 7; color: parent.hovered ? "#2d5f8a" : "#3d7aab"; Behavior on color { ColorAnimation { duration: 150 } } }
+                    background: Rectangle { radius: 7; color: parent.hovered ? "#9a7800" : "#c8a000"; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }
@@ -478,7 +479,7 @@ Item {
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: delConfirmField.forceActiveFocus()
-        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#3d7aab"; border.width: 1 }
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#c8a000"; border.width: 1 }
 
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
@@ -490,7 +491,7 @@ Item {
                 placeholderText: root.pendingDeleteName
                 color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                 leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                background: Rectangle { radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: delConfirmField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } } }
+                background: Rectangle { radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: delConfirmField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } } }
                 Keys.onReturnPressed: { if (text === root.pendingDeleteName) { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) } }
             }
             RowLayout {
@@ -499,7 +500,7 @@ Item {
                 Button {
                     text: "Excluir"; enabled: delConfirmField.text === root.pendingDeleteName
                     onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
-                    background: Rectangle { radius: 7; color: parent.enabled ? (parent.hovered ? "#2d5f8a" : "#3d7aab") : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } } }
+                    background: Rectangle { radius: 7; color: parent.enabled ? (parent.hovered ? "#9a7800" : "#c8a000") : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }

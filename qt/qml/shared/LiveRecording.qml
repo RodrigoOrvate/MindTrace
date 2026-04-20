@@ -17,6 +17,7 @@ Item {
     property string analysisMode: "offline"  // "offline" ou "ao_vivo"
     property string aparato:      "nor"
     property int    numCampos:    3           // 1, 2 ou 3 campos ativos
+    property bool   ccMode:       false      // CC: usa canvas EI mas exibe apenas distância/velocidade/comportamentos
 
     property var zones
     property var arenaPoints
@@ -71,11 +72,24 @@ Item {
     property var timerStarted:   [false, false, false]
     property var fieldFinished:  [false, false, false]
 
+    // EI: elapsed session seconds at moment of first grade entry (-1 = not yet)
+    property real eiLatencySeconds: -1
+
     signal sessionEnded()
     signal requestVideoLoad()   // solicitado quando usuário quer carregar próximo vídeo
 
     // ── Estado interno ────────────────────────────────────────────────────────
     property bool isAnalyzing:   false
+    // Guards para fim de sessão — previnem popup duplo e distinguem stop manual
+    property bool _sessionEndedEmitted:  false
+    property bool _manualStopRequested:  false
+
+    function _guardedSessionEnded() {
+        if (!_sessionEndedEmitted) {
+            _sessionEndedEmitted = true
+            sessionEnded()
+        }
+    }
     property int  videoWidth:    0
     property int  videoHeight:   0
 
@@ -142,6 +156,8 @@ Item {
     // ── Classificação de Comportamento (SimBA/B-SOiD) ──────────────────────────
     property var behaviorNames: ["Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
     property var currentBehaviorString: ["", "", ""]
+    property var behaviorCounts: [{}, {}, {}]
+    property var _lastBehaviorId: [-1, -1, -1]
 
     // ── API pública para B-SOiD (inference é ID interno, não acessível de fora) ──
     function exportBehaviorFeatures(csvPath, campo) {
@@ -159,6 +175,25 @@ Item {
     MediaPlayer {
         id: displayPlayer
         videoOutput: framePreviewMaster
+        
+        onMediaStatusChanged: {
+            if (mediaStatus === MediaPlayer.EndOfMedia && recordingRoot.isOffline && recordingRoot.isAnalyzing) {
+                Qt.callLater(function() {
+                    recordingRoot.stopSession()
+                    recordingRoot._guardedSessionEnded()
+                })
+            }
+        }
+
+        onPlaybackStateChanged: {
+            if (playbackState === MediaPlayer.StoppedState && mediaStatus === MediaPlayer.EndOfMedia
+                    && recordingRoot.isOffline && recordingRoot.isAnalyzing) {
+                Qt.callLater(function() {
+                    recordingRoot.stopSession()
+                    recordingRoot._guardedSessionEnded()
+                })
+            }
+        }
     }
 
     // Qt 6: Connections usa sintaxe "function onSignal(params)" para aceder parâmetros
@@ -231,13 +266,34 @@ Item {
                 bs[campo] = recordingRoot.behaviorNames[labelId] || ("Id " + labelId)
             }
             recordingRoot.currentBehaviorString = bs
+            
+            // Increment count if it's a new occurrence (transitioning from a different behavior)
+            if (labelId !== -1 && labelId !== recordingRoot._lastBehaviorId[campo]) {
+                var counts = recordingRoot.behaviorCounts[campo] || {}
+                var key = recordingRoot.behaviorNames[labelId] || ("Id " + labelId)
+                counts[key] = (counts[key] || 0) + 1
+                
+                var bc = recordingRoot.behaviorCounts.slice()
+                bc[campo] = counts
+                recordingRoot.behaviorCounts = bc
+            }
+            
+            var lbi = recordingRoot._lastBehaviorId.slice()
+            lbi[campo] = labelId
+            recordingRoot._lastBehaviorId = lbi
         }
         function onAnalyzingChanged() {
             if (!inference.isAnalyzing && recordingRoot.isAnalyzing) {
+                var wasManual = recordingRoot._manualStopRequested
                 displayPlayer.stop()
+                recordingRoot.isAnalyzing = false
+                recordingRoot._manualStopRequested = false
                 logModel.append({ msg: "Análise encerrada.", isErr: false })
                 logView.positionViewAtEnd()
-                recordingRoot.isAnalyzing = false
+                // Fim natural do vídeo (C++ encerrou por conta própria): mostrar popup
+                if (!wasManual && recordingRoot.isOffline) {
+                    Qt.callLater(recordingRoot._guardedSessionEnded)
+                }
             }
         }
         function onErrorOccurred(errorMsg) {
@@ -272,9 +328,10 @@ Item {
             }
             recordingRoot.timesRemaining = newTimes
             // Auto-encerra quando todos concluem
-            if (recordingRoot.fieldFinished[0] && recordingRoot.fieldFinished[1] && recordingRoot.fieldFinished[2]) {
+            if (recordingRoot.isAnalyzing &&
+                    recordingRoot.fieldFinished[0] && recordingRoot.fieldFinished[1] && recordingRoot.fieldFinished[2]) {
                 recordingRoot.stopSession()
-                recordingRoot.sessionEnded()
+                recordingRoot._guardedSessionEnded()
             }
         }
     }
@@ -314,6 +371,8 @@ Item {
             logView.positionViewAtEnd()
             return
         }
+        _sessionEndedEmitted = false
+        _manualStopRequested = false
         timesRemaining   = [sessionDurationSeconds, sessionDurationSeconds, sessionDurationSeconds]
         timerStarted     = [false, false, false]
         fieldFinished    = [false, false, false]
@@ -341,7 +400,6 @@ Item {
         bodyLikelihood   = [0,  0,  0 ]
         currentVelocity  = [0.0, 0.0, 0.0]
         totalDistance    = [0.0, 0.0, 0.0]
-        timerStarted     = [false, false, false]
         bodyHistory      = [[], [], []]
         _prevBodyLX      = [-1.0, -1.0, -1.0]
         _prevBodyLY      = [-1.0, -1.0, -1.0]
@@ -349,7 +407,8 @@ Item {
         perMinuteData    = [[], [], []]
         _lastMinuteSnap  = 0
         _explorationTick = 0
-        _dlcReady = false
+        _dlcReady        = false
+        eiLatencySeconds = -1
         logModel.clear()
         logModel.append({ msg: "⏳ Carregando motor de inferência nativo...", isErr: false })
         logView.positionViewAtEnd()
@@ -358,8 +417,8 @@ Item {
         displayPlayer.source = videoPath
         displayPlayer.playbackRate = pr
         displayPlayer.play()
-        // EI usa frame completo (720×480 → 360×240); demais aparatos usam quadrantes
-        inference.setFullFrameMode(aparato === "esquiva_inibitoria")
+        // EI e 1-campo usam frame completo (720×480); demais usam quadrantes
+        inference.setFullFrameMode(aparato === "esquiva_inibitoria" || numCampos === 1)
         // Start C++ backend (Model load + frame capture)
         inference.startAnalysis(videoPath, "")
         if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
@@ -477,17 +536,29 @@ Item {
                 var bly = bodyLocalY(campo)
                 var ptIA = { x: blx, y: bly }
                 var fpIA = floorPoints[campo]
-                var polyGrade = fpIA.slice(0, 4)
-                var polyPlataf = fpIA.slice(4, 8)
-                var inGrade = isPointInPoly(ptIA, polyGrade)
-                var inPlataf = isPointInPoly(ptIA, polyPlataf)
+                // Platform expanded: outer-left boundary → platform right edge
+                // This covers the platform itself + the left wall (yellow area)
+                var apIA = (recordingRoot.arenaPoints && recordingRoot.arenaPoints[campo])
+                           ? recordingRoot.arenaPoints[campo] : fpIA
+                var expandedPlataf = [apIA[0], fpIA[1], fpIA[2], apIA[3]]
+                var polyGrade = fpIA.slice(4, 8)
+                var inPlataf = isPointInPoly(ptIA, expandedPlataf)
+                var inGrade  = isPointInPoly(ptIA, polyGrade)
 
                 var zonesIA = [inPlataf, inGrade]
                 for (var zia = 0; zia < 2; zia++) {
                     var ziA = campo * 2 + zia
                     if (zonesIA[zia]) {
                         newTimes[ziA] += 0.1
-                        if (!_inZone[ziA]) { _inZone[ziA] = true; _entryTime[ziA] = now }
+                        if (!_inZone[ziA]) {
+                            _inZone[ziA] = true
+                            _entryTime[ziA] = now
+                            // Record latency: elapsed session time at first grade entry
+                            if (zia === 1 && recordingRoot.eiLatencySeconds < 0) {
+                                recordingRoot.eiLatencySeconds =
+                                    recordingRoot.sessionDurationSeconds - recordingRoot.timesRemaining[campo]
+                            }
+                        }
                     } else if (_inZone[ziA]) {
                         var durIA = (now - _entryTime[ziA]) / 1000.0
                         if (durIA > 0.1) { newBouts[ziA].push(parseFloat(durIA.toFixed(1))); boutsChanged = true }
@@ -627,25 +698,25 @@ Item {
     function ratLocalX(campo) {
         var nx = ratNormX[campo]
         if (nx < 0) return -1
-        if (recordingRoot.aparato === "esquiva_inibitoria") return nx
+        if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return nx
         return campo === 1 ? (nx - 0.5) * 2 : nx * 2
     }
     function ratLocalY(campo) {
         var ny = ratNormY[campo]
         if (ny < 0) return -1
-        if (recordingRoot.aparato === "esquiva_inibitoria") return ny
+        if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return ny
         return campo === 2 ? (ny - 0.5) * 2 : ny * 2
     }
     function bodyLocalX(campo) {
         var bx = bodyNormX[campo]
         if (bx < 0) return -1
-        if (recordingRoot.aparato === "esquiva_inibitoria") return bx
+        if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return bx
         return campo === 1 ? (bx - 0.5) * 2 : bx * 2
     }
     function bodyLocalY(campo) {
         var by = bodyNormY[campo]
         if (by < 0) return -1
-        if (recordingRoot.aparato === "esquiva_inibitoria") return by
+        if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return by
         return campo === 2 ? (by - 0.5) * 2 : by * 2
     }
 
@@ -770,7 +841,7 @@ Item {
 
                 GridLayout {
                     anchors.fill: parent
-                    columns: recordingRoot.aparato === "esquiva_inibitoria" ? 1 : 2
+                    columns: (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) ? 1 : 2
                     rowSpacing: 2; columnSpacing: 2
 
                     // ── 3 campos (top-left, top-right, bottom-left) ───────────
@@ -813,7 +884,7 @@ Item {
                                 Rectangle {
                                     id: behaviorBadge
                                     anchors { top: parent.top; left: parent.left; margins: 10 }
-                                    visible: recordingRoot.aparato === "comportamento_complexo"
+                                    visible: (recordingRoot.aparato === "comportamento_complexo" || recordingRoot.ccMode)
                                           && recordingRoot.currentBehaviorString[campoCell.ci] !== ""
                                           && recordingRoot.isAnalyzing
                                     color: "#cc0a0a16"
@@ -865,8 +936,20 @@ Item {
                                         var w = width, h = height
                                         var oTL={x:ap[0].x*w,y:ap[0].y*h}, oTR={x:ap[1].x*w,y:ap[1].y*h}
                                         var oBR={x:ap[2].x*w,y:ap[2].y*h}, oBL={x:ap[3].x*w,y:ap[3].y*h}
-                                        var iTL={x:fp[0].x*w,y:fp[0].y*h}, iTR={x:fp[1].x*w,y:fp[1].y*h}
-                                        var iBR={x:fp[2].x*w,y:fp[2].y*h}, iBL={x:fp[3].x*w,y:fp[3].y*h}
+                                        var iTL, iTR, iBR, iBL
+                                        if (fp.length >= 8) {
+                                            // EI-format (8 pts): fp[0..3]=Plataforma, fp[4..7]=Grade
+                                            // Inner floor spans Plataforma-TL → Grade-TR/BR → Plataforma-BL
+                                            iTL={x:fp[0].x*w,y:fp[0].y*h}
+                                            iTR={x:fp[5].x*w,y:fp[5].y*h}
+                                            iBR={x:fp[6].x*w,y:fp[6].y*h}
+                                            iBL={x:fp[3].x*w,y:fp[3].y*h}
+                                        } else {
+                                            iTL={x:fp[0].x*w,y:fp[0].y*h}
+                                            iTR={x:fp[1].x*w,y:fp[1].y*h}
+                                            iBR={x:fp[2].x*w,y:fp[2].y*h}
+                                            iBL={x:fp[3].x*w,y:fp[3].y*h}
+                                        }
                                         function poly(pts,f,s){
                                             ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y)
                                             for(var k=1;k<pts.length;k++) ctx.lineTo(pts[k].x,pts[k].y)
@@ -1224,8 +1307,12 @@ Item {
                                 id: startBtnMa; anchors.fill: parent; hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (recordingRoot.isAnalyzing) recordingRoot.stopSession()
-                                    else                           recordingRoot.startSession()
+                                    if (recordingRoot.isAnalyzing) {
+                                        recordingRoot._manualStopRequested = true
+                                        recordingRoot.stopSession()
+                                    } else {
+                                        recordingRoot.startSession()
+                                    }
                                 }
                             }
                         }
@@ -1423,7 +1510,7 @@ Item {
                                         // ── MÉTRICAS ESQUIVA INIBITÓRIA (EI) ────
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
-                                            visible: recordingRoot.aparato === "esquiva_inibitoria"
+                                            visible: recordingRoot.aparato === "esquiva_inibitoria" && !recordingRoot.ccMode
 
                                             // Plataforma
                                             RowLayout {
@@ -1463,14 +1550,6 @@ Item {
                                                 Text { text: "Visitas ao centro:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationBouts[campoCard.zi0].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
-                                            }
-
-                                            // Visitas Borda
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                Text { text: "Visitas nas bordas:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
-                                                Item { Layout.fillWidth: true }
-                                                Text { text: recordingRoot.explorationBouts[campoCard.zi1].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
 
                                             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }

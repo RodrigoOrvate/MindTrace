@@ -36,7 +36,11 @@ Item {
     }
 
     function doCreate() {
-        var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos"]
+        var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos",
+                    "Exploração Obj1 (s)", "Bouts Obj1",
+                    "Exploração Obj2 (s)", "Bouts Obj2",
+                    "Exploração Total (s)", "DI",
+                    "Distância (m)", "Velocidade (m/s)"]
         if (drugCheck.checked) cols.push("Tratamento")
         var names = []
         for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)

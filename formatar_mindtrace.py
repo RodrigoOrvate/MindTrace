@@ -10,7 +10,7 @@ def escape_xml(s):
 def get_col_name(n):
     return f"{chr(65+n)}" if n < 26 else f"{chr(64+(n//26))}{chr(65+(n%26))}"
 
-def create_xlsx(dest_path, base_name_str, apparatus_label, headers, groups):
+def create_xlsx(dest_path, base_name_str, apparatus_label, headers, groups, color_hex="FFAB3D4C"):
     content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -43,7 +43,7 @@ def create_xlsx(dest_path, base_name_str, apparatus_label, headers, groups):
     wb_rels += f'    <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\n'
     wb_rels += "</Relationships>"
 
-    styles = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    styles = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
     <fonts count="4">
         <font><sz val="11"/><name val="Calibri"/></font>
@@ -54,7 +54,7 @@ def create_xlsx(dest_path, base_name_str, apparatus_label, headers, groups):
     <fills count="4">
         <fill><patternFill patternType="none"/></fill>
         <fill><patternFill patternType="gray125"/></fill>
-        <fill><patternFill patternType="solid"><fgColor rgb="FFAB3D4C"/><bgColor indexed="64"/></patternFill></fill>
+        <fill><patternFill patternType="solid"><fgColor rgb="{color_hex}"/><bgColor indexed="64"/></patternFill></fill>
         <fill><patternFill patternType="solid"><fgColor rgb="FFF9FAFB"/><bgColor indexed="64"/></patternFill></fill>
     </fills>
     <borders count="2">
@@ -134,6 +134,37 @@ def create_xlsx(dest_path, base_name_str, apparatus_label, headers, groups):
             ws_xml.write(b'    </row>\n')
 
             exclude_numeric = ["Animal", "Campo", "Dia", "Par de Objetos", "Diret\u00f3rio do V\u00eddeo"]
+            # --- Lógica de 'Healing' para Velocidade Média (Dados antigos) ---
+            v_idx = -1
+            d_idx = -1
+            t1_idx = -1
+            t2_idx = -1
+            
+            # Identificar colunas relevantes para CA ou EI
+            for h_idx, h_name in enumerate(headers):
+                if "Velocidade Média" in h_name: v_idx = h_idx
+                elif "Distância Total" in h_name: d_idx = h_idx
+                elif "Tempo no Centro" in h_name: t1_idx = h_idx
+                elif "Tempo na Borda" in h_name: t2_idx = h_idx
+                elif "Tempo Plataforma" in h_name: t1_idx = h_idx
+                elif "Tempo Grade" in h_name: t2_idx = h_idx
+
+            for r in rows:
+                # Se temos colunas de dist/tempo e a velocidade veio zerada, tentamos reconstruir
+                if v_idx >= 0 and d_idx >= 0 and t1_idx >= 0 and t2_idx >= 0:
+                    try:
+                        v_val = float(r[v_idx].replace(',', '.')) if len(r) > v_idx and r[v_idx] else 0.0
+                        if v_val < 0.001: # Se está zerado ou quase
+                            d_val = float(r[d_idx].replace(',', '.'))  if len(r) > d_idx and r[d_idx] else 0.0
+                            t1_val = float(r[t1_idx].replace(',', '.')) if len(r) > t1_idx and r[t1_idx] else 0.0
+                            t2_val = float(r[t2_idx].replace(',', '.')) if len(r) > t2_idx and r[t2_idx] else 0.0
+                            t_total = t1_val + t2_val
+                            if t_total > 0.5:
+                                new_v = d_val / t_total
+                                r[v_idx] = "{:.3f}".format(new_v).replace('.', ',')
+                    except Exception:
+                        pass
+
             for r_idx, row in enumerate(rows, 5):
                 ws_xml.write(f'    <row r="{r_idx}">\n'.encode('utf-8'))
                 for c_idx, val in enumerate(row):
@@ -200,20 +231,22 @@ def main():
     data = rows[1:]
 
     apparatus = "Dados do Experimento"
+    apparatus_color = "FFAB3D4C" # Default Red (NOR)
     if "Par de Objetos" in headers:
         apparatus = "Reconhecimento de Objetos (NOR)"
-    elif "Latência" in headers or "Tempo Plataforma" in headers:
+        apparatus_color = "FFAB3D4C"
+    elif "Latência (s)" in headers or "Tempo Plataforma (s)" in headers or "Latência" in headers:
         apparatus = "Esquiva Inibitória (EI)"
-    elif "Distância Total (m)" in headers:
+        apparatus_color = "FFC8A000" # Yellow
+    elif "Tempo no Centro (s)" in headers or "Visitas ao Centro" in headers:
         apparatus = "Campo Aberto (CA)"
-    elif "Velocidade Média (m/s)" in headers:
+        apparatus_color = "FF3D7AAB" # Blue
+    elif "Duração (min)" in headers:
         apparatus = "Comportamento Complexo (CC)"
-
+        apparatus_color = "FF7A3DAB" # Purple
     split_idx = -1
     if "Par de Objetos" in headers:
         split_idx = headers.index("Par de Objetos")
-    elif "Campo" in headers:
-        split_idx = headers.index("Campo")
 
     groups = {}
     if split_idx >= 0:
@@ -226,7 +259,7 @@ def main():
     else:
         groups["Geral"] = data
 
-    create_xlsx(out_path, base_name, apparatus, headers, groups)
+    create_xlsx(out_path, base_name, apparatus, headers, groups, apparatus_color)
     
     # Deletar o arquivo bruto apenas se as extensoes diferirem
     if out_path != source_path:

@@ -22,7 +22,7 @@ Item {
     function doCreate() {
         var cols = ["Diretório do Vídeo", "Animal", "Dia",
                     "Latência (s)", "Tempo Plataforma (s)", "Tempo Grade (s)",
-                    "Bouts Plataforma", "Bouts Grade",
+                    "Visitas à Grade",
                     "Distância Total (m)", "Velocidade Média (m/s)"]
         if (drugCheck.checked) cols.push("Tratamento")
         var names = []
@@ -49,7 +49,7 @@ Item {
 
             GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
             Item { width: 8 }
-            Text { text: "⚡"; font.pixelSize: 28; color: "#3d7aab" }
+            Text { text: "⚡"; font.pixelSize: 28; color: "#c8a000" }
 
             ColumnLayout {
                 spacing: 2
@@ -97,7 +97,7 @@ Item {
                         background: Rectangle {
                             radius: 8; color: ThemeManager.surfaceDim
                             Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: nameField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1
+                            border.color: nameField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1
                             Behavior on border.color { ColorAnimation { duration: 150 } }
                         }
                     }
@@ -135,7 +135,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true; height: 80; radius: 10
                 color: ThemeManager.surfaceDim
-                border.color: "#3d7aab"; border.width: 1
+                border.color: "#c8a000"; border.width: 1
 
                 RowLayout {
                     anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
@@ -175,8 +175,8 @@ Item {
                         id: drugCheck
                         width: 20; height: 20; radius: 5
                         property bool checked: true
-                        color:        checked ? "#3d7aab" : ThemeManager.surfaceDim
-                        border.color: checked ? "#3d7aab" : ThemeManager.border; border.width: 1.5
+                        color:        checked ? "#c8a000" : ThemeManager.surfaceDim
+                        border.color: checked ? "#c8a000" : ThemeManager.border; border.width: 1.5
                         Behavior on color        { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         Text { anchors.centerIn: parent; text: "✓"; color: ThemeManager.buttonText; font.pixelSize: 11; font.weight: Font.Bold; visible: drugCheck.checked }
@@ -304,7 +304,7 @@ Item {
 
                 background: Rectangle {
                     radius: 8
-                    color: parent.enabled ? (parent.hovered ? "#2d5f8a" : "#3d7aab") : "#2d2d4a"
+                    color: parent.enabled ? (parent.hovered ? "#9a7800" : "#c8a000") : "#3a2e00"
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 contentItem: Text {
@@ -325,7 +325,7 @@ Item {
         anchors.centerIn: parent; width: 400; height: 200
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#3d7aab"; border.width: 1 }
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#c8a000"; border.width: 1 }
 
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
@@ -342,7 +342,7 @@ Item {
                 Button {
                     text: "Continuar"
                     onClicked: { dupStep1Popup.close(); dupConfirmField.text = ""; dupStep2Popup.open() }
-                    background: Rectangle { radius: 7; color: parent.hovered ? "#2d5f8a" : "#3d7aab"; Behavior on color { ColorAnimation { duration: 150 } } }
+                    background: Rectangle { radius: 7; color: parent.hovered ? "#9a7800" : "#c8a000"; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }
@@ -357,7 +357,7 @@ Item {
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: dupConfirmField.forceActiveFocus()
-        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#3d7aab"; border.width: 1 }
+        background: Rectangle { radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } } border.color: "#c8a000"; border.width: 1 }
 
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
@@ -369,7 +369,7 @@ Item {
                 placeholderText: nameField.text.trim()
                 color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                 leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                background: Rectangle { radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: dupConfirmField.activeFocus ? "#3d7aab" : ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } } }
+                background: Rectangle { radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: dupConfirmField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } } }
                 Keys.onReturnPressed: { if (text === nameField.text.trim()) { dupStep2Popup.close(); root.doCreate() } }
             }
             RowLayout {
@@ -378,7 +378,7 @@ Item {
                 Button {
                     text: "Substituir"; enabled: dupConfirmField.text === nameField.text.trim()
                     onClicked: { dupStep2Popup.close(); root.doCreate() }
-                    background: Rectangle { radius: 7; color: parent.enabled ? (parent.hovered ? "#2d5f8a" : "#3d7aab") : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } } }
+                    background: Rectangle { radius: 7; color: parent.enabled ? (parent.hovered ? "#9a7800" : "#c8a000") : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8
                 }

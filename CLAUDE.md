@@ -313,7 +313,7 @@ Cada dashboard (NOR, CA, CC, EI) possui uma aba "Dados" que exibe os resultados 
 | **`NORDataView.qml`** | Reconhecimento de Objetos — tema vermelho (#ab3d4c), colunas: Vídeo, Animal, Campo, Dia, Par de Objetos, Tratamento |
 | **`CADataView.qml`** | Campo Aberto — tema azul (#3d7aab), colunas: Animal, Campo, Dia, Distância (m), Velocidade (m/s), Tratamento |
 | **`CCDataView.qml`** | Comportamento Complexo — tema roxo (#7a3dab), colunas de locomoção e velocidade |
-| **`EIDataView.qml`** | Esquiva Inibitória — tema verde (#2f7a4b), colunas com metrics de latência/plataforma/grade com color-coding |
+| **`EIDataView.qml`** | Esquiva Inibitória — tema amarelo (#c8a000), colunas com metrics de latência/plataforma/grade com color-coding |
 | **`GenericDataView.qml`** | Fallback — tema neutro para aparatos não-reconhecidos |
 
 ### Detecção Automática de Aparato
@@ -323,7 +323,7 @@ O componente `DataView` escaneia os headers da tabela CSV procurando por palavra
 | Headers Detectados | Aparato Inferido | View Renderizada | Cor Primária |
 |---|---|---|---|
 | `"Par de Objetos"` | **NOR** | `NORDataView` | Vermelho (#ab3d4c) |
-| `"Latência"` ou `"Tempo Plataforma"` | **EI** | `EIDataView` | Verde (#2f7a4b) |
+| `"Latência"` ou `"Tempo Plataforma"` | **EI** | `EIDataView` | Amarelo (#c8a000) |
 | `"Duração"` (sem "Par") | **CC** | `CCDataView` | Roxo (#7a3dab) |
 | `"Distância Total"` | **CA** | `CADataView` | Azul (#3d7aab) |
 | Outro | **Genérico** | `GenericDataView` | Cinza |
@@ -409,6 +409,21 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | Sistema de dias rígido (TR/RA/TT hardcoded) | Substituído por `dayNames: var[]` definido no setup via editor de chips. Salvo em `metadata.json` via `updateDayNames()`. Diálogos pós-sessão usam ComboBox. Fallback automático para experimentos antigos. |
 | "Droga" em formulários e CSVs | Renomeado para "Tratamento" em todos os 4 tipos de experimento (setup screens + metadata dialogs). |
 | "Zona de objetos" em CCSetup | Renomeado para "Sniffing" (checkbox que habilita detecção de sniffing vs resting). |
+| `dayNames` não aparecia nos diálogos pós-sessão | `readMetadataFromPath()` e `readMetadata()` em C++ nunca incluíam `dayNames` no mapa de retorno — campo era escrito por `updateDayNames()` mas ignorado na leitura. Adicionado parsing do array `dayNames` em ambas as funções antes de `return result`. |
+| Nomes de dias corrompidos (ex: "Teste2"→"Teste", "Treino-2"→"Treino") | `dayNameUtils.js` aplicava Levenshtein fuzzy matching com distância ≤2 contra nomes canônicos. Removido completamente o fuzzy matching; apenas E+dígitos (E1, E2…) e códigos de exatamente 2 letras ficam em uppercase. |
+| Popups pós-sessão inconsistentes (CA achatado, EI com métricas inline, NOR sem controle de campos) | `SessionResultDialog` (NOR), `CAMetadataDialog` e `EIMetadataDialog` reescritos no padrão CC-style: `CampoBlock` inline com badge + stats + campos Animal/Tratamento, altura dinâmica (`mainLayout.implicitHeight + 48`). Cores: NOR=#ab3d4c, CA=#3d7aab, CC=#7a3dab, EI=#c8a000 (amarelo). |
+| Botão "Novo Experimento" aparecia no NORDashboard após criar experimento | Bloco do botão removido do sidebar do `NORDashboard.qml`. |
+| Campo 3 visível em NOR com 2 campos ativos | `SessionResultDialog` não tinha propriedade `numCampos`. Adicionado `property int numCampos: 3` com `visible: root.numCampos >= N` nos CampoBlocks; `NORDashboard` passa `numCampos: workArea.activeNumCampos`. |
+| "Campo 3:" negrito no popup de editar pares NOR | `font.weight: Font.Bold` acidentalmente adicionado em `ArenaSetup.qml` — removido. |
+| `sessionEnded` emitido duas vezes (popup abria e fechava) | Timer em `LiveRecording` disparava `sessionEnded()` depois que `onMediaStatusChanged` já havia encerrado a sessão. Adicionado guard `recordingRoot.isAnalyzing` dentro dos `Qt.callLater()` em ambos os handlers de fim de vídeo. |
+| Fim de vídeo não disparava popup (CA, EI) | `onMediaStatusChanged` e `onPlaybackStateChanged` chamavam `stopSession()` diretamente de dentro do handler do `displayPlayer`, causando re-entrância no MediaPlayer Qt. Corrigido com `Qt.callLater()` nos dois handlers — execução adiada para após o estado do player ser finalizado. |
+| `timerStarted` resetado para inactive campos em experimentos 1/2-campo | Em `startSession()`, a linha `timerStarted = [false, false, false]` após o bloco de inicialização de campos inativos desfazia os valores corretos. Linha duplicada removida. |
+| Tema EI azul em vez de amarelo | `EIDashboard.qml`, `EISetup.qml` e `EIDataView` (XLSX export via `formatar_mindtrace.py`) usavam `#3d7aab` (azul). Todos os elementos de UI de EI alterados para amarelo (`#c8a000`/`#e0b800`/`#9a7800`). Excel EI atualizado de `FF2F7A4B` (verde) para `FFC8A000` (amarelo). |
+| Botão "Salvar Configuração" do CA aparecia amarelo | `EIArenaSetup.qml` tinha cores hardcoded `#c8a000`/`#9a7800`; CA e CC o reutilizam para modo 1-campo. Adicionadas props `primaryColor`/`secondaryColor`; CA passa `#3d7aab`/`#2d5f8a`, CC passa `#7a3dab`/`#6a2d9a`. |
+| Popup pós-sessão não aparecia ao fim do vídeo (CA/CC/EI) | Race condition: `onAnalyzingChanged` (sinal C++ assíncrono) setava `isAnalyzing = false` antes dos closures `Qt.callLater` rodarem, bloqueando o popup. Corrigido com `_guardedSessionEnded()` (flag `_sessionEndedEmitted`) e `_manualStopRequested` para distinguir stop manual de fim natural. |
+| Aba Dados EI com cor verde em vez de amarelo | `EIDataView.qml` tinha `accentColor: "#2f7a4b"` (verde). Alterado para `"#c8a000"` (amarelo). |
+| Popup EI nunca aparecia (mesmo com vídeo terminado) | `EIMetadataDialog` estava com `parent: root` (Item do dashboard) em vez de `parent: Overlay.overlay`. Corrigido para `Overlay.overlay` + `anchors.centerIn: parent`. |
+| Impossível reaproveitar configuração de arena entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: lê config do experimento fonte via `ArenaConfigModel`, detecta shape (quadrada/retangular por bounding-box ratio) e tipo de zona (`zoneCount≥4`=objetos, `floorPoints≥8`=plataforma_grade, else=padrão), exibe popup de aviso se incompatível, confirma → recarrega config. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
@@ -596,9 +611,10 @@ Sinais para C++:
 
 1. Seleciona dia (ComboBox com `dayNames`)
 2. Insere animal ID
-3. Exibe métricas (read-only)
-4. Opcionalmente: Tratamento (texto livre)
-5. "Salvar Sessão" → insere linha em `tracking_data.csv`, salva JSON metadados
+3. Opcionalmente: Tratamento (texto livre)
+4. "Salvar Sessão" → insere linha em `tracking_data.csv`, salva JSON metadados
+
+> Tema: amarelo (#c8a000). Métricas não são exibidas inline — são calculadas internamente e gravadas diretamente no CSV.
 
 JSON metadados:
 ```json

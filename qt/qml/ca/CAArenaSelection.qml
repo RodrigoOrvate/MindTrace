@@ -79,29 +79,37 @@ Item {
 
                 Rectangle {
                     id: outerFrame
-                    width:  Math.min(parent.width, parent.height) * 0.85
-                    height: width
+                    width:  root.selectedNumCampos === 1
+                            ? Math.min(parent.width * 0.95, parent.height * 1.55)
+                            : Math.min(parent.width, parent.height) * 0.85
+                    height: root.selectedNumCampos === 1 ? width / 1.55 : width
                     anchors.centerIn: parent
                     radius: 10
                     color: "#06060f"
                     border.color: ThemeManager.borderLight
                     border.width: 2
                     clip: true
+                    Behavior on width  { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
+                    // Grid view — 2 ou 3 campos
                     Item {
                         id: grid
                         anchors { fill: parent; margins: 8 }
+                        opacity: root.selectedNumCampos > 1 ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
 
                         property real cellW: (width  - 6) / 2
                         property real cellH: (height - 6) / 2
                         property bool ctx:   root.selectedContext === "Contextual"
 
-                        // Modelo para os 3 campos possíveis
                         property var fieldDefs: [
                             { cx: 0,             cy: 0,             active: root.selectedNumCampos >= 1 },
                             { cx: cellW + 6,     cy: 0,             active: root.selectedNumCampos >= 2 },
                             { cx: 0,             cy: cellH + 6,     active: root.selectedNumCampos >= 3 }
                         ]
+
+                        // Campo 1 (topo-esq)
                         Rectangle {
                             x: 0; y: 0
                             width: grid.cellW; height: grid.cellH
@@ -197,6 +205,47 @@ Item {
                             }
                         }
                     }
+
+                    // Vista retangular — 1 campo (estilo EI adaptado)
+                    Item {
+                        anchors { fill: parent; margins: 8 }
+                        opacity: root.selectedNumCampos === 1 ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                        Rectangle {
+                            id: caZona1
+                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                            width: parent.width * 0.38 - 3
+                            radius: 6; color: "#0d1a22"
+                            border.color: "#3d7aab"; border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Zona 1"
+                                color: "#3d7aab"
+                                font.pixelSize: Math.max(8, parent.width * 0.14)
+                                font.weight: Font.Bold
+                            }
+                        }
+
+                        Rectangle {
+                            anchors { top: parent.top; bottom: parent.bottom; left: caZona1.right; leftMargin: 2 }
+                            width: 2; color: ThemeManager.border; opacity: 0.5
+                        }
+
+                        Rectangle {
+                            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                            width: parent.width * 0.62 - 3
+                            radius: 6; color: "#0d0d22"
+                            border.color: "#3d7aab"; border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Zona 2"
+                                color: "#3d7aab"
+                                font.pixelSize: Math.max(8, parent.width * 0.14)
+                                font.weight: Font.Bold
+                            }
+                        }
+                    }
                 }
             }
 
@@ -266,7 +315,6 @@ Item {
                         color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
 
-                    // Info badge para 1 ou 3 campos
                     Rectangle {
                         Layout.fillWidth: true; height: 32; radius: 8
                         visible: root.contextForced
