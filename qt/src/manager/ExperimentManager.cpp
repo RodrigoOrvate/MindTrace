@@ -197,17 +197,8 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
         return false;
     }
 
-    // Normalize columns: ensure they match the expected NOR schema
+    // Keep provided headers as-is (supports PT/EN/ES i18n exports).
     QStringList norms = columns;
-    if (columns.size() >= 5) {
-        norms[0] = QStringLiteral("Diretório do Vídeo");
-        norms[1] = QStringLiteral("Animal");
-        norms[2] = QStringLiteral("Campo");
-        norms[3] = QStringLiteral("Dia");
-        norms[4] = QStringLiteral("Par de Objetos");
-        if (norms.size() > 5)
-            norms[5] = QStringLiteral("Droga");
-    }
 
     writeMetadata(folderPath, trimmedName, animalCount, norms);
     writeCsv(folderPath, norms, animalCount);

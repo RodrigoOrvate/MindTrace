@@ -1,5 +1,5 @@
-// qml/core/SearchBrowser.qml
-// Browser universal de experimentos — agrupa NOR e Campo Aberto.
+﻿// qml/core/SearchBrowser.qml
+// Browser universal de experimentos â€” agrupa NOR e Campo Aberto.
 // Ao selecionar um experimento emite openExperiment(aparato, numCampos, name, path)
 // para que main.qml roteie ao dashboard correto.
 
@@ -33,7 +33,7 @@ Item {
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
-    // ── Barra superior ───────────────────────────────────────────────────
+    // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -51,12 +51,12 @@ Item {
                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                 spacing: 14
 
-                GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+                GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
                 Text { text: "🔍"; font.pixelSize: 20 }
 
                 Text {
-                    text: "Todos os Experimentos"
+                    text: LanguageManager.tr3("Todos os Experimentos", "All Experiments", "Todos los Experimentos")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -65,13 +65,13 @@ Item {
             }
         }
 
-        // ── Corpo: sidebar + preview ─────────────────────────────────────
+        // â”€â”€ Corpo: sidebar + preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar ──────────────────────────────────────────────────
+            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Rectangle {
                 width: 300; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -86,7 +86,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "Experimentos"
+                        text: LanguageManager.tr3("Experimentos", "Experiments", "Experimentos")
                         color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -94,7 +94,7 @@ Item {
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
-                        placeholderText: "Pesquisar…"
+                        placeholderText: LanguageManager.tr3("Pesquisar...", "Search...", "Buscar...")
                         color: ThemeManager.textPrimary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
@@ -153,7 +153,7 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
 
-                            // Botão Excluir (lixeira) - sempre visível
+                            // BotÃ£o Excluir (lixeira) - sempre visÃ­vel
                             Rectangle {
                                 id: deleteBtn
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
@@ -166,7 +166,7 @@ Item {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "🗑"
+                                    text: "\uD83D\uDDD1"
                                     font.pixelSize: 14; color: deleteMa.containsMouse ? ThemeManager.error : ThemeManager.textTertiary
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -195,11 +195,8 @@ Item {
                                     var appType = meta.aparato || "nor"
                                     previewName.text    = model.name
                                     previewContext.text = model.context
-                                    previewAparato.text = appType === "comportamento_complexo" ? "🧩 Comp. Complexo"
-                                                          : appType === "campo_aberto"          ? "🐀 Campo Aberto"
-                                                          : appType === "esquiva_inibitoria"    ? "⚡ Esquiva Inibitória"
-                                                          :                                       "🧠 Rec. de Objetos"
-                                    previewCampos.text  = (meta.numCampos || 3) + " campo(s)"
+                                    previewAparato.text = appType === "comportamento_complexo" ? "🧩 " + LanguageManager.tr3("Comp. Complexo", "Complex Behavior", "Comp. Complejo") : appType === "campo_aberto" ? "🐁 " + LanguageManager.tr3("Campo Aberto", "Open Field", "Campo Abierto") : appType === "esquiva_inibitoria" ? "⚡ " + LanguageManager.tr3("Esquiva Inibitoria", "Inhibitory Avoidance", "Evitacion Inhibitoria") : "🧠 " + LanguageManager.tr3("Rec. de Objetos", "Object Recognition", "Rec. de Objetos")
+                                    previewCampos.text  = (meta.numCampos || 3) + " " + LanguageManager.tr3("campo(s)", "field(s)", "campo(s)")
                                     previewContainer.previewAparatoVal   = appType
                                     previewContainer.previewNumCamposVal = meta.numCampos || 3
                                     previewContainer.previewPathVal      = path
@@ -211,7 +208,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
-                            text: "Nenhum experimento\nencontrado"
+                        text: LanguageManager.tr3("Nenhum experimento\nencontrado", "No experiment\nfound", "Ningun experimento\nencontrado")
                             color: ThemeManager.textSecondary; font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -220,12 +217,12 @@ Item {
                 }
             }
 
-            // ── Painel de preview / abertura ──────────────────────────────
+            // â”€â”€ Painel de preview / abertura â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 id: previewContainer
                 Layout.fillWidth: true; Layout.fillHeight: true
 
-                // Valores temporários para o experimento selecionado
+                // Valores temporÃ¡rios para o experimento selecionado
                 property string previewAparatoVal:   "nor"
                 property int    previewNumCamposVal: 3
                 property string previewPathVal:      ""
@@ -238,7 +235,7 @@ Item {
                     Text { Layout.alignment: Qt.AlignHCenter; text: "🔍"; font.pixelSize: 48; opacity: 0.3 }
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: "Selecione um experimento\nna barra lateral"
+                        text: LanguageManager.tr3("Selecione um experimento\nna barra lateral", "Select an experiment\nin the sidebar", "Seleccione un experimento\nen la barra lateral")
                         color: ThemeManager.textSecondary; font.pixelSize: 14
                         horizontalAlignment: Text.AlignHCenter
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -281,13 +278,13 @@ Item {
 
                             ColumnLayout {
                                 spacing: 2
-                                Text { Layout.alignment: Qt.AlignHCenter; text: "Contexto"; color: ThemeManager.textTertiary; font.pixelSize: 11 }
+                                Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Contexto", "Context", "Contexto"); color: ThemeManager.textTertiary; font.pixelSize: 11 }
                                 Text { id: previewContext; Layout.alignment: Qt.AlignHCenter; text: ""; color: ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                             }
 
                             ColumnLayout {
                                 spacing: 2
-                                Text { Layout.alignment: Qt.AlignHCenter; text: "Campos"; color: ThemeManager.textTertiary; font.pixelSize: 11 }
+                                Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Campos", "Fields", "Campos"); color: ThemeManager.textTertiary; font.pixelSize: 11 }
                                 Text { id: previewCampos; Layout.alignment: Qt.AlignHCenter; text: ""; color: ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                             }
                         }
@@ -296,7 +293,7 @@ Item {
 
                         Button {
                             Layout.alignment: Qt.AlignHCenter
-                            text: "Abrir Experimento →"
+                            text: LanguageManager.tr3("Abrir Experimento ->", "Open Experiment ->", "Abrir Experimento ->")
                             onClicked: {
                                 root.openExperiment(
                                     previewContainer.previewAparatoVal,
@@ -324,9 +321,9 @@ Item {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Popup: confirmar exclusão — passo 1
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Popup: confirmar exclusÃ£o â€” passo 1
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
@@ -349,20 +346,20 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: LanguageManager.tr3("Excluir Experimento", "Delete Experiment", "Eliminar Experimento"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
-                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
+                text: LanguageManager.tr3("Tem certeza que deseja excluir\n\"", "Are you sure you want to delete\n\"", "Seguro que desea eliminar\n\"") + root.pendingDeleteName + "\"?\n\n" + LanguageManager.tr3("Esta acao e irreversivel.", "This action is irreversible.", "Esta accion es irreversible.")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 Item { Layout.fillWidth: true }
-                GhostButton { text: "Cancelar"; onClicked: deleteStep1Popup.close() }
+                GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: deleteStep1Popup.close() }
                 Button {
-                    text: "Continuar"
+                    text: LanguageManager.tr3("Continuar", "Continue", "Continuar")
                     onClicked: { deleteStep1Popup.close(); deleteNameField.text = ""; deleteStep2Popup.open() }
                     background: Rectangle {
                         radius: 7; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 200 } }
@@ -377,9 +374,9 @@ Item {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Popup: confirmar exclusão — passo 2
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Popup: confirmar exclusÃ£o â€” passo 2
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent
@@ -403,15 +400,15 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: LanguageManager.tr3("Confirmacao Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
-                text: "Para confirmar, digite o nome do experimento:"
+                text: LanguageManager.tr3("Para confirmar, digite o nome do experimento:", "To confirm, type the experiment name:", "Para confirmar, escriba el nombre del experimento:")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Nome em destaque — igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            // Nome em destaque â€” igual ao GitHub: "Digite exatamente: NomeDoExperimento"
             Rectangle {
                 Layout.fillWidth: true
                 height: nameLabel.implicitHeight + 10
@@ -454,9 +451,9 @@ Item {
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 Item { Layout.fillWidth: true }
-                GhostButton { text: "Cancelar"; onClicked: deleteStep2Popup.close() }
+                GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: deleteStep2Popup.close() }
                 Button {
-                    text: "Excluir Definitivamente"
+                    text: LanguageManager.tr3("Excluir Definitivamente", "Delete Permanently", "Eliminar Definitivamente")
                     enabled: deleteNameField.text === root.pendingDeleteName
                     onClicked: {
                         deleteStep2Popup.close()
@@ -477,3 +474,5 @@ Item {
         }
     }
 }
+
+

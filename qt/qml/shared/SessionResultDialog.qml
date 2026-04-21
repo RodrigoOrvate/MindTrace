@@ -1,4 +1,4 @@
-// qml/SessionResultDialog.qml
+﻿// qml/SessionResultDialog.qml
 // Popup pós-gravação NOR: usuário confirma os dados dos animais de cada campo.
 
 import QtQuick
@@ -32,6 +32,25 @@ Popup {
     property var sessionTotalDistance:    [0.0, 0.0, 0.0]
     property var sessionAvgVelocity:      [0.0, 0.0, 0.0]
     property var sessionPerMinuteData:    [{}, {}, {}]
+
+    function localizedDayName(dayName, index) {
+        var t = String(dayName || "").trim().toLowerCase()
+        if (t === "treino" || t === "training" || t === "entrenamiento")
+            return LanguageManager.tr3("Treino", "Training", "Entrenamiento")
+        if (t === "teste" || t === "test" || t === "prueba")
+            return LanguageManager.tr3("Teste", "Test", "Prueba")
+        return String(dayName || (LanguageManager.tr3("Dia ", "Day ", "Dia ") + (index + 1)))
+    }
+
+    function localizedDayNames() {
+        var out = []
+        if (root.dayNames && root.dayNames.length > 0) {
+            for (var i = 0; i < root.dayNames.length; i++)
+                out.push(localizedDayName(root.dayNames[i], i))
+            return out
+        }
+        return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
+    }
 
     property var _animalTexts: ["", "", ""]
     property var _drogaTexts:  ["", "", ""]
@@ -134,12 +153,12 @@ Popup {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: "Sessão Concluída"
+                    text: LanguageManager.tr3("Sessao Concluida", "Session Completed", "Sesion Completada")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 Text {
-                    text: "Reconhecimento de Objetos — informe o dia e os animais"
+                    text: LanguageManager.tr3("Object Recognition - set day and animals", "Object Recognition - set day and animals", "Reconocimiento de Objetos - defina dia y animales")
                     color: "#ab3d4c"; font.pixelSize: 11
                 }
             }
@@ -158,7 +177,7 @@ Popup {
             Layout.fillWidth: true; spacing: 6
 
             Text {
-                text: "DIA DA SESSÃO"
+                text: LanguageManager.tr3("SESSION DAY", "SESSION DAY", "DIA DE SESION")
                 color: ThemeManager.textSecondary
                 font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.4
                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -169,7 +188,7 @@ Popup {
 
                 ComboBox {
                     id: dayCombo
-                    model: root.dayNames.length > 0 ? root.dayNames : ["Dia 1"]
+                    model: root.localizedDayNames()
                     Layout.fillWidth: true
                     font.pixelSize: 13; font.weight: Font.Bold
 
@@ -212,7 +231,7 @@ Popup {
                     implicitWidth: diaLbl.implicitWidth + 16; height: 34
                     Text {
                         id: diaLbl; anchors.centerIn: parent
-                        text: "Dia " + (dayCombo.currentIndex + 1)
+                        text: LanguageManager.tr3("Day ", "Day ", "Dia ") + (dayCombo.currentIndex + 1)
                         color: "#e05060"; font.pixelSize: 13; font.weight: Font.Bold
                     }
                 }
@@ -250,9 +269,9 @@ Popup {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }
-            GhostButton { text: "Cancelar"; onClicked: root.close() }
+            GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: root.close() }
             Button {
-                text: "Salvar Sessão"
+                text: LanguageManager.tr3("Salvar Sessao", "Save Session", "Guardar Sesion")
                 onClicked: root.doInsert()
                 background: Rectangle {
                     radius: 8; color: parent.hovered ? "#8a2e3b" : "#ab3d4c"
@@ -307,13 +326,15 @@ Popup {
                 ColumnLayout {
                     spacing: 1
                     Text {
-                        text: blk.pairLabel !== "" ? "Par " + blk.pairLabel : "Campo " + (blk.campoIndex + 1)
+                        text: blk.pairLabel !== ""
+                              ? (LanguageManager.tr3("Par ", "Pair ", "Par ") + blk.pairLabel)
+                              : (LanguageManager.tr3("Campo ", "Field ", "Campo ") + (blk.campoIndex + 1))
                         color: ThemeManager.textPrimary
                         font.pixelSize: 15; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     Text {
-                        text: "Par de objetos"
+                text: LanguageManager.tr3("Par de objetos", "Object pair", "Par de objetos")
                         color: ThemeManager.textSecondary; font.pixelSize: 10
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -324,7 +345,7 @@ Popup {
                 ColumnLayout {
                     spacing: 3
                     Text {
-                        text: "ANIMAL"
+                        text: LanguageManager.tr3("ANIMAL", "ANIMAL", "ANIMAL")
                         color: ThemeManager.textSecondary
                         font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -332,7 +353,7 @@ Popup {
                     TextField {
                         id: animalField
                         width: 130; height: 30
-                        placeholderText: "ID ou nome"
+                        placeholderText: LanguageManager.tr3("ID ou nome", "ID or name", "ID o nombre")
                         color: ThemeManager.textPrimary
                         placeholderTextColor: ThemeManager.textTertiary
                         font.pixelSize: 12
@@ -354,7 +375,7 @@ Popup {
                 ColumnLayout {
                     spacing: 3
                     Text {
-                        text: "TRATAMENTO"
+                        text: LanguageManager.tr3("TRATAMENTO", "TREATMENT", "TRATAMIENTO")
                         color: ThemeManager.textSecondary
                         font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -362,7 +383,7 @@ Popup {
                     TextField {
                         id: drogaField
                         width: 260; height: 30
-                        placeholderText: "Ex.: Salina, Midazolam…"
+                        placeholderText: LanguageManager.tr3("Ex.: Salina, Midazolam...", "Ex.: Saline, Midazolam...", "Ej.: Salina, Midazolam...")
                         color: ThemeManager.textPrimary
                         placeholderTextColor: ThemeManager.textTertiary
                         font.pixelSize: 12
@@ -382,3 +403,4 @@ Popup {
         }
     }
 }
+

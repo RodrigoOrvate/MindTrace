@@ -1,4 +1,4 @@
-// qml/ei/EIArenaSetup.qml
+﻿// qml/ei/EIArenaSetup.qml
 // Arena para Esquiva Inibitória: campo único, paredes, chão e 2 zonas retangulares.
 // Plataforma (esquerda) + Grade (direita) — sem objetos pares NOR.
 // Ctrl+Arrastar: Paredes | Alt+Arrastar: Chão | Shift+Arrastar: Zonas | Scroll: +/- Zonas
@@ -83,7 +83,7 @@ Item {
     function _doImport() {
         ArenaConfigModel.loadConfigFromPath(_pendingImportPath)
         _pendingImportPath = ""
-        saveToast.show("Arena importada! Clique em 'Salvar Configuração' para confirmar.")
+        saveToast.show(LanguageManager.tr3("Arena importada! Clique em 'Salvar Configuracao' para confirmar.", "Arena imported! Click 'Save Configuration' to confirm.", "Arena importada! Haga clic en 'Guardar Configuracion' para confirmar."))
     }
 
     // Zonas: 2 zonas em formato {x, y, r} — r = metade da largura/altura normalizada
@@ -111,7 +111,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 180 } }
         Text {
             id: unsavedText; anchors.centerIn: parent
-            text: "⚠️ Zonas editadas! Não esqueça de Salvar"
+            text: LanguageManager.tr3("Zonas editadas! Nao esqueca de Salvar", "Zones edited! Don't forget to Save", "Zonas editadas! No olvide Guardar")
             color: "#ff6b7a"; font.pixelSize: 11
         }
     }
@@ -281,14 +281,14 @@ Item {
             spacing: 14
 
             Text {
-                text: "Tipo de Análise"
+                text: LanguageManager.tr3("Tipo de Analise", "Analysis Type", "Tipo de Analisis")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 16; font.weight: Font.Bold
             }
             Text {
                 Layout.fillWidth: true
-                text: "Escolha o modo e carregue o vídeo:"
+                text: LanguageManager.tr3("Escolha o modo e carregue o video:", "Choose the mode and load the video:", "Elija el modo y cargue el video:")
                 color: ThemeManager.textSecondary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 13
@@ -307,14 +307,14 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "🎬  Análise Offline"
+                            text: "🎬  " + LanguageManager.tr3("Analise Offline", "Offline Analysis", "Analisis Offline")
                             color: ThemeManager.textPrimary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Vídeo pré-gravado"
+                            text: LanguageManager.tr3("Video pre-gravado", "Pre-recorded video", "Video pregrabado")
                             color: ThemeManager.textSecondary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
@@ -342,14 +342,14 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "📹  Análise Ao Vivo"
+                            text: "📹  " + LanguageManager.tr3("Analise Ao Vivo", "Live Analysis", "Analisis En Vivo")
                             color: ThemeManager.textPrimary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Câmera (salva o vídeo)"
+                            text: LanguageManager.tr3("Camera (salva o video)", "Camera (saves video)", "Camara (guarda el video)")
                             color: ThemeManager.textSecondary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
@@ -473,7 +473,7 @@ Item {
             Layout.fillWidth: true; spacing: 8
 
             Text {
-                text: "Configuração da Arena"
+                            text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 14; font.weight: Font.Bold
@@ -516,7 +516,9 @@ Item {
             // Carregar vídeo
             Button {
                 id: videoBtnRect
-                text: root.videoPath !== "" ? "🎬 Vídeo ✓" : "🎬 Carregar Vídeo"
+                text: root.videoPath !== ""
+                      ? "🎬 " + LanguageManager.tr3("Video OK", "Video OK", "Video OK")
+                      : "🎬 " + LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
                 onClicked: analysisModePrompt.open()
                 background: Rectangle {
                     radius: 6
@@ -540,7 +542,7 @@ Item {
 
             // Importar Arena
             Button {
-                text: "📥 Importar Arena"
+                            text: "📥 " + LanguageManager.tr3("Importar Arena", "Import Arena", "Importar Arena")
                 enabled: experimentPath !== ""
                 onClicked: importFolderDialog.open()
                 background: Rectangle {
@@ -562,7 +564,7 @@ Item {
 
             // Salvar configuração
             Button {
-                text: "💾 Salvar Configuração"
+                            text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== ""
                 onClicked: {
                     // No EI, zones são salvos como quadrilaterais no floorPoints (string JSON)
@@ -637,6 +639,10 @@ Item {
                             function onFloorPointsChanged()  { arenaCanvas.requestPaint() }
                             function onZonesChanged()        { arenaCanvas.requestPaint() }
                         }
+                        Connections {
+                            target: LanguageManager
+                            function onCurrentLanguageChanged() { arenaCanvas.requestPaint() }
+                        }
 
                         onPaint: {
                             var ctx = getContext("2d")
@@ -688,12 +694,12 @@ Item {
 
                             // 2. Plataforma (Verde) - pontos 0-3 do floorPoints (Esquerda agora)
                             if (fp.length >= 4) {
-                                drawPoly(fp.slice(0, 4), "rgba(0, 255, 0, 0.15)", "rgba(0, 255, 0, 0.8)", "Plataforma")
+                                drawPoly(fp.slice(0, 4), "rgba(0, 255, 0, 0.15)", "rgba(0, 255, 0, 0.8)", LanguageManager.tr3("Plataforma", "Platform", "Plataforma"))
                             }
 
                             // 3. Grade (Ciano/Blue) - pontos 4-7 do floorPoints (Direita agora)
                             if (fp.length >= 8) {
-                                drawPoly(fp.slice(4, 8), "rgba(0, 204, 255, 0.15)", "rgba(0, 204, 255, 0.8)", "Grade")
+                                drawPoly(fp.slice(4, 8), "rgba(0, 204, 255, 0.15)", "rgba(0, 204, 255, 0.8)", LanguageManager.tr3("Grade", "Grid", "Rejilla"))
                             }
                         }
                     }
@@ -846,3 +852,4 @@ Item {
         }
     }
 }
+

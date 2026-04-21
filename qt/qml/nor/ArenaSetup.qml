@@ -1,4 +1,4 @@
-// qml/ArenaSetup.qml
+﻿// qml/ArenaSetup.qml
 // Mosaico 2×2 — zonas arrastáveis via Shift+Esq (drag em tempo real).
 // Dev Mode: exibe diâmetro das zonas; Shift+Scroll redimensiona.
 // Vídeo offline: um VideoOutput no canto + ShaderEffectSource por campo (sem bug de hardware overlay).
@@ -49,7 +49,7 @@ Item {
         Text {
             id: unsavedText
             anchors.centerIn: parent
-            text: "⚠️ Zonas editadas! Não esqueça de Salvar"
+            text: LanguageManager.tr3("Zonas editadas! Nao esqueca de Salvar", "Zones edited! Don't forget to Save", "Zonas editadas! No olvide Guardar")
             color: "#ff6b7a"; font.pixelSize: 11
         }
     }
@@ -128,7 +128,7 @@ Item {
     function _doImport() {
         ArenaConfigModel.loadConfigFromPath(_pendingImportPath)
         _pendingImportPath = ""
-        saveToast.show("Arena importada! Clique em 'Salvar Configuração' para confirmar.")
+        saveToast.show(LanguageManager.tr3("Arena importada! Clique em 'Salvar Configuracao' para confirmar.", "Arena imported! Click 'Save Configuration' to confirm.", "Arena importada! Haga clic en 'Guardar Configuracion' para confirmar."))
     }
 
     // 6 zonas, 2 por campo: { x: xRatio, y: yRatio, r: radiusRatio }
@@ -352,7 +352,7 @@ Item {
             spacing: 14
 
             Text {
-                text: "Tipo de Análise"; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                text: LanguageManager.tr3("Tipo de Analise", "Analysis Type", "Tipo de Analisis"); color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 16; font.weight: Font.Bold
             }
 
@@ -376,12 +376,12 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "🎬  Análise Offline"; color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                                text: "🎬  " + LanguageManager.tr3("Analise Offline", "Offline Analysis", "Analisis Offline"); color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Vídeo pré-gravado"; color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
+                                text: LanguageManager.tr3("Video pre-gravado", "Pre-recorded video", "Video pregrabado"); color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -408,14 +408,14 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 4
                         Text {
-                            text: "📹  Análise Ao Vivo"
+                            text: "📹  " + LanguageManager.tr3("Analise Ao Vivo", "Live Analysis", "Analisis En Vivo")
                             color: ThemeManager.textPrimary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: "Câmera (salva o vídeo)"; color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
+                            text: LanguageManager.tr3("Camera (salva o video)", "Camera (saves video)", "Camara (guarda el video)"); color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -515,7 +515,7 @@ Item {
             Layout.fillWidth: true; spacing: 8
 
             Text {
-                text: "Configuração da Arena"
+                            text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 14; font.weight: Font.Bold
@@ -539,7 +539,7 @@ Item {
             Button {
                 id: editPairsBtn
                 visible: !root.caMode
-                text: "✏ Editar Pares"
+                            text: "✏ " + LanguageManager.tr3("Editar Pares", "Edit Pairs", "Editar Pares")
                 onClicked: editPairsPopup.open()
 
                 background: Rectangle {
@@ -590,7 +590,9 @@ Item {
             // ── Carregar Vídeo ────────────────────────────────────────────────
             Button {
                 id: videoBtnRect
-                text: root.videoPath !== "" ? "🎬 Vídeo ✓" : "🎬 Carregar Vídeo"
+                text: root.videoPath !== ""
+                      ? "🎬 " + LanguageManager.tr3("Video OK", "Video OK", "Video OK")
+                      : "🎬 " + LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
                 onClicked: analysisModePrompt.open()
                 
                 background: Rectangle {
@@ -615,7 +617,7 @@ Item {
 
             // ── Importar Arena ───────────────────────────────────────────────
             Button {
-                text: "📥 Importar Arena"
+                            text: "📥 " + LanguageManager.tr3("Importar Arena", "Import Arena", "Importar Arena")
                 enabled: experimentPath !== ""
                 onClicked: importFolderDialog.open()
                 background: Rectangle {
@@ -638,7 +640,7 @@ Item {
 
             // ── Salvar Configuração ──────────────────────────────────────────
             Button {
-                text: "💾 Salvar Configuração"
+                            text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== "" && (root.caMode || root.ccMode || pair1 !== "")
                 onClicked: {
                     var allZones = []
@@ -699,7 +701,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 6
                             Text {
-                                text: "Campo " + (campoCell.campoIndex + 1)
+                                text: LanguageManager.tr3("Campo ", "Field ", "Campo ") + (campoCell.campoIndex + 1)
                                 color: ThemeManager.textSecondary
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 font.pixelSize: 11; font.weight: Font.Bold
@@ -711,7 +713,7 @@ Item {
                                 implicitWidth: pairTxt.implicitWidth + 10; implicitHeight: 16
                                 Text {
                                     id: pairTxt; anchors.centerIn: parent
-                                    text: "Par " + campoCell.campoPair
+                                text: LanguageManager.tr3("Par ", "Pair ", "Par ") + campoCell.campoPair
                                     color: ThemeManager.accent
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                     font.pixelSize: 9
@@ -775,6 +777,10 @@ Item {
                                         onCaModeChanged:      arenaCanvas.requestPaint()
                                         onNumCamposChanged:   arenaCanvas.requestPaint()
                                     }
+                                    Connections {
+                                        target: LanguageManager
+                                        function onCurrentLanguageChanged() { arenaCanvas.requestPaint() }
+                                    }
 
                                     onPaint: {
                                         var ctx = getContext("2d")
@@ -809,7 +815,7 @@ Item {
                                                 var cBL={ x: midX + (iBL.x - midX) * root.centroRatio, y: midY + (iBL.y - midY) * root.centroRatio }
                                                 poly([cTL,cTR,cBR,cBL], "rgba(255,0,255,0.2)", "rgba(255,0,255,0.8)")
                                                 ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "white"
-                                                ctx.fillText("Centro", midX - 15, midY + 4)
+                                                ctx.fillText(LanguageManager.tr3("Centro", "Center", "Centro"), midX - 15, midY + 4)
                                             }
 
                                             // Borda (chão)
@@ -826,8 +832,8 @@ Item {
                                             // Labels
                                             ctx.font = "bold 10px sans-serif"
                                             ctx.fillStyle = "rgba(255,255,255,0.7)"
-                                            if (!root.ccMode) ctx.fillText("Borda", (iTL.x + (midX + (iTL.x-midX)*root.centroRatio))/2 - 15, midY + 4)
-                                            ctx.fillText("Parede", (oTL.x + iTL.x)/2 - 15, midY + 4)
+                                            if (!root.ccMode) ctx.fillText(LanguageManager.tr3("Borda", "Border", "Borde"), (iTL.x + (midX + (iTL.x-midX)*root.centroRatio))/2 - 15, midY + 4)
+                                            ctx.fillText(LanguageManager.tr3("Parede", "Wall", "Pared"), (oTL.x + iTL.x)/2 - 15, midY + 4)
                                         } else {
                                             // --- MODO RECONHECIMENTO (NOR/RO) ---
                                             // Chão
@@ -840,9 +846,9 @@ Item {
 
                                             // Labels NOR
                                             ctx.font = "bold 10px sans-serif"; ctx.fillStyle = "rgba(255,0,255,0.8)"
-                                            ctx.fillText("Chão", (iTL.x+iBR.x)/2 - 15, (iTL.y+iBR.y)/2)
+                                            ctx.fillText(LanguageManager.tr3("Chao", "Floor", "Suelo"), (iTL.x+iBR.x)/2 - 15, (iTL.y+iBR.y)/2)
                                             ctx.fillStyle = "rgba(255,255,255,0.6)"
-                                            ctx.fillText("Parede", (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
+                                            ctx.fillText(LanguageManager.tr3("Parede", "Wall", "Pared"), (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
                                         }
 
                                         // Borda da arena total
@@ -1122,7 +1128,7 @@ Item {
                                 Text {
                                     anchors.centerIn: parent
                                     visible: !root.caMode && campoCell.campoPair === "" && root.videoPath === ""
-                                    text: "Par não definido"
+                                text: LanguageManager.tr3("Par nao definido", "Pair not set", "Par no definido")
                                     color: "white"; opacity: 0.3; font.pixelSize: 10
                                 }
                             }
@@ -1213,7 +1219,7 @@ Item {
                     }
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: "Análise offline\n(câmera 4 não usada)"
+                                        text: LanguageManager.tr3("Analise offline\n(camera 4 nao usada)", "Offline analysis\n(camera 4 not used)", "Analisis offline\n(camara 4 no usada)")
                         color: ThemeManager.border; font.pixelSize: 9
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -1226,7 +1232,7 @@ Item {
     Popup {
         id: editPairsPopup
         anchors.centerIn: parent
-        width: 320; height: 260
+        width: 340; height: 286
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         
@@ -1243,11 +1249,11 @@ Item {
         }
 
         ColumnLayout {
-            anchors { fill: parent; margins: 20 }
+            anchors { fill: parent; leftMargin: 20; rightMargin: 20; topMargin: 20; bottomMargin: 28 }
             spacing: 14
 
             Text {
-                text: "Editar Pares de Objetos"
+            text: LanguageManager.tr3("Editar Pares de Objetos", "Edit Object Pairs", "Editar Pares de Objetos")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 15; font.weight: Font.Bold
@@ -1256,7 +1262,7 @@ Item {
 
             RowLayout {
                 spacing: 10
-                Text { text: "Campo 1:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: LanguageManager.tr3("Campo 1:", "Field 1:", "Campo 1:"); color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP1; Layout.fillWidth: true
                     color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: AA"
@@ -1266,7 +1272,7 @@ Item {
             }
             RowLayout {
                 spacing: 10
-                Text { text: "Campo 2:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: LanguageManager.tr3("Campo 2:", "Field 2:", "Campo 2:"); color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP2; Layout.fillWidth: true
                     color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: BB"
@@ -1275,9 +1281,9 @@ Item {
                 }
             }
             RowLayout {
-                spacing: 16; Layout.fillWidth: true
+                spacing: 10; Layout.fillWidth: true
                 visible: root.numCampos >= 3
-                Text { text: "Campo 3:"; color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
+                Text { text: LanguageManager.tr3("Campo 3:", "Field 3:", "Campo 3:"); color: ThemeManager.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 60 }
                 TextField {
                     id: editP3; Layout.fillWidth: true
                     color: ThemeManager.textPrimary; font.pixelSize: 13; placeholderText: "Ex: CC"
@@ -1292,12 +1298,12 @@ Item {
                 Layout.fillWidth: true; spacing: 10
                 Item { Layout.fillWidth: true }
                 Button {
-                    text: "Cancelar"; onClicked: editPairsPopup.close()
+                    text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: editPairsPopup.close()
                     background: Rectangle { color: "transparent" }
                     contentItem: Text { text: parent.text; color: ThemeManager.textSecondary; font.pixelSize: 12; font.weight: Font.Bold }
                 }
                 Button {
-                    text: "Aplicar"
+                    text: LanguageManager.tr3("Aplicar", "Apply", "Aplicar")
                     onClicked: {
                         var p1 = editP1.text.trim().toUpperCase()
                         var p2 = editP2.text.trim().toUpperCase()
@@ -1315,7 +1321,7 @@ Item {
                         zoneInitTimer.restart()
 
                         editPairsPopup.close()
-                        saveToast.show("Pares alterados! Não esqueça de Salvar a Configuração.")
+                        saveToast.show(LanguageManager.tr3("Pares alterados! Nao esqueca de Salvar a Configuracao.", "Pairs updated! Don't forget to Save Configuration.", "Pares actualizados! No olvide Guardar Configuracion."))
                     }
                     background: Rectangle { radius: 6; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
@@ -1330,4 +1336,5 @@ Item {
         anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 }
     }
 }
+
 

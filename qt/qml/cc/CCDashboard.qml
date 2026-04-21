@@ -1,5 +1,5 @@
-// qml/cc/CCDashboard.qml
-// Dashboard Comportamento Complexo: sidebar + Arena + Gravação + Classificação + Dados.
+﻿// qml/cc/CCDashboard.qml
+// Dashboard Comportamento Complexo: sidebar + Arena + GravaÃ§Ã£o + ClassificaÃ§Ã£o + Dados.
 
 import QtQuick
 import QtQuick.Controls
@@ -39,18 +39,18 @@ Item {
 
     property string pendingDeleteName: ""
 
-    // ── B-SOiD ────────────────────────────────────────────────────────────
+    // â”€â”€ B-SOiD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     property bool   bsoidRunning:   false
     property int    bsoidProgress:  0
     property var    bsoidGroups:    []   // lista de {clusterId, frameCount, percentage, ...}
-    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editáveis)
+    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editÃ¡veis)
     property string bsoidError:     ""
     property bool   bsoidDone:      false
     property double bsoidFps:       30.0
     property string bsoidVideoPath: ""
-    property int    bsoidCampo:     0    // campo selecionado para análise (0=C1, 1=C2, 2=C3)
+    property int    bsoidCampo:     0    // campo selecionado para anÃ¡lise (0=C1, 1=C2, 2=C3)
 
-    // ── Estatísticas de comportamento (computadas após B-SOiD) ────────────
+    // â”€â”€ EstatÃ­sticas de comportamento (computadas apÃ³s B-SOiD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     property var    behaviorStats:    []   // [{name, seconds, bouts, color}]
 
     function computeBehaviorStats(fps) {
@@ -77,7 +77,7 @@ Item {
         return result
     }
 
-    // ── Snippets ──────────────────────────────────────────────────────────
+    // â”€â”€ Snippets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     property bool   snippetsRunning:  false
     property int    snippetsProgress: 0
     property bool   snippetsComplete: false
@@ -97,18 +97,18 @@ Item {
             var names = []
             for (var n = 0; n < groups.length; n++) names.push("")
             root.bsoidGroupNames = names
-            // Computa estatísticas por comportamento
+            // Computa estatÃ­sticas por comportamento
             root.behaviorStats = root.computeBehaviorStats(root.bsoidFps)
             // Preenche timeline dupla a partir de C++ (mais eficiente que iterar em JS)
             Qt.callLater(function() {
                 ruleTimeline.clear()
                 clusterTimeline.clear()
-                // Cores para regras nativas — alinhadas com badges e legenda
-                ruleTimeline.setLabelColor(0, "#8b5cf6")  // Walking  → violeta
-                ruleTimeline.setLabelColor(1, "#f97316")  // Zonas de objetos → laranja
-                ruleTimeline.setLabelColor(2, "#eab308")  // Grooming → amarelo
-                ruleTimeline.setLabelColor(3, "#3b82f6")  // Resting  → azul
-                ruleTimeline.setLabelColor(4, "#10b981")  // Rearing  → verde
+                // Cores para regras nativas â€” alinhadas com badges e legenda
+                ruleTimeline.setLabelColor(0, "#8b5cf6")  // Walking  â†’ violeta
+                ruleTimeline.setLabelColor(1, "#f97316")  // Zonas de objetos â†’ laranja
+                ruleTimeline.setLabelColor(2, "#eab308")  // Grooming â†’ amarelo
+                ruleTimeline.setLabelColor(3, "#3b82f6")  // Resting  â†’ azul
+                ruleTimeline.setLabelColor(4, "#10b981")  // Rearing  â†’ verde
                 // Cores para clusters B-SOiD
                 var colors = root.bsoidColors
                 for (var i = 0; i < colors.length; i++)
@@ -129,7 +129,7 @@ Item {
         }
     }
 
-    // Cores dos clusters B-SOiD — família vermelhos/amarelos/violetas,
+    // Cores dos clusters B-SOiD â€” famÃ­lia vermelhos/amarelos/violetas,
     // deliberadamente distintas das regras nativas:
     // Walking=#10b981(verde), Sniffing=#3b82f6(azul), Grooming=#ec4899(rosa),
     // Resting=#6b7280(cinza), Rearing=#f97316(laranja)
@@ -137,19 +137,19 @@ Item {
         "#ef4444",  // vermelho      G1
         "#eab308",  // amarelo       G2
         "#8b5cf6",  // violeta       G3
-        "#d946ef",  // fúcsia        G4
-        "#6366f1",  // índigo        G5
+        "#d946ef",  // fÃºcsia        G4
+        "#6366f1",  // Ã­ndigo        G5
         "#dc2626",  // vermelho esc  G6
         "#ca8a04",  // ouro          G7
         "#7c3aed",  // violeta esc   G8
         "#c026d3",  // magenta       G9
         "#be123c",  // carmim        G10
         "#a21caf",  // magenta esc   G11
-        "#4f46e5"   // índigo esc    G12
+        "#4f46e5"   // Ã­ndigo esc    G12
     ]
 
     function bsoidRuleName(ruleId) {
-        var names = ["Walking","Zonas de objetos","Grooming","Resting","Rearing"]
+        var names = ["Walking","Object Zones","Grooming","Resting","Rearing"]
         return (ruleId >= 0 && ruleId < names.length) ? names[ruleId] : "?"
     }
 
@@ -157,11 +157,11 @@ Item {
         if (root.bsoidRunning) return
         var campo = root.bsoidCampo
         var sessionPath = workArea.selectedPath  // pasta do experimento
-        if (!sessionPath) { root.bsoidError = "Nenhum experimento selecionado."; return }
+        if (!sessionPath) { root.bsoidError = LanguageManager.tr3("Nenhum experimento selecionado.", "No experiment selected.", "Ningun experimento seleccionado."); return }
         var csvPath = sessionPath + "/bsoid_features_campo" + (campo + 1) + "_tmp.csv"
         var ok = liveRecordingTab.exportBehaviorFeatures(csvPath, campo)
-        if (!ok) { root.bsoidError = "Nenhum dado de features disponível. Execute uma análise primeiro."; return }
-        // Captura FPS e caminho do vídeo para timeline e snippets
+        if (!ok) { root.bsoidError = LanguageManager.tr3("Nenhum dado de features disponivel. Execute uma analise primeiro.", "No feature data available. Run an analysis first.", "No hay datos de features disponibles. Ejecute un analisis primero."); return }
+        // Captura FPS e caminho do vÃ­deo para timeline e snippets
         root.bsoidFps       = (liveRecordingTab.dlcFps > 0) ? liveRecordingTab.dlcFps : 30.0
         root.bsoidVideoPath = liveRecordingTab.videoPath
         root.bsoidRunning    = true
@@ -190,13 +190,13 @@ Item {
         onErrorOccurred: errorToast.show(message)
 
         onExperimentCreated: {
-            successToast.show("Experimento \"" + name + "\" criado!")
+            successToast.show(LanguageManager.tr3("Experiment \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" created!", "\" created!", "\" creado!"))
             experimentList.selectExperimentByName(name)
             innerTabs.currentIndex = 0
         }
 
         onExperimentDeleted: {
-            successToast.show("Experimento \"" + name + "\" excluído.")
+            successToast.show(LanguageManager.tr3("Experiment \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" deleted.", "\" deleted.", "\" eliminado."))
             if (workArea.selectedName === name) {
                 workArea.selectedName = ""
                 workArea.selectedPath = ""
@@ -208,8 +208,8 @@ Item {
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show("Sessão registrada!")
-                innerTabs.currentIndex = 2  // aba Classificação
+                successToast.show(LanguageManager.tr3("Session saved!", "Session saved!", "Sesion guardada!"))
+                innerTabs.currentIndex = 2  // aba ClassificaÃ§Ã£o
             }
         }
     }
@@ -218,7 +218,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Barra superior ───────────────────────────────────────────────
+        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -232,14 +232,14 @@ Item {
                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                 spacing: 14
 
-                GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+                GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "🧩"; font.pixelSize: 20 }
+                Text { text: "\u2699"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
-                          ? "Comportamento Complexo — Experimentos"
-                          : "Comportamento Complexo — Dashboard"
+                          ? LanguageManager.tr3("Comportamento Complexo - Experimentos", "Complex Behavior - Experiments", "Comportamiento Complejo - Experimentos")
+                          : LanguageManager.tr3("Comportamento Complexo - Dashboard", "Complex Behavior - Dashboard", "Comportamiento Complejo - Panel")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -253,7 +253,7 @@ Item {
                     Text {
                         id: numLabel
                         anchors.centerIn: parent
-                        text: root.numCampos + " campo" + (root.numCampos > 1 ? "s" : "")
+                        text: root.numCampos + " " + LanguageManager.tr3("campo", "field", "campo") + (root.numCampos > 1 ? "s" : "")
                         color: "#7a3dab"; font.pixelSize: 11; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -263,13 +263,13 @@ Item {
             }
         }
 
-        // ── Corpo ────────────────────────────────────────────────────────
+        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar ──────────────────────────────────────────────────
+            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -284,7 +284,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "Experimentos"
+                        text: LanguageManager.tr3("Experimentos", "Experiments", "Experimentos")
                         color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -292,7 +292,7 @@ Item {
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
-                        placeholderText: "Pesquisar…"
+                        placeholderText: LanguageManager.tr3("Pesquisar...", "Search...", "Buscar...")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
@@ -346,7 +346,7 @@ Item {
                                 width: 30; opacity: expDelegate.isHovered ? 1.0 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
-                                    anchors.centerIn: parent; text: "🗑"; font.pixelSize: 13
+                                    anchors.centerIn: parent; text: "\uD83D\uDDD1"; font.pixelSize: 13
                                     color: trashArea.containsMouse ? "#9a5ddb" : "#7a3dab"
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -381,7 +381,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
-                            text: "Nenhum experimento\nencontrado"
+                        text: LanguageManager.tr3("Nenhum experimento\nencontrado", "No experiment\nfound", "Ningun experimento\nencontrado")
                             color: ThemeManager.textSecondary; font.pixelSize: 12
                             Behavior on color { ColorAnimation { duration: 150 } }
                             horizontalAlignment: Text.AlignHCenter
@@ -390,7 +390,7 @@ Item {
                 }
             }
 
-            // ── Área de trabalho ─────────────────────────────────────────
+            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -419,7 +419,7 @@ Item {
                     hasObjectZones  = meta.hasObjectZones !== false
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
-                    dayNames        = meta.dayNames || Array.from({length: meta.sessionDays || 5}, function(_, i) { return "Dia " + (i+1) })
+                    dayNames        = meta.dayNames || Array.from({length: meta.sessionDays || 5}, function(_, i) { return LanguageManager.tr3("Day ", "Day ", "Dia ") + (i+1) })
 
                     if (activeNumCampos === 1) {
                         ArenaConfigModel.loadConfigFromPath(path, ":/arena_config_ei_referencia.json")
@@ -433,11 +433,11 @@ Item {
                         ArenaConfigModel.loadConfigFromPath(path)
                     }
 
-                    // Propaga pontos de arena para aba Gravação
+                    // Propaga pontos de arena para aba GravaÃ§Ã£o
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                     liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
                     
-                    // Propaga zonas se hasObjectZones; limpa explicitamente se não
+                    // Propaga zonas se hasObjectZones; limpa explicitamente se nÃ£o
                     if (workArea.hasObjectZones) {
                         var src = ArenaConfigModel.zones || []
                         if (src.length > 0) {
@@ -467,13 +467,13 @@ Item {
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Índice 0: placeholder "selecione um experimento"
+                    // Ãndice 0: placeholder "selecione um experimento"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
-                            Text { text: "🧩"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
+                                        Text { text: "\u2699"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
                             Text {
-                                text: "Selecione um experimento"
+                                text: LanguageManager.tr3("Selecione um experimento", "Select an experiment", "Seleccione un experimento")
                                 color: ThemeManager.textSecondary; font.pixelSize: 16
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Layout.alignment: Qt.AlignHCenter
@@ -481,11 +481,11 @@ Item {
                         }
                     }
 
-                    // Índice 1: painel com abas
+                    // Ãndice 1: painel com abas
                     ColumnLayout {
                         spacing: 0
 
-                        // ── Barra de abas interna ─────────────────────────
+                        // â”€â”€ Barra de abas interna â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -503,7 +503,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["Arena", "Gravação", "Classificação", "Dados"]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "🧠 " + LanguageManager.tr3("Classificacao", "Behavior", "Clasificacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -553,9 +553,9 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // ── Tab 0: Arena ──────────────────────────────
+                            // â”€â”€ Tab 0: Arena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             Item {
-                                // ArenaSetup padrão — 2 ou 3 campos
+                                // ArenaSetup padrÃ£o â€” 2 ou 3 campos
                                 ArenaSetup {
                                     id: tabArenaSetup
                                     anchors.fill: parent
@@ -579,7 +579,7 @@ Item {
                                     }
                                 }
 
-                                // EIArenaSetup — 1 campo (arena EI adaptada para CC)
+                                // EIArenaSetup â€” 1 campo (arena EI adaptada para CC)
                                 EIArenaSetup {
                                     id: eiArenaSetupCC
                                     anchors.fill: parent
@@ -600,7 +600,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 1: Gravação ───────────────────────────
+                            // â”€â”€ Tab 1: GravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath: workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
@@ -642,7 +642,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 2: Classificação ──────────────────────
+                            // â”€â”€ Tab 2: ClassificaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             Item {
                                 id: classificationTab
 
@@ -663,21 +663,25 @@ Item {
                                             anchors.topMargin: 28
                                             spacing: 20
 
-                                            // Título
+                                            // TÃ­tulo
                                             RowLayout {
                                                 Layout.alignment: Qt.AlignHCenter
                                                 spacing: 12
-                                                Text { text: "🧠"; font.pixelSize: 30 }
+                                                Text { text: "\u2699"; font.pixelSize: 30 }
                                                 ColumnLayout {
                                                     spacing: 2
                                                     Text {
-                                                        text: "Análise Comportamental Nativa"
+                                                        text: LanguageManager.tr3("Analise Comportamental Nativa", "Native Behavioral Analysis", "Analisis Conductual Nativo")
                                                         color: ThemeManager.textPrimary
                                                         font.pixelSize: 20; font.weight: Font.Bold
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
                                                     Text {
-                                                        text: "Classificação por regras em tempo real · B-SOiD disponível pós-sessão"
+                                                        text: LanguageManager.tr3(
+                                                                  "Classificacao por regras em tempo real · B-SOiD disponivel pos-sessao",
+                                                                  "Real-time rule-based classification · B-SOiD available after session",
+                                                                  "Clasificacion por reglas en tiempo real · B-SOiD disponible despues de la sesion"
+                                                              )
                                                         color: ThemeManager.textSecondary; font.pixelSize: 11
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
@@ -696,16 +700,20 @@ Item {
                                                     id: ruleRow
                                                     anchors { fill: parent; margins: 12 }
                                                     spacing: 12
-                                                    Text { text: "⚙️"; font.pixelSize: 20 }
+                                                    Text { text: "\u2699"; font.pixelSize: 20 }
                                                     ColumnLayout {
                                                         spacing: 2
                                                         Text {
-                                                            text: "Motor de Regras Nativo (C++)"
+                                                            text: LanguageManager.tr3("Motor de Regras Nativo (C++)", "Native Rules Engine (C++)", "Motor de Reglas Nativo (C++)")
                                                             color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
                                                         Text {
-                                                            text: "Zonas de objetos · Rearing · Resting · Grooming · Walking — sem modelo ONNX"
+                                                            text: LanguageManager.tr3(
+                                                                      "Zonas de objetos · Rearing · Resting · Grooming · Walking - sem modelo ONNX",
+                                                                      "Object zones · Rearing · Resting · Grooming · Walking - no ONNX model",
+                                                                      "Zonas de objetos · Rearing · Resting · Grooming · Walking - sin modelo ONNX"
+                                                                  )
                                                             color: ThemeManager.textSecondary; font.pixelSize: 11
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
@@ -718,7 +726,7 @@ Item {
                                                         Text {
                                                             id: ruleStatusTxt
                                                             anchors.centerIn: parent
-                                                            text: "✅ ATIVO"
+                                                            text: LanguageManager.tr3("ACTIVE", "ACTIVE", "ACTIVO")
                                                             color: ThemeManager.success
                                                             font.pixelSize: 12; font.weight: Font.Bold
                                                         }
@@ -741,7 +749,7 @@ Item {
                                                             anchors.centerIn: parent; spacing: 12
                                                             Text {
                                                                 Layout.alignment: Qt.AlignHCenter
-                                                                text: "Campo " + (index + 1)
+                                                                text: LanguageManager.tr3("Campo ", "Field ", "Campo ") + (index + 1)
                                                                 color: ThemeManager.textSecondary
                                                                 font.pixelSize: 13; font.weight: Font.Bold
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -749,13 +757,13 @@ Item {
                                                             Rectangle {
                                                                 Layout.alignment: Qt.AlignHCenter
                                                                 radius: 6; implicitHeight: 36; implicitWidth: bhvTxt.implicitWidth + 36
-                                                                property string bhvName: liveRecordingTab.currentBehaviorString[index] || "Detectando..."
+                                                                property string bhvName: liveRecordingTab.currentBehaviorString[index] || LanguageManager.tr3("Detectando...", "Detecting...", "Detectando...")
                                                                 property color badgeColor: {
                                                                     if (bhvName === "Walking")  return "#8b5cf6"
                                                                     if (bhvName === "Resting")  return "#3b82f6"
                                                                     if (bhvName === "Rearing")  return "#10b981"
                                                                     if (bhvName === "Grooming") return "#eab308"
-                                                                    if (bhvName === "Zonas de objetos") return "#f97316"
+                                                                    if (bhvName === "Zonas de objetos" || bhvName === "Object Zones") return "#f97316"
                                                                     return ThemeManager.surfaceAlt
                                                                 }
                                                                 color: badgeColor
@@ -764,7 +772,7 @@ Item {
                                                                     id: bhvTxt
                                                                     anchors.centerIn: parent
                                                                     text: parent.bhvName
-                                                                    color: parent.bhvName === "Detectando..." ? ThemeManager.textSecondary : "#ffffff"
+                                                                    color: parent.bhvName === LanguageManager.tr3("Detectando...", "Detecting...", "Detectando...") ? ThemeManager.textSecondary : "#ffffff"
                                                                     font.pixelSize: 14; font.weight: Font.Bold
                                                                     Behavior on color { ColorAnimation { duration: 250 } }
                                                                 }
@@ -787,7 +795,7 @@ Item {
                                                     spacing: 16
                                                     Item { Layout.fillWidth: true }
                                                     Repeater {
-                                                        model: ["Walking|#8b5cf6", "Zonas de objetos|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
+                                                        model: ["Walking|#8b5cf6", "Object Zones|#f97316", "Grooming|#eab308", "Resting|#3b82f6", "Rearing|#10b981"]
                                                         delegate: RowLayout {
                                                             spacing: 6
                                                             Rectangle { width: 14; height: 14; radius: 7; color: modelData.split("|")[1] }
@@ -807,14 +815,14 @@ Item {
                                                 Layout.fillWidth: true; spacing: 12
                                                 Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
                                                 Text {
-                                                    text: "🔬  B-SOiD"
+                                                    text: "B-SOiD"
                                                     color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                     Behavior on color { ColorAnimation { duration: 150 } }
                                                 }
                                                 Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
                                             }
 
-                                            // Card B-SOiD (pós-sessão — interativo)
+                                            // Card B-SOiD (pÃ³s-sessÃ£o â€” interativo)
                                             Rectangle {
                                                 Layout.fillWidth: true; radius: 12
                                                 color: ThemeManager.surfaceDim
@@ -828,19 +836,23 @@ Item {
                                                     anchors { fill: parent; margins: 14 }
                                                     spacing: 12
 
-                                                    // Header: título + status + botão
+                                                    // Header: tÃ­tulo + status + botÃ£o
                                                     RowLayout {
                                                         spacing: 10
-                                                        Text { text: "🔬"; font.pixelSize: 18 }
+                                                        Text { text: "\uD83D\uDD2C"; font.pixelSize: 18 }
                                                         ColumnLayout {
                                                             spacing: 2
                                                             Text {
-                                                                text: "Análise B-SOiD (Pós-Sessão)"
+                                                                text: LanguageManager.tr3("Analise B-SOiD (Pos-Sessao)", "B-SOiD Analysis (Post-Session)", "Analisis B-SOiD (Post-Sesion)")
                                                                 color: ThemeManager.textPrimary; font.weight: Font.Bold; font.pixelSize: 13
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                                             }
                                                             Text {
-                                                                text: "Agrupa frames por padrão de movimento via PCA + K-Means"
+                                                                text: LanguageManager.tr3(
+                                                                          "Agrupa frames por padrao de movimento via PCA + K-Means",
+                                                                          "Groups frames by movement pattern with PCA + K-Means",
+                                                                          "Agrupa fotogramas por patron de movimiento con PCA + K-Means"
+                                                                      )
                                                                 color: ThemeManager.textSecondary; font.pixelSize: 11
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                                             }
@@ -863,9 +875,7 @@ Item {
                                                             Text {
                                                                 id: bsoidBadgeTxt
                                                                 anchors.centerIn: parent
-                                                                text: root.bsoidDone    ? "✅ Concluído"
-                                                                    : root.bsoidRunning ? "⏳ " + root.bsoidProgress + "%"
-                                                                    : "⏳ Aguarda"
+                                                                text: root.bsoidDone ? LanguageManager.tr3("Concluido", "Done", "Completado") : root.bsoidRunning ? ("" + root.bsoidProgress + "%") : LanguageManager.tr3("Aguardando", "Waiting", "Esperando")
                                                                 color: root.bsoidDone ? ThemeManager.success : "#8888cc"
                                                                 font.pixelSize: 11; font.weight: Font.Bold
                                                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -876,7 +886,7 @@ Item {
                                                         RowLayout {
                                                             spacing: 4
                                                             Text {
-                                                                text: "Campo:"
+                                                                text: LanguageManager.tr3("Campo:", "Field:", "Campo:")
                                                                 color: ThemeManager.textSecondary; font.pixelSize: 11
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                                             }
@@ -914,10 +924,10 @@ Item {
                                                             }
                                                         }
 
-                                                        // Botão Analisar
+                                                        // BotÃ£o Analisar
                                                         Button {
                                                             visible: !root.bsoidRunning
-                                                            text: root.bsoidDone ? "↻ Re-analisar" : "▶ Analisar"
+                                                            text: root.bsoidDone ? LanguageManager.tr3("Reanalisar", "Re-analyze", "Reanalizar") : LanguageManager.tr3("Analisar", "Analyze", "Analizar")
                                                             onClicked: root.startBsoidAnalysis()
                                                             background: Rectangle {
                                                                 radius: 7
@@ -933,7 +943,7 @@ Item {
                                                             leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
                                                         }
 
-                                                        // Spinner durante análise
+                                                        // Spinner durante anÃ¡lise
                                                         BusyIndicator {
                                                             visible: root.bsoidRunning
                                                             width: 28; height: 28
@@ -958,21 +968,21 @@ Item {
                                                     // Mensagem de erro
                                                     Text {
                                                         visible: root.bsoidError !== ""
-                                                        text: "⚠️ " + root.bsoidError
+                                                        text: LanguageManager.tr3("Warning: ", "Warning: ", "Aviso: ") + root.bsoidError
                                                         color: "#ef4444"; font.pixelSize: 11
                                                         wrapMode: Text.WordWrap; Layout.fillWidth: true
                                                     }
 
-                                                    // Texto de ajuda (apenas antes da análise)
+                                                    // Texto de ajuda (apenas antes da anÃ¡lise)
                                                     Text {
                                                         visible: !root.bsoidDone && !root.bsoidRunning && root.bsoidError === ""
-                                                        text: "Clique em Analisar após finalizar a gravação. O algoritmo analisa os dados de trajetória\ncoletados e descobre grupos comportamentais adicionais às regras nativas."
+                                                        text: LanguageManager.tr3("Clique em Analisar apos finalizar a gravacao. O algoritmo analisa os dados de trajetoria coletados e descobre grupos comportamentais adicionais as regras nativas.", "Click Analyze after recording ends. The algorithm analyzes trajectory data and discovers behavioral groups in addition to native rules.", "Haga clic en Analizar despues de finalizar la grabacion. El algoritmo analiza los datos de trayectoria y descubre grupos conductuales adicionales a las reglas nativas.")
                                                         color: ThemeManager.textTertiary; font.pixelSize: 11
                                                         wrapMode: Text.WordWrap; Layout.fillWidth: true
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
 
-                                                    // ── Estatísticas por comportamento (pós B-SOiD) ─────────────────────
+                                                    // â”€â”€ EstatÃ­sticas por comportamento (pÃ³s B-SOiD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone && root.behaviorStats.length > 0
                                                         Layout.fillWidth: true; spacing: 6
@@ -980,17 +990,17 @@ Item {
                                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
                                                         Text {
-                                                            text: "COMPORTAMENTOS — DURAÇÃO E BOUTS  ·  C" + (root.bsoidCampo + 1)
+                                                            text: LanguageManager.tr3("BEHAVIORS - DURATION AND BOUTS · C", "BEHAVIORS - DURATION AND BOUTS · C", "COMPORTAMIENTOS - DURACION Y BOUTS · C") + (root.bsoidCampo + 1)
                                                             color: ThemeManager.textSecondary
                                                             font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // Cabeçalho tabela
+                                                        // CabeÃ§alho tabela
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 0
-                                                            Text { text: "Comportamento"; width: 100; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold }
-                                                            Text { text: "Tempo (s)";     width: 80;  color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
+                                                            Text { text: LanguageManager.tr3("Comportamento", "Behavior", "Comportamiento"); width: 100; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold }
+                                                            Text { text: LanguageManager.tr3("Tempo (s)", "Time (s)", "Tiempo (s)"); width: 80; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
                                                             Text { text: "Bouts";         width: 60;  color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold; horizontalAlignment: Text.AlignRight }
                                                             Item { Layout.fillWidth: true }
                                                         }
@@ -1017,7 +1027,7 @@ Item {
                                                         RowLayout {
                                                             Layout.fillWidth: true
                                                             Text {
-                                                                text: "GRUPOS DESCOBERTOS — " + root.bsoidGroups.length + " clusters  ·  C" + (root.bsoidCampo + 1)
+                                                            text: LanguageManager.tr3("DISCOVERED GROUPS - ", "DISCOVERED GROUPS - ", "GRUPOS DESCUBIERTOS - ") + root.bsoidGroups.length + " clusters · C" + (root.bsoidCampo + 1)
                                                                 color: ThemeManager.textSecondary
                                                                 font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -1033,10 +1043,10 @@ Item {
                                                                 id: hintRow
                                                                 anchors { left: parent.left; right: parent.right; margins: 10; verticalCenter: parent.verticalCenter }
                                                                 spacing: 8
-                                                                Text { text: "💡"; font.pixelSize: 13 }
+                                                                Text { text: "\u2139"; font.pixelSize: 13 }
                                                                 Text {
                                                                     Layout.fillWidth: true
-                                                                    text: "Extraia os clips abaixo, assista a cada grupo e nomeie o comportamento que está vendo."
+                                                                    text: LanguageManager.tr3("Extraia os clipes abaixo, assista a cada grupo e nomeie o comportamento observado.", "Extract the clips below, watch each group, and name the observed behavior.", "Extraiga los clips de abajo, observe cada grupo y nombre el comportamiento observado.")
                                                                     color: "#c4b5fd"; font.pixelSize: 10; wrapMode: Text.WordWrap
                                                                 }
                                                             }
@@ -1068,7 +1078,7 @@ Item {
                                                                             color: parent.parent.parent.clusterColor
                                                                         }
                                                                         Text {
-                                                                            text: "Grupo " + (grp.clusterId + 1)
+                                                                text: LanguageManager.tr3("Grupo ", "Group ", "Grupo ") + (grp.clusterId + 1)
                                                                             color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                                         }
@@ -1089,29 +1099,29 @@ Item {
                                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                                         }
                                                                         Text {
-                                                                            text: "≈ " + root.bsoidRuleName(grp.dominantRule)
+                                                                text: "~ " + root.bsoidRuleName(grp.dominantRule)
                                                                             color: ThemeManager.textTertiary; font.pixelSize: 10
                                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                                         }
                                                                     }
 
-                                                                    // Campo de nomeação do grupo
+                                                                    // Campo de nomeaÃ§Ã£o do grupo
                                                                     RowLayout {
                                                                         spacing: 6
                                                                         Text {
-                                                                            text: "Nome:"
+                                                                            text: LanguageManager.tr3("Nome:", "Name:", "Nombre:")
                                                                             color: ThemeManager.textTertiary; font.pixelSize: 10
                                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                                         }
                                                                         TextField {
                                                                             id: groupNameField
                                                                             Layout.fillWidth: true; height: 26
-                                                                            // Sem binding reativo — inicializa uma vez; onTextEdited atualiza o array
+                                                                            // Sem binding reativo â€” inicializa uma vez; onTextEdited atualiza o array
                                                                             Component.onCompleted: {
                                                                                 text = (root.bsoidGroupNames && root.bsoidGroupNames.length > grpIdx)
                                                                                        ? (root.bsoidGroupNames[grpIdx] || "") : ""
                                                                             }
-                                                                            placeholderText: "Ex.: Exploração, Repouso, Grooming…"
+                                                                            placeholderText: LanguageManager.tr3("Ex.: Exploracao, Repouso, Grooming...", "Ex.: Exploration, Resting, Grooming...", "Ej.: Exploracion, Reposo, Grooming...")
                                                                             color: ThemeManager.textPrimary
                                                                             placeholderTextColor: ThemeManager.textTertiary
                                                                             font.pixelSize: 11
@@ -1136,7 +1146,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // ── Timeline Dupla ──────────────────────────────────────────────────
+                                                    // â”€â”€ Timeline Dupla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone
                                                         Layout.fillWidth: true; spacing: 6
@@ -1144,17 +1154,17 @@ Item {
                                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
                                                         Text {
-                                                            text: "TIMELINE — REGRAS vs B-SOiD"
+                                                            text: LanguageManager.tr3("TIMELINE - RULES vs B-SOiD", "TIMELINE - RULES vs B-SOiD", "LINEA DE TIEMPO - REGLAS vs B-SOiD")
                                                             color: ThemeManager.textSecondary
                                                             font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // Linha 1 — Regras nativas
+                                                        // Linha 1 â€” Regras nativas
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
-                                                                text: "Regras"
+                                                                text: LanguageManager.tr3("Regras", "Rules", "Reglas")
                                                                 width: 46; color: ThemeManager.textTertiary
                                                                 font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
                                                                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -1166,7 +1176,7 @@ Item {
                                                             }
                                                         }
 
-                                                        // Linha 2 — Clusters B-SOiD
+                                                        // Linha 2 â€” Clusters B-SOiD
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
@@ -1203,7 +1213,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // ── Extração de Clips de Vídeo ──────────────────────────────────────
+                                                    // â”€â”€ ExtraÃ§Ã£o de Clips de VÃ­deo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone
                                                         Layout.fillWidth: true; spacing: 6
@@ -1211,7 +1221,7 @@ Item {
                                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
                                                         Text {
-                                                            text: "CLIPS DE VÍDEO POR GRUPO"
+                                                            text: LanguageManager.tr3("VIDEO CLIPS PER GROUP", "VIDEO CLIPS PER GROUP", "CLIPS DE VIDEO POR GRUPO")
                                                             color: ThemeManager.textSecondary
                                                             font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.2
                                                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -1223,12 +1233,12 @@ Item {
                                                             Text {
                                                                 Layout.fillWidth: true
                                                                 text: root.snippetsComplete
-                                                                    ? "📁 Clips salvos em: " + root.snippetsOutDir
+                                                                    ? (LanguageManager.tr3("Clipes salvos em: ", "Clips saved at: ", "Clips guardados en: ") + root.snippetsOutDir)
                                                                     : root.snippetsRunning
-                                                                        ? "⏳ Extraindo... " + root.snippetsProgress + "%"
+                                                                        ? (LanguageManager.tr3("Extracting... ", "Extracting... ", "Extrayendo... ") + root.snippetsProgress + "%")
                                                                         : root.snippetsError !== ""
-                                                                            ? "⚠️ " + root.snippetsError
-                                                                            : "Extrai até 3 clips .mp4 por grupo. Requer ffmpeg.exe no PATH ou na pasta do app. Sem FFmpeg, salva apenas timestamps.csv."
+                                                                            ? (LanguageManager.tr3("Warning: ", "Warning: ", "Aviso: ") + root.snippetsError)
+                                                                            : LanguageManager.tr3("Extrai ate 3 clipes .mp4 por grupo. Requer ffmpeg.exe no PATH ou na pasta do app. Sem FFmpeg, salva apenas timestamps.csv.", "Extracts up to 3 .mp4 clips per group. Requires ffmpeg.exe in PATH or app folder. Without FFmpeg, only timestamps.csv is saved.", "Extrae hasta 3 clips .mp4 por grupo. Requiere ffmpeg.exe en PATH o en la carpeta de la app. Sin FFmpeg, solo guarda timestamps.csv.")
                                                                 color: root.snippetsComplete ? ThemeManager.success
                                                                      : root.snippetsError !== "" ? "#ef4444"
                                                                      : ThemeManager.textTertiary
@@ -1239,7 +1249,7 @@ Item {
                                                             // Abre pasta no Explorer
                                                             Button {
                                                                 visible: root.snippetsComplete && !root.snippetsRunning
-                                                                text: "📂 Abrir"
+                                                                text: LanguageManager.tr3("Abrir", "Open", "Abrir")
                                                                 onClicked: Qt.openUrlExternally("file:///" + root.snippetsOutDir)
                                                                 background: Rectangle {
                                                                     radius: 7
@@ -1257,7 +1267,7 @@ Item {
 
                                                             Button {
                                                                 visible: !root.snippetsRunning
-                                                                text: root.snippetsComplete ? "↻ Re-extrair" : "🎬 Extrair Clips"
+                                                                text: root.snippetsComplete ? LanguageManager.tr3("Reextrair", "Re-extract", "Reextraer") : LanguageManager.tr3("Extrair Clipes", "Extract Clips", "Extraer Clips")
                                                                 enabled: root.bsoidDone
                                                                 onClicked: {
                                                                     var outDir = workArea.selectedPath + "/bsoid_snippets"
@@ -1312,7 +1322,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 3: Dados — Layout aparato-específico
+                            // â”€â”€ Tab 3: Dados â€” Layout aparato-especÃ­fico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -1325,18 +1335,18 @@ Item {
         }
     }
 
-    // ── Diálogo de resultado CC ──────────────────────────────────────────
+    // â”€â”€ DiÃ¡logo de resultado CC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     CCMetadataDialog {
         id: ccResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
     }
 
-    // ── Toasts ────────────────────────────────────────────────────────────
+    // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Toast { id: successToast; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 
-    // ── Popup delete — Passo 1 ────────────────────────────────────────────
+    // â”€â”€ Popup delete â€” Passo 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400
@@ -1348,17 +1358,25 @@ Item {
             id: step1Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: LanguageManager.tr3("Excluir Experimento", "Delete Experiment", "Eliminar Experimento"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text {
                 Layout.fillWidth: true
-                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
+                text: LanguageManager.tr3(
+                          "Tem certeza que deseja excluir\n\"",
+                          "Are you sure you want to delete\n\"",
+                          "Seguro que desea eliminar\n\""
+                      ) + root.pendingDeleteName + LanguageManager.tr3(
+                          "\"?\n\nEsta acao e irreversivel.",
+                          "\"?\n\nThis action is irreversible.",
+                          "\"?\n\nEsta accion es irreversible."
+                      )
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
-                GhostButton { text: "Cancelar"; onClicked: deleteStep1Popup.close() }
+                GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: deleteStep1Popup.close() }
                 Button {
-                    text: "Continuar"
+                    text: LanguageManager.tr3("Continuar", "Continue", "Continuar")
                     onClicked: { deleteStep1Popup.close(); deleteNameField.text = ""; deleteStep2Popup.open() }
                     background: Rectangle { radius: 7; color: parent.hovered ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
@@ -1368,7 +1386,7 @@ Item {
         }
     }
 
-    // ── Popup delete — Passo 2 ─────────────────────────────────────────
+    // â”€â”€ Popup delete â€” Passo 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent; width: 420
@@ -1381,8 +1399,8 @@ Item {
             id: step2Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
-            Text { Layout.fillWidth: true; text: "Para confirmar, digite o nome do experimento:"; color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
+            Text { text: LanguageManager.tr3("Confirmacao Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { Layout.fillWidth: true; text: LanguageManager.tr3("Para confirmar, digite o nome do experimento:", "To confirm, type the experiment name:", "Para confirmar, escriba el nombre del experimento:"); color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             Rectangle {
                 Layout.fillWidth: true; height: nameLabel.implicitHeight + 10; radius: 5
                 color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
@@ -1406,9 +1424,9 @@ Item {
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
-                GhostButton { text: "Cancelar"; onClicked: deleteStep2Popup.close() }
+                GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: deleteStep2Popup.close() }
                 Button {
-                    text: "Excluir Definitivamente"
+                    text: LanguageManager.tr3("Excluir Definitivamente", "Delete Permanently", "Eliminar Definitivamente")
                     enabled: deleteNameField.text === root.pendingDeleteName
                     onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
                     background: Rectangle {
@@ -1422,3 +1440,5 @@ Item {
         }
     }
 }
+
+

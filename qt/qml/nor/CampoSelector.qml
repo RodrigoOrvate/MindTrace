@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../core"
 import "../core/Theme"
 
 Item {
@@ -75,7 +76,8 @@ Item {
             spacing: 12
 
             Text {
-                text: "Objeto " + ((root.activeStep % 2) + 1) + "  ·  Campo " + (Math.floor(root.activeStep / 2) + 1)
+                text: LanguageManager.tr3("Objeto ", "Object ", "Objeto ") + ((root.activeStep % 2) + 1) + "  ·  " +
+                      LanguageManager.tr3("Campo ", "Field ", "Campo ") + (Math.floor(root.activeStep / 2) + 1)
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 14; font.weight: Font.Bold
@@ -140,7 +142,7 @@ Item {
                 color: ThemeManager.surface
                 Behavior on color { ColorAnimation { duration: 200 } }
                 border.color: ThemeManager.border; border.width: 1
-                Text { anchors.centerIn: parent; text: "Campo 1"; color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
+                Text { anchors.centerIn: parent; text: LanguageManager.tr3("Campo 1", "Field 1", "Campo 1"); color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
             }
 
             RowLayout {
@@ -159,8 +161,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 1"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o1 !== "" ? "OBJ" + root.c1o1 : "▾ Escolher"; color: root.c1o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o1 !== "" ? "OBJ" + root.c1o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c1o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma0; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 0; letterPicker.open() } }
                 }
@@ -178,8 +180,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 2"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o2 !== "" ? "OBJ" + root.c1o2 : "▾ Escolher"; color: root.c1o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o2 !== "" ? "OBJ" + root.c1o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c1o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma1; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 1; letterPicker.open() } }
                 }
@@ -196,7 +198,7 @@ Item {
                 color: ThemeManager.surface
                 Behavior on color { ColorAnimation { duration: 200 } }
                 border.color: ThemeManager.border; border.width: 1
-                Text { anchors.centerIn: parent; text: "Campo 2"; color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
+                Text { anchors.centerIn: parent; text: LanguageManager.tr3("Campo 2", "Field 2", "Campo 2"); color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
             }
 
             RowLayout {
@@ -215,8 +217,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 1"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o1 !== "" ? "OBJ" + root.c2o1 : "▾ Escolher"; color: root.c2o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o1 !== "" ? "OBJ" + root.c2o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c2o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma2; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 2; letterPicker.open() } }
                 }
@@ -234,8 +236,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 2"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o2 !== "" ? "OBJ" + root.c2o2 : "▾ Escolher"; color: root.c2o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o2 !== "" ? "OBJ" + root.c2o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c2o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma3; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 3; letterPicker.open() } }
                 }
@@ -252,7 +254,7 @@ Item {
                 color: ThemeManager.surface
                 Behavior on color { ColorAnimation { duration: 200 } }
                 border.color: ThemeManager.border; border.width: 1
-                Text { anchors.centerIn: parent; text: "Campo 3"; color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
+                Text { anchors.centerIn: parent; text: LanguageManager.tr3("Campo 3", "Field 3", "Campo 3"); color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold }
             }
 
             RowLayout {
@@ -271,8 +273,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 1"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o1 !== "" ? "OBJ" + root.c3o1 : "▾ Escolher"; color: root.c3o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o1 !== "" ? "OBJ" + root.c3o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c3o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma4; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 4; letterPicker.open() } }
                 }
@@ -290,8 +292,8 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
-                        Text { Layout.alignment: Qt.AlignHCenter; text: "Objeto 2"; color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o2 !== "" ? "OBJ" + root.c3o2 : "▾ Escolher"; color: root.c3o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o2 !== "" ? "OBJ" + root.c3o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c3o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma5; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 5; letterPicker.open() } }
                 }

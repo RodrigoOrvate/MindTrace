@@ -1,5 +1,5 @@
-// qml/shared/DataView.qml
-// Visualizador de dados aparato-específico com layout e cores personalizadas.
+﻿// qml/shared/DataView.qml
+// Visualizador de dados aparato-especÃ­fico com layout e cores personalizadas.
 // Detecta o aparato pelos headers do CSV e renderiza o componente apropriado.
 
 import QtQuick
@@ -15,7 +15,7 @@ Item {
     property alias tableModel: placeholder.model
     property alias workArea: placeholder.workArea
 
-    // Detecta aparato a partir do modelo — reativo às mudanças de colunas/headers
+    // Detecta aparato a partir do modelo â€” reativo Ã s mudanÃ§as de colunas/headers
     property string aparato: "generic"
 
     Connections {
@@ -26,22 +26,32 @@ Item {
 
     onTableModelChanged: { root.aparato = root.detectAparato() }
 
+    function normalizeHeaderText(s) {
+        var t = String(s || "").toLowerCase()
+        t = t.replace(/[áàâãä]/g, "a")
+        t = t.replace(/[éèêë]/g, "e")
+        t = t.replace(/[íìîï]/g, "i")
+        t = t.replace(/[óòôõö]/g, "o")
+        t = t.replace(/[úùûü]/g, "u")
+        t = t.replace(/ç/g, "c")
+        return t
+    }
+
     function detectAparato() {
         if (!tableModel || tableModel.columnCount() === 0) return ""
-        
-        // Verifica headers para determinar aparato
+
         var headers = []
         for (var i = 0; i < tableModel.columnCount(); i++) {
             var h = tableModel.headerData(i, Qt.Horizontal, Qt.DisplayRole)
-            headers.push(String(h))
+            headers.push(normalizeHeaderText(h))
         }
-        
+
         var headersStr = headers.join(",")
-        if (headersStr.includes("Par de Objetos")) return "nor"
-        if (headersStr.includes("Latência") || headersStr.includes("Tempo Plataforma")) return "ei"
-        if (headersStr.includes("Duração (min)")) return "cc"
-        if (headersStr.includes("Distância Total")) return "ca"
-        
+        if (headersStr.includes("par de objetos") || headersStr.includes("object pair")) return "nor"
+        if (headersStr.includes("latencia") || headersStr.includes("tempo plataforma") || headersStr.includes("platform time") || headersStr.includes("tiempo plataforma")) return "ei"
+        if (headersStr.includes("duracao (min)") || headersStr.includes("duration (min)") || headersStr.includes("duracion (min)") || headersStr.includes("walking") || headersStr.includes("grooming")) return "cc"
+        if (headersStr.includes("distancia total") || headersStr.includes("total distance") || headersStr.includes("tempo no centro") || headersStr.includes("time in center") || headersStr.includes("tiempo en centro")) return "ca"
+
         return "generic"
     }
 
@@ -49,7 +59,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Barra superior com informações do aparato ──────────────
+        // â”€â”€ Barra superior com informaÃ§Ãµes do aparato â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Rectangle {
             Layout.fillWidth: true
             height: 56
@@ -94,17 +104,17 @@ Item {
                 RowLayout {
                     spacing: 8
                     GhostButton {
-                        text: "＋ Linha"
+                        text: LanguageManager.tr3("+ Linha", "+ Row", "+ Fila")
                         visible: tableModel
                         onClicked: tableModel.addRow()
                     }
                     Button {
-                        text: "📤 Exportar"
+                        text: "📤 " + LanguageManager.tr3("Exportar", "Export", "Exportar")
                         visible: tableModel && workArea && workArea.selectedPath
                         onClicked: {
                             if (tableModel.exportCsv(workArea.selectedPath + "/export_" +
                                 new Date().toISOString().substring(0, 10) + ".xlsx"))
-                                exportFeedback.show("Exportado!")
+                                exportFeedback.show(LanguageManager.tr3("Exportado!", "Exported!", "Exportado!"))
                         }
                         background: Rectangle {
                             radius: 7
@@ -126,7 +136,7 @@ Item {
             }
         }
 
-        // ── Conteúdo dinâmico por aparato ──────────────────────────
+        // â”€â”€ ConteÃºdo dinÃ¢mico por aparato â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -158,7 +168,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // EI - Esquiva Inibitória
+            // EI - Esquiva InibitÃ³ria
             EIDataView {
                 id: eiView
                 anchors.fill: parent
@@ -167,7 +177,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // Genérico/Fallback
+            // GenÃ©rico/Fallback
             GenericDataView {
                 anchors.fill: parent
                 visible: root.aparato === "generic" || root.aparato === ""
@@ -177,34 +187,34 @@ Item {
         }
     }
 
-    // ── Helper functions ──────────────────────────────────────────────
+    // â”€â”€ Helper functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function getAparatoIcon() {
         switch (root.aparato) {
-            case "nor": return "🧠"
-            case "ca": return "🐀"
-            case "cc": return "🧩"
-            case "ei": return "⚡"
-            default: return "📊"
+            case "nor": return "\uD83E\uDDE0"
+            case "ca": return "\uD83D\uDC01"
+            case "cc": return "\uD83E\uDDE9"
+            case "ei": return "\u26A1"
+            default: return "\uD83D\uDCCA"
         }
     }
 
     function getAparatoLabel() {
         switch (root.aparato) {
-            case "nor": return "Reconhecimento de Objetos (NOR)"
-            case "ca": return "Campo Aberto (CA)"
-            case "cc": return "Comportamento Complexo (CC)"
-            case "ei": return "Esquiva Inibitória (EI)"
-            default: return "Dados de Experimento"
+            case "nor": return LanguageManager.tr3("Reconhecimento de Objetos (NOR)", "Object Recognition (NOR)", "Reconocimiento de Objetos (NOR)")
+            case "ca": return LanguageManager.tr3("Campo Aberto (CA)", "Open Field (CA)", "Campo Abierto (CA)")
+            case "cc": return LanguageManager.tr3("Comportamento Complexo (CC)", "Complex Behavior (CC)", "Comportamiento Complejo (CC)")
+            case "ei": return LanguageManager.tr3("Esquiva Inibitoria (EI)", "Inhibitory Avoidance (EI)", "Evitacion Inhibitoria (EI)")
+            default: return LanguageManager.tr3("Dados de Experimento", "Experiment Data", "Datos de Experimento")
         }
     }
 
     function getAparatoSubtitle() {
         switch (root.aparato) {
-            case "nor": return "Exploração e discriminação de objetos"
-            case "ca": return "Exploração em arena aberta"
-            case "cc": return "Análise comportamental complexa"
-            case "ei": return "Memória aversiva passiva"
-            default: return "Planilha de resultados"
+            case "nor": return LanguageManager.tr3("Exploracao e discriminacao de objetos", "Object exploration and discrimination", "Exploracion y discriminacion de objetos")
+            case "ca": return LanguageManager.tr3("Exploracao em arena aberta", "Open arena exploration", "Exploracion en arena abierta")
+            case "cc": return LanguageManager.tr3("Analise comportamental complexa", "Complex behavioral analysis", "Analisis conductual complejo")
+            case "ei": return LanguageManager.tr3("Memoria aversiva passiva", "Passive aversive memory", "Memoria aversiva pasiva")
+            default: return LanguageManager.tr3("Planilha de resultados", "Results sheet", "Hoja de resultados")
         }
     }
 
@@ -248,7 +258,7 @@ Item {
         }
     }
 
-    // Toast — centralizado na parte inferior
+    // Toast â€” centralizado na parte inferior
     Toast {
         id: exportFeedback
         anchors.horizontalCenter: parent.horizontalCenter
@@ -264,3 +274,4 @@ Item {
         property var workArea: null
     }
 }
+

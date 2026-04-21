@@ -48,6 +48,8 @@ add_executable(MindTrace WIN32
     "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/BSoidAnalyzer.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/ThemeSettings.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/ThemeSettings.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/LanguageSettings.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/settings/LanguageSettings.h"
     "${QRC_SOURCES}"
 )
 

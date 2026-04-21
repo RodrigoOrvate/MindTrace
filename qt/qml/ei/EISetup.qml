@@ -1,4 +1,4 @@
-// qml/ei/EISetup.qml
+﻿// qml/ei/EISetup.qml
 // Passo de configuração para Esquiva Inibitória: nome do experimento, diretório, opções e criação.
 
 import QtQuick
@@ -19,12 +19,56 @@ Item {
     signal experimentReady(string name, var cols, bool includeDrug, var dayNames, string savePath)
     signal backRequested()
 
+    function isDefaultDayNames() {
+        if (dayNamesModel.count !== 7) return false
+        var first = dayNamesModel.get(0).dayName
+        var last = dayNamesModel.get(6).dayName
+        var d1 = ["Treino", "Training", "Entrenamiento"]
+        var d2 = ["Teste", "Test", "Prueba"]
+        if (d1.indexOf(first) < 0 || d2.indexOf(last) < 0) return false
+        for (var i = 1; i <= 5; i++) {
+            if (dayNamesModel.get(i).dayName !== ("E" + i)) return false
+        }
+        return true
+    }
+
+    function resetDefaultDayNames() {
+        dayNamesModel.clear()
+        dayNamesModel.append({ dayName: LanguageManager.tr3("Treino", "Training", "Entrenamiento") })
+        dayNamesModel.append({ dayName: "E1" })
+        dayNamesModel.append({ dayName: "E2" })
+        dayNamesModel.append({ dayName: "E3" })
+        dayNamesModel.append({ dayName: "E4" })
+        dayNamesModel.append({ dayName: "E5" })
+        dayNamesModel.append({ dayName: LanguageManager.tr3("Teste", "Test", "Prueba") })
+    }
+
+    Component.onCompleted: {
+        if (dayNamesModel.count === 0 || isDefaultDayNames())
+            resetDefaultDayNames()
+    }
+
+    Connections {
+        target: LanguageManager
+        function onCurrentLanguageChanged() {
+            if (root.isDefaultDayNames())
+                root.resetDefaultDayNames()
+        }
+    }
+
     function doCreate() {
-        var cols = ["Diretório do Vídeo", "Animal", "Dia",
-                    "Latência (s)", "Tempo Plataforma (s)", "Tempo Grade (s)",
-                    "Visitas à Grade",
-                    "Distância Total (m)", "Velocidade Média (m/s)"]
-        if (drugCheck.checked) cols.push("Tratamento")
+        var cols = [
+            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Animal", "Animal", "Animal"),
+            LanguageManager.tr3("Dia", "Day", "Dia"),
+            LanguageManager.tr3("Latencia (s)", "Latency (s)", "Latencia (s)"),
+            LanguageManager.tr3("Tempo Plataforma (s)", "Platform Time (s)", "Tiempo Plataforma (s)"),
+            LanguageManager.tr3("Tempo Grade (s)", "Grid Time (s)", "Tiempo Rejilla (s)"),
+            LanguageManager.tr3("Visitas a Grade", "Grid Visits", "Visitas a la Rejilla"),
+            LanguageManager.tr3("Distancia Total (m)", "Total Distance (m)", "Distancia Total (m)"),
+            LanguageManager.tr3("Velocidade Media (m/s)", "Average Speed (m/s)", "Velocidad Media (m/s)")
+        ]
+        if (drugCheck.checked) cols.push(LanguageManager.tr3("Tratamento", "Treatment", "Tratamiento"))
         var names = []
         for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)
         root.experimentReady(nameField.text.trim(), cols, drugCheck.checked, names, root.selectedPath)
@@ -47,20 +91,20 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
-            GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+            GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
             Item { width: 8 }
             Text { text: "⚡"; font.pixelSize: 28; color: "#c8a000" }
 
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: "Configuração do Experimento"
+                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
                 }
                 Text {
-                    text: "Esquiva Inibitória  ·  1 campo"
+                    text: LanguageManager.tr3("Esquiva Inibitoria  ·  1 campo", "Inhibitory Avoidance  ·  1 field", "Evitacion Inhibitoria  ·  1 campo")
                     color: ThemeManager.textSecondary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 13
@@ -85,13 +129,13 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 8
                     Text {
-                        text: "NOME DO EXPERIMENTO"
+                        text: LanguageManager.tr3("NOME DO EXPERIMENTO", "EXPERIMENT NAME", "NOMBRE DEL EXPERIMENTO")
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
                     TextField {
                         id: nameField
                         Layout.fillWidth: true
-                        placeholderText: "Ex.: IA_Treino_GrupoA"
+                    placeholderText: LanguageManager.tr3("Ex.: IA_Treino_GrupoA", "Ex.: IA_Training_GroupA", "Ej.: IA_Entrenamiento_GrupoA")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 14
                         leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
                         background: Rectangle {
@@ -115,7 +159,7 @@ Item {
                             id: dirField
                             Layout.fillWidth: true; readOnly: true
                             text: root.selectedPath.replace("file:///", "")
-                            placeholderText: "Padrão: Documentos/MindTrace_Data"
+                    placeholderText: LanguageManager.tr3("Padrao: Documentos/MindTrace_Data", "Default: Documents/MindTrace_Data", "Predeterminado: Documentos/MindTrace_Data")
                             color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 14
                             leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
                             background: Rectangle {
@@ -124,7 +168,7 @@ Item {
                                 border.color: ThemeManager.border; border.width: 1
                             }
                         }
-                        GhostButton { text: "Procurar..."; onClicked: folderDialog.open() }
+                        GhostButton { text: LanguageManager.tr3("Procurar...", "Browse...", "Buscar..."); onClicked: folderDialog.open() }
                     }
                 }
             }
@@ -146,7 +190,7 @@ Item {
                     ColumnLayout {
                         spacing: 2
                         Text {
-                            text: "1 campo ativo"
+                    text: LanguageManager.tr3("1 campo ativo", "1 active field", "1 campo activo")
                             color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
@@ -155,7 +199,7 @@ Item {
                             color: ThemeManager.textSecondary; font.pixelSize: 11
                         }
                         Text {
-                            text: "Métricas: latência, tempo plataforma/grade, bouts, distância, velocidade"
+                    text: LanguageManager.tr3("Metricas: latencia, tempo plataforma/grade, bouts, distancia, velocidade", "Metrics: latency, platform/grid time, bouts, distance, speed", "Metricas: latencia, tiempo plataforma/rejilla, bouts, distancia, velocidad")
                             color: ThemeManager.textTertiary; font.pixelSize: 10
                         }
                     }
@@ -184,8 +228,8 @@ Item {
                     }
                     ColumnLayout {
                         spacing: 2
-                        Text { text: "Incluir coluna \"Tratamento\""; color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
-                        Text { text: "Para tratamentos farmacológicos."; color: ThemeManager.textTertiary; font.pixelSize: 11 }
+                        Text { text: LanguageManager.tr3("Incluir coluna \"Tratamento\"", "Include \"Treatment\" column", "Incluir columna \"Tratamiento\""); color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { text: LanguageManager.tr3("Para tratamentos farmacologicos.", "For pharmacological treatments.", "Para tratamientos farmacologicos."); color: ThemeManager.textTertiary; font.pixelSize: 11 }
                     }
                 }
 
@@ -194,21 +238,14 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "DIAS DO EXPERIMENTO"
+                        text: LanguageManager.tr3("DIAS DO EXPERIMENTO", "EXPERIMENT DAYS", "DIAS DEL EXPERIMENTO")
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
 
-                    ListModel {
-                        id: dayNamesModel
-                        ListElement { dayName: "Treino" }
-                        ListElement { dayName: "E1" }
-                        ListElement { dayName: "E2" }
-                        ListElement { dayName: "E3" }
-                        ListElement { dayName: "E4" }
-                        ListElement { dayName: "E5" }
-                        ListElement { dayName: "Teste" }
-                    }
+                ListModel {
+                    id: dayNamesModel
+                }
 
                     Flow {
                         Layout.fillWidth: true
@@ -228,7 +265,7 @@ Item {
                                     spacing: 4
                                     Text {
                                         id: dayLabel
-                                        text: "Dia " + (index + 1) + ":"
+                                    text: LanguageManager.tr3("Dia ", "Day ", "Dia ") + (index + 1) + ":"
                                         color: ThemeManager.textSecondary; font.pixelSize: 11
                                     }
                                     TextInput {
@@ -270,11 +307,11 @@ Item {
                             color: addDayHov.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
                             border.color: ThemeManager.border; border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
-                            Text { anchors.centerIn: parent; text: "+ Dia"; color: ThemeManager.textSecondary; font.pixelSize: 12 }
+                            Text { anchors.centerIn: parent; text: LanguageManager.tr3("+ Dia", "+ Day", "+ Dia"); color: ThemeManager.textSecondary; font.pixelSize: 12 }
                             MouseArea {
                                 id: addDayHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: dayNamesModel.append({ dayName: "Dia " + (dayNamesModel.count + 1) })
+                                onClicked: dayNamesModel.append({ dayName: LanguageManager.tr3("Dia ", "Day ", "Dia ") + (dayNamesModel.count + 1) })
                             }
                         }
                     }
@@ -288,10 +325,10 @@ Item {
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
-            Text { text: "Configuração do Experimento"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+            Text { text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
 
             Button {
-                text: "Criar Experimento →"
+                text: LanguageManager.tr3("Criar Experimento ->", "Create Experiment ->", "Crear Experimento ->")
                 enabled: nameField.text.trim().length > 0
 
                 onClicked: {
@@ -330,10 +367,10 @@ Item {
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 14
-            Text { text: "Experimento já existe"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: LanguageManager.tr3("Experimento ja existe", "Experiment already exists", "El experimento ya existe"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text {
                 Layout.fillWidth: true
-                text: "\"" + nameField.text.trim() + "\" já existe neste contexto.\n\nSe continuar, os dados anteriores serão substituídos."
+                            text: LanguageManager.tr3("\"", "\"", "\"") + nameField.text.trim() + LanguageManager.tr3("\" already exists in this context.\n\nIf you continue, previous data will be overwritten.", "\" already exists in this context.\n\nIf you continue, previous data will be overwritten.", "\" ya existe en este contexto.\n\nSi continua, los datos anteriores seran sobrescritos.")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
             RowLayout {
@@ -363,7 +400,7 @@ Item {
             anchors { fill: parent; margins: 24 }
             spacing: 14
             Text { text: "Confirmar Substituição"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
-            Text { Layout.fillWidth: true; text: "Digite o nome do experimento para confirmar:"; color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
+            Text { Layout.fillWidth: true; text: LanguageManager.tr3("Digite o nome do experimento para confirmar:", "Type the experiment name to confirm:", "Escriba el nombre del experimento para confirmar:"); color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             TextField {
                 id: dupConfirmField; Layout.fillWidth: true
                 placeholderText: nameField.text.trim()
@@ -386,3 +423,5 @@ Item {
         }
     }
 }
+
+

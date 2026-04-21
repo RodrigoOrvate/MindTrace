@@ -1,5 +1,5 @@
-// qml/ei/EIDashboard.qml
-// Dashboard Esquiva Inibitória: sidebar + Arena + Gravação + Dados.
+﻿// qml/ei/EIDashboard.qml
+// Dashboard Esquiva InibitÃ³ria: sidebar + Arena + GravaÃ§Ã£o + Dados.
 
 import QtQuick
 import QtQuick.Controls
@@ -21,6 +21,7 @@ Item {
     property bool   searchMode: false
     property int    currentTabIndex: 0
     property string initialExperimentName: ""
+    property string pendingInitialSelection: ""
 
     signal backRequested()
 
@@ -28,11 +29,29 @@ Item {
         if (root.searchMode) {
             ExperimentManager.loadAllContexts("esquiva_inibitoria")
         } else {
-            ExperimentManager.loadContext("Padrão", "esquiva_inibitoria")
+            ExperimentManager.loadContext("PadrÃ£o", "esquiva_inibitoria")
         }
         if (initialExperimentName !== "") {
-            experimentList.selectExperimentByName(initialExperimentName)
-            innerTabs.currentIndex = 0
+            pendingInitialSelection = initialExperimentName
+            initialSelectTimer.start()
+        }
+    }
+
+    Timer {
+        id: initialSelectTimer
+        interval: 250
+        repeat: true
+        running: false
+        onTriggered: {
+            if (pendingInitialSelection === "") {
+                stop()
+                return
+            }
+            if (experimentList.selectExperimentByName(pendingInitialSelection)) {
+                innerTabs.currentIndex = 0
+                pendingInitialSelection = ""
+                stop()
+            }
         }
     }
 
@@ -46,13 +65,13 @@ Item {
         onErrorOccurred: errorToast.show(message)
 
         onExperimentCreated: {
-            successToast.show("Experimento \"" + name + "\" criado!")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" criado!", "\" created!", "\" creado!"))
             experimentList.selectExperimentByName(name)
             innerTabs.currentIndex = 0
         }
 
         onExperimentDeleted: {
-            successToast.show("Experimento \"" + name + "\" excluído.")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluido.", "\" deleted.", "\" eliminado."))
             if (workArea.selectedName === name) {
                 workArea.selectedName = ""
                 workArea.selectedPath = ""
@@ -64,7 +83,7 @@ Item {
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show("Sessão registrada!")
+                successToast.show(LanguageManager.tr3("Sessao registrada!", "Session saved!", "Sesion guardada!"))
                 innerTabs.currentIndex = 2  // aba Dados
             }
         }
@@ -74,7 +93,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Barra superior ───────────────────────────────────────────────
+        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -88,14 +107,14 @@ Item {
                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                 spacing: 14
 
-                GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+                GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "⚡"; font.pixelSize: 20 }
+                Text { text: "âš¡"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
-                          ? "Esquiva Inibitória — Experimentos"
-                          : "Esquiva Inibitória — Dashboard"
+                          ? LanguageManager.tr3("Esquiva Inibitoria - Experimentos", "Inhibitory Avoidance - Experiments", "Evitacion Inhibitoria - Experimentos")
+                          : LanguageManager.tr3("Esquiva Inibitoria - Dashboard", "Inhibitory Avoidance - Dashboard", "Evitacion Inhibitoria - Panel")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -104,13 +123,13 @@ Item {
             }
         }
 
-        // ── Corpo ────────────────────────────────────────────────────────
+        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar ──────────────────────────────────────────────────
+            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -125,7 +144,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "Experimentos"
+                        text: LanguageManager.tr3("Experimentos", "Experiments", "Experimentos")
                         color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -133,7 +152,7 @@ Item {
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
-                        placeholderText: "Pesquisar…"
+                        placeholderText: LanguageManager.tr3("Pesquisar...", "Search...", "Buscar...")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
@@ -155,9 +174,10 @@ Item {
                                     currentIndex = i
                                     var path = model.data(model.index(i, 0), Qt.UserRole + 2)
                                     workArea.loadExperiment(name, path)
-                                    return
+                                    return true
                                 }
                             }
+                            return false
                         }
 
                         ScrollBar.vertical: ScrollBar {
@@ -187,7 +207,7 @@ Item {
                                 width: 30; opacity: expDelegate.isHovered ? 1.0 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
-                                    anchors.centerIn: parent; text: "🗑"; font.pixelSize: 13
+                                    anchors.centerIn: parent; text: "\uD83D\uDDD1"; font.pixelSize: 13
                                     color: trashArea.containsMouse ? "#e0b800" : "#c8a000"
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -222,7 +242,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
-                            text: "Nenhum experimento\nencontrado"
+                        text: LanguageManager.tr3("Nenhum experimento\nencontrado", "No experiment\nfound", "Ningun experimento\nencontrado")
                             color: ThemeManager.textSecondary; font.pixelSize: 12
                             Behavior on color { ColorAnimation { duration: 150 } }
                             horizontalAlignment: Text.AlignHCenter
@@ -231,7 +251,7 @@ Item {
                 }
             }
 
-            // ── Área de trabalho ─────────────────────────────────────────
+            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -262,10 +282,10 @@ Item {
                         dayNames = meta.dayNames
                     } else {
                         var ext = meta.extincaoDays || 5
-                        var names = ["Treino"]
+                        var names = [LanguageManager.tr3("Treino", "Training", "Entrenamiento")]
                         for (var i = 1; i <= ext; i++) names.push("E" + i)
-                        if (meta.hasReactivation) names.push("Reativação")
-                        names.push("Teste")
+                        if (meta.hasReactivation) names.push(LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"))
+                        names.push(LanguageManager.tr3("Teste", "Test", "Prueba"))
                         dayNames = names
                     }
 
@@ -280,13 +300,13 @@ Item {
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Índice 0: placeholder "selecione um experimento"
+                    // Ãndice 0: placeholder "selecione um experimento"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
-                            Text { text: "⚡"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
+                            Text { text: "âš¡"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
                             Text {
-                                text: "Selecione um experimento"
+                                text: LanguageManager.tr3("Selecione um experimento", "Select an experiment", "Seleccione un experimento")
                                 color: ThemeManager.textSecondary; font.pixelSize: 16
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Layout.alignment: Qt.AlignHCenter
@@ -294,11 +314,11 @@ Item {
                         }
                     }
 
-                    // Índice 1: painel com abas
+                    // Ãndice 1: painel com abas
                     ColumnLayout {
                         spacing: 0
 
-                        // ── Barra de abas interna ─────────────────────────
+                        // â”€â”€ Barra de abas interna â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -316,7 +336,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -366,7 +386,7 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // ── Tab 0: Arena ──────────────────────────────
+                            // â”€â”€ Tab 0: Arena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             EIArenaSetup {
                                 id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
@@ -383,7 +403,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 1: Gravação ───────────────────────────
+                            // â”€â”€ Tab 1: GravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
@@ -397,7 +417,7 @@ Item {
                                 floorPoints: tabArenaSetup.floorPoints
 
                                 onSessionEnded: {
-                                    // Latência = tempo decorrido até primeira entrada na grade
+                                    // LatÃªncia = tempo decorrido atÃ© primeira entrada na grade
                                     var latencia = eiLatencySeconds >= 0 ? eiLatencySeconds : 0
 
                                     eiResultDialog.latencia        = latencia
@@ -419,7 +439,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 2: Dados — Layout aparato-específico
+                            // â”€â”€ Tab 2: Dados â€” Layout aparato-especÃ­fico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -432,7 +452,7 @@ Item {
         }
     }
 
-    // ── Diálogo de metadados pós-sessão ─────────────────────────────────
+    // â”€â”€ DiÃ¡logo de metadados pÃ³s-sessÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     EIMetadataDialog {
         id: eiResultDialog
         parent: Overlay.overlay
@@ -442,7 +462,7 @@ Item {
         }
     }
 
-    // ── Popups de exclusão ──────────────────────────────────────────────
+    // â”€â”€ Popups de exclusÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400; height: 200
@@ -456,7 +476,7 @@ Item {
             Text { text: "Excluir experimento?"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text {
                 Layout.fillWidth: true
-                text: "\"" + root.pendingDeleteName + "\" será permanentemente excluído.\n\nEsta ação não pode ser desfeita."
+                text: "\"" + root.pendingDeleteName + "\" serÃ¡ permanentemente excluÃ­do.\n\nEsta aÃ§Ã£o nÃ£o pode ser desfeita."
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
             RowLayout {
@@ -484,7 +504,7 @@ Item {
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 14
-            Text { text: "Confirmar Exclusão"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: "Confirmar ExclusÃ£o"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text { Layout.fillWidth: true; text: "Digite o nome do experimento para confirmar:"; color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             TextField {
                 id: delConfirmField; Layout.fillWidth: true
@@ -508,7 +528,9 @@ Item {
         }
     }
 
-    // ── Toasts ─────────────────────────────────────────────────────────
+    // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Toast { id: successToast }
     Toast { id: errorToast }
 }
+
+

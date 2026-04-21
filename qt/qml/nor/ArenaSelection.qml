@@ -41,20 +41,20 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
-            GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+            GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
             Item { width: 8 }
             Text { text: "🎨"; font.pixelSize: 28; color: "#ab3d4c" }
 
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: "Reconhecimento de Objetos"
+                text: LanguageManager.tr3("Reconhecimento de Objetos", "Object Recognition", "Reconocimiento de Objetos")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
                 }
                 Text {
-                    text: "Selecione o layout de campos e contexto da arena"
+                    text: LanguageManager.tr3("Selecione o layout de campos e contexto da arena", "Select the field layout and arena context", "Seleccione el diseno de campos y contexto de la arena")
                     color: ThemeManager.textSecondary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 13
@@ -123,7 +123,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: grid.fieldDefs[0].active ? "Campo 1" : "—"
+                                text: grid.fieldDefs[0].active ? LanguageManager.tr3("Campo 1", "Field 1", "Campo 1") : "—"
                                 color: grid.fieldDefs[0].active ? "#ab3d4c" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
@@ -151,7 +151,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: grid.fieldDefs[1].active ? "Campo 2" : "—"
+                                text: grid.fieldDefs[1].active ? LanguageManager.tr3("Campo 2", "Field 2", "Campo 2") : "—"
                                 color: grid.fieldDefs[1].active ? "#ab3d4c" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
@@ -179,7 +179,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: grid.fieldDefs[2].active ? "Campo 3" : "—"
+                                text: grid.fieldDefs[2].active ? LanguageManager.tr3("Campo 3", "Field 3", "Campo 3") : "—"
                                 color: grid.fieldDefs[2].active ? "#ab3d4c" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
@@ -214,14 +214,14 @@ Item {
                     spacing: 10
 
                     Text {
-                        text: "LAYOUT DE CAMPOS"
+                        text: LanguageManager.tr3("LAYOUT DE CAMPOS", "FIELD LAYOUT", "DISENO DE CAMPOS")
                         color: "#8888aa"; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
 
                     Repeater {
                         model: [
-                            { n: 2, label: "2 Campos", desc: "Dois campos — contexto selecionável" },
-                            { n: 3, label: "3 Campos", desc: "Três campos — sem contexto" }
+                            { n: 2, label: LanguageManager.tr3("2 Campos", "2 Fields", "2 Campos"), desc: LanguageManager.tr3("Dois campos - contexto selecionavel", "Two fields - selectable context", "Dos campos - contexto seleccionable") },
+                            { n: 3, label: LanguageManager.tr3("3 Campos", "3 Fields", "3 Campos"), desc: LanguageManager.tr3("Tres campos - sem contexto", "Three fields - no context", "Tres campos - sin contexto") }
                         ]
                         delegate: Rectangle {
                             Layout.fillWidth: true; height: 56; radius: 10
@@ -260,7 +260,7 @@ Item {
                     Behavior on opacity { NumberAnimation { duration: 200 } }
 
                     Text {
-                        text: "CONTEXTO"
+                        text: LanguageManager.tr3("CONTEXTO", "CONTEXT", "CONTEXTO")
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
 
@@ -273,7 +273,7 @@ Item {
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         Text {
                             anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                            text: "Sem contexto  (Padrão)"
+                            text: LanguageManager.tr3("Sem contexto (Padrao)", "No context (Default)", "Sin contexto (Predeterminado)")
                             color: parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
                             font.pixelSize: 13; font.weight: Font.Bold
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -294,7 +294,7 @@ Item {
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         Text {
                             anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                            text: "Com contexto  (Contextual)"
+                            text: LanguageManager.tr3("Com contexto (Contextual)", "With context (Contextual)", "Con contexto (Contextual)")
                             color: parent.isSelected ? ThemeManager.textPrimary : ThemeManager.textSecondary
                             font.pixelSize: 13; font.weight: Font.Bold
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -308,7 +308,7 @@ Item {
 
                     Text {
                         visible: root.contextForced
-                        text: "Contexto fixo em Padrão para 3 campos"
+                        text: LanguageManager.tr3("Contexto fixo em Padrao para 3 campos", "Context fixed as Default for 3 fields", "Contexto fijo en Predeterminado para 3 campos")
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.italic: true
                     }
                 }
@@ -323,10 +323,10 @@ Item {
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
-            Text { text: "Passo 2  —  Campos e Contexto"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+            Text { text: LanguageManager.tr3("Passo 2 - Campos e Contexto", "Step 2 - Fields and Context", "Paso 2 - Campos y Contexto"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
 
             Button {
-                text: "Próximo →"
+                text: LanguageManager.tr3("Proximo ->", "Next ->", "Siguiente ->")
                 onClicked: root.selectionConfirmed(root.selectedNumCampos, root.resolvedContext, root.selectedArenaId)
 
                 background: Rectangle {

@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
@@ -167,6 +167,43 @@ Item {
     // ── Log ───────────────────────────────────────────────────────────────────
     ListModel { id: logModel }
 
+    function localizeBackendInfo(message) {
+        if ((message.indexOf("Carregando") >= 0 || message.indexOf("Loading") >= 0) && message.toLowerCase().indexOf("pose") >= 0)
+            return LanguageManager.tr3("Carregando modelos de pose...", "Loading pose models...", "Cargando modelos de pose...")
+        if (message.indexOf("Modo GPU") >= 0 || message.indexOf("GPU Mode") >= 0) {
+            var msgGpu = message
+            msgGpu = msgGpu.replace("Modo GPU", LanguageManager.tr3("Modo GPU", "GPU Mode", "Modo GPU"))
+            msgGpu = msgGpu.replace("GPU Mode", LanguageManager.tr3("Modo GPU", "GPU Mode", "Modo GPU"))
+            msgGpu = msgGpu.replace("ativo", LanguageManager.tr3("ativo", "active", "activo"))
+            msgGpu = msgGpu.replace("active", LanguageManager.tr3("ativo", "active", "activo"))
+            return msgGpu
+        }
+        if (message.indexOf("Modo CPU") >= 0 || message.indexOf("CPU Mode") >= 0) {
+            var msgCpu = message
+            msgCpu = msgCpu.replace("Modo CPU", LanguageManager.tr3("Modo CPU", "CPU Mode", "Modo CPU"))
+            msgCpu = msgCpu.replace("CPU Mode", LanguageManager.tr3("Modo CPU", "CPU Mode", "Modo CPU"))
+            msgCpu = msgCpu.replace("não disponível", LanguageManager.tr3("nao disponivel", "not available", "no disponible"))
+            msgCpu = msgCpu.replace("not available", LanguageManager.tr3("nao disponivel", "not available", "no disponible"))
+            return msgCpu
+        }
+        return message
+    }
+
+    function relocalizeLogLines() {
+        for (var i = 0; i < logModel.count; i++) {
+            var row = logModel.get(i)
+            if (!row || !row.msg) continue
+            logModel.setProperty(i, "msg", localizeBackendInfo(row.msg))
+        }
+    }
+
+    Connections {
+        target: LanguageManager
+        function onCurrentLanguageChanged() {
+            recordingRoot.relocalizeLogLines()
+        }
+    }
+
     // ── Inference Controller (nativo — ONNX + QVideoProbe para captura de frames) ──
     InferenceController { id: inference }
 
@@ -202,21 +239,21 @@ Item {
         function onDimsReceived(width, height) {
             recordingRoot.videoWidth  = width
             recordingRoot.videoHeight = height
-            logModel.append({ msg: "ℹ️ Resolução: " + width + "×" + height, isErr: false })
+            logModel.append({ msg: LanguageManager.tr3("Info: Resolucao: ", "Info: Resolution: ", "Info: Resolucion: ") + width + "x" + height, isErr: false })
             logView.positionViewAtEnd()
         }
         function onFpsReceived(fps) {
             recordingRoot.dlcFps = fps
-            logModel.append({ msg: "ℹ️ FPS: " + fps.toFixed(2), isErr: false })
+            logModel.append({ msg: "FPS: " + fps.toFixed(2), isErr: false })
             logView.positionViewAtEnd()
         }
         function onInfoReceived(message) {
-            logModel.append({ msg: "ℹ️ " + message, isErr: false })
+            logModel.append({ msg: localizeBackendInfo(message), isErr: false })
             logView.positionViewAtEnd()
         }
         function onReadyReceived() {
             recordingRoot._dlcReady = true
-            logModel.append({ msg: "▶ Motor de Inferência pronto — tracking ativo", isErr: false })
+            logModel.append({ msg: LanguageManager.tr3("Inference engine ready - tracking active", "Inference engine ready - tracking active", "Motor de inferencia listo - tracking activo"), isErr: false })
             logView.positionViewAtEnd()
         }
         function onTrackReceived(campo, x, y, p) {
@@ -288,8 +325,8 @@ Item {
                 displayPlayer.stop()
                 recordingRoot.isAnalyzing = false
                 recordingRoot._manualStopRequested = false
-                logModel.append({ msg: "Análise encerrada.", isErr: false })
-                logView.positionViewAtEnd()
+            logModel.append({ msg: LanguageManager.tr3("Analise encerrada.", "Analysis ended.", "Analisis finalizado."), isErr: false })
+            logView.positionViewAtEnd()
                 // Fim natural do vídeo (C++ encerrou por conta própria): mostrar popup
                 if (!wasManual && recordingRoot.isOffline) {
                     Qt.callLater(recordingRoot._guardedSessionEnded)
@@ -298,7 +335,7 @@ Item {
         }
         function onErrorOccurred(errorMsg) {
             displayPlayer.stop()
-            logModel.append({ msg: "❌ " + errorMsg, isErr: true })
+            logModel.append({ msg: LanguageManager.tr3("Error: ", "Error: ", "Error: ") + errorMsg, isErr: true })
             logView.positionViewAtEnd()
             recordingRoot.isAnalyzing = false
         }
@@ -321,8 +358,8 @@ Item {
                         var ff = recordingRoot.fieldFinished.slice()
                         ff[i] = true
                         recordingRoot.fieldFinished = ff
-                        logModel.append({ msg: "✅ Campo " + (i+1) + " concluído!", isErr: false })
-                        logView.positionViewAtEnd()
+                    logModel.append({ msg: LanguageManager.tr3("Field ", "Field ", "Campo ") + (i+1) + LanguageManager.tr3(" finished!", " finished!", " finalizado!"), isErr: false })
+                    logView.positionViewAtEnd()
                     }
                 }
             }
@@ -367,7 +404,7 @@ Item {
     function startSession() {
         if (isAnalyzing) return
         if (videoPath === "" || videoPath === "file:///") {
-            logModel.append({ msg: "⚠ Selecione um vídeo na aba Arena primeiro.", isErr: true })
+            logModel.append({ msg: LanguageManager.tr3("Select a video in the Arena tab first.", "Select a video in the Arena tab first.", "Seleccione primero un video en la pestana Arena."), isErr: true })
             logView.positionViewAtEnd()
             return
         }
@@ -410,7 +447,7 @@ Item {
         _dlcReady        = false
         eiLatencySeconds = -1
         logModel.clear()
-        logModel.append({ msg: "⏳ Carregando motor de inferência nativo...", isErr: false })
+        logModel.append({ msg: LanguageManager.tr3("Loading native inference engine...", "Loading native inference engine...", "Cargando motor nativo de inferencia..."), isErr: false })
         logView.positionViewAtEnd()
         // Start display player immediately
         var pr = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
@@ -441,7 +478,7 @@ Item {
         inference.stopAnalysis()
         displayPlayer.stop()
         isAnalyzing = false
-        logModel.append({ msg: "⏹ Sessão parada.", isErr: false })
+        logModel.append({ msg: LanguageManager.tr3("Sessao parada.", "Session stopped.", "Sesion detenida."), isErr: false })
         logView.positionViewAtEnd()
     }
 
@@ -804,9 +841,9 @@ Item {
                     spacing: 24
                     Repeater {
                         model: [
-                            { label: "Campo 1", pair: recordingRoot.pair1, visible: true },
-                            { label: "Campo 2", pair: recordingRoot.pair2, visible: recordingRoot.numCampos >= 2 },
-                            { label: "Campo 3", pair: recordingRoot.pair3, visible: recordingRoot.numCampos >= 3 }
+                            { label: LanguageManager.tr3("Campo 1", "Field 1", "Campo 1"), pair: recordingRoot.pair1, visible: true },
+                            { label: LanguageManager.tr3("Campo 2", "Field 2", "Campo 2"), pair: recordingRoot.pair2, visible: recordingRoot.numCampos >= 2 },
+                            { label: LanguageManager.tr3("Campo 3", "Field 3", "Campo 3"), pair: recordingRoot.pair3, visible: recordingRoot.numCampos >= 3 }
                         ]
                         delegate: RowLayout {
                             spacing: 6
@@ -917,20 +954,24 @@ Item {
                                         function onFloorPointsChanged()  { arenaCanv.requestPaint() }
                                         function onZonesChanged()        { arenaCanv.requestPaint() }
                                     }
+                                    Connections {
+                                        target: LanguageManager
+                                        function onCurrentLanguageChanged() { arenaCanv.requestPaint() }
+                                    }
                                     onPaint: {
                                         var ctx = getContext("2d")
                                         ctx.clearRect(0, 0, width, height)
 
                                         if (!recordingRoot.arenaPoints || !recordingRoot.floorPoints) {
                                             ctx.fillStyle = "red"
-                                            ctx.fillText("SEM ARENA", 10, 20)
+                                            ctx.fillText(LanguageManager.tr3("Sem arena", "No arena", "Sin arena"), 10, 20)
                                             return
                                         }
                                         var ap = recordingRoot.arenaPoints[ci]
                                         var fp = recordingRoot.floorPoints[ci]
                                         if (!ap || !fp) {
                                             ctx.fillStyle = "orange"
-                                            ctx.fillText("SEM AP/FP", 10, 20)
+                                            ctx.fillText(LanguageManager.tr3("Sem AP/FP", "No AP/FP", "Sin AP/FP"), 10, 20)
                                             return
                                         }
                                         var w = width, h = height
@@ -1012,7 +1053,7 @@ Item {
                                         // Labels (apenas no CA, nunca no RO)
                                         if (recordingRoot.aparato === "campo_aberto") {
                                             ctx.font = "bold 9px Inter"; ctx.fillStyle = "rgba(255,255,255,0.7)"
-                                            ctx.fillText("Centro", (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
+                                            ctx.fillText(LanguageManager.tr3("Centro", "Center", "Centro"), (iTL.x+iBR.x)/2 - 12, (iTL.y+iBR.y)/2)
                                         }
                                     }
                                 }
@@ -1163,7 +1204,7 @@ Item {
                                     width: timerLbl.implicitWidth + 10; height: 18; z: 10
                                     Text {
                                         id: timerLbl; anchors.centerIn: parent
-                                        text: recordingRoot.fieldFinished[campoCell.ci] ? "✓ Fim"
+                                        text: recordingRoot.fieldFinished[campoCell.ci] ? LanguageManager.tr3("✓ Fim", "✓ End", "✓ Fin")
                                             : recordingRoot.timerStarted[campoCell.ci]
                                               ? recordingRoot.formatTime(recordingRoot.timesRemaining[campoCell.ci])
                                               : "—"
@@ -1203,7 +1244,7 @@ Item {
                             }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: recordingRoot.videoPath !== "" ? "Vídeo pronto\npressione Iniciar" : "Carregue um vídeo\nna aba Arena"
+                                text: recordingRoot.videoPath !== "" ? LanguageManager.tr3("Video pronto\npressione Iniciar", "Video ready\npress Start", "Video listo\npresione Iniciar") : LanguageManager.tr3("Carregue um video\nna aba Arena", "Load a video\nin the Arena tab", "Cargue un video\nen la pestana Arena")
                                 color: "#444466"; font.pixelSize: 9
                                 horizontalAlignment: Text.AlignHCenter
                             }
@@ -1220,7 +1261,7 @@ Item {
                             width: analyzingLbl.implicitWidth + 12; height: 18
                             Text {
                                 id: analyzingLbl; anchors.centerIn: parent
-                                text: recordingRoot._dlcReady ? "▶ Analisando ao vivo..." : "⏳ Iniciando motor DLC..."
+                                text: recordingRoot._dlcReady ? LanguageManager.tr3("Live analysis...", "Live analysis...", "Analisis en vivo...") : LanguageManager.tr3("Starting DLC engine...", "Starting DLC engine...", "Iniciando motor DLC...")
                                 color: recordingRoot._dlcReady ? "#5aaa70" : "#ffaa44"
                                 font.pixelSize: 9; font.weight: Font.Bold
                             }
@@ -1259,7 +1300,7 @@ Item {
                             Behavior on border.color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: "📂  Carregar Vídeo"
+                                text: LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
                                 color: ThemeManager.textSecondary; font.pixelSize: 11; font.bold: true
                             }
                             MouseArea {
@@ -1278,7 +1319,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: recordingRoot.showTrail ? "👁 Rastro ON" : "🐾 Rastro OFF"
+                                text: recordingRoot.showTrail ? LanguageManager.tr3("Rastro ON", "Trail ON", "Rastro ON") : LanguageManager.tr3("Rastro OFF", "Trail OFF", "Rastro OFF")
                                 color: recordingRoot.showTrail ? ThemeManager.accentHover : ThemeManager.textSecondary
                                 font.pixelSize: 11; font.bold: true
                             }
@@ -1300,7 +1341,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: recordingRoot.isAnalyzing ? "⏹  Parar" : "▶  Iniciar"
+                                text: recordingRoot.isAnalyzing ? LanguageManager.tr3("Parar", "Stop", "Detener") : LanguageManager.tr3("Iniciar", "Start", "Iniciar")
                                 color: "white"; font.pixelSize: 12; font.bold: true
                             }
                             MouseArea {
@@ -1320,7 +1361,7 @@ Item {
 
                     // ── LOG ────────────────────────────────────────────────────
                     Text {
-                        text: "LOG"
+                        text: LanguageManager.tr3("LOG", "LOG", "LOG")
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -1358,8 +1399,7 @@ Item {
                     }
 
                     Text {
-                        text: recordingRoot.aparato === "campo_aberto" ? "EXPLORAÇÃO DE CAMPO" :
-                              recordingRoot.aparato === "comportamento_complexo" ? "EXPLORAÇÃO GERAL" : "EXPLORAÇÃO DE OBJETOS"
+                        text: recordingRoot.aparato === "campo_aberto" ? LanguageManager.tr3("EXPLORACAO DE CAMPO", "FIELD EXPLORATION", "EXPLORACION DE CAMPO") : recordingRoot.aparato === "comportamento_complexo" ? LanguageManager.tr3("EXPLORACAO GERAL", "GENERAL EXPLORATION", "EXPLORACION GENERAL") : LanguageManager.tr3("EXPLORACAO DE OBJETOS", "OBJECT EXPLORATION", "EXPLORACION DE OBJETOS")
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -1403,7 +1443,7 @@ Item {
                                         RowLayout {
                                             Layout.fillWidth: true
                                             Text {
-                                                text: "CAMPO " + (campoCard.ci + 1)
+                                                text: LanguageManager.tr3("CAMPO ", "FIELD ", "CAMPO ") + (campoCard.ci + 1)
                                                 color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
@@ -1421,10 +1461,7 @@ Item {
                                                 implicitWidth: timerBdg.implicitWidth + 10; implicitHeight: 18
                                                 Text {
                                                     id: timerBdg; anchors.centerIn: parent
-                                                    text: recordingRoot.fieldFinished[campoCard.ci] ? "✅ Concluído"
-                                                        : recordingRoot.timerStarted[campoCard.ci]
-                                                          ? recordingRoot.formatTime(recordingRoot.timesRemaining[campoCard.ci])
-                                                          : "Aguardando rato"
+                                                    text: recordingRoot.fieldFinished[campoCard.ci] ? LanguageManager.tr3("Concluido", "Done", "Completado") : recordingRoot.timerStarted[campoCard.ci] ? recordingRoot.formatTime(recordingRoot.timesRemaining[campoCard.ci]) : LanguageManager.tr3("Aguardando rato", "Waiting for mouse", "Esperando raton")
                                                     color: recordingRoot.fieldFinished[campoCard.ci] ? ThemeManager.successLight
                                                          : recordingRoot.timerStarted[campoCard.ci]
                                                            ? (recordingRoot.timesRemaining[campoCard.ci] <= 30 ? ThemeManager.error : ThemeManager.textPrimary)
@@ -1455,7 +1492,7 @@ Item {
                                                 color: ThemeManager.accentDim; border.color: ThemeManager.accent; border.width: 1
                                                 Text {
                                                     anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
-                                                    text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi0).toFixed(1) + " s"
+                                                    text: LanguageManager.tr3("▶ agora: ", "▶ now: ", "▶ ahora: ") + recordingRoot.currentBoutSec(campoCard.zi0).toFixed(1) + " s"
                                                     color: ThemeManager.accent; font.pixelSize: 9; font.bold: true
                                                 }
                                             }
@@ -1476,7 +1513,7 @@ Item {
                                                 color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
                                                 Text {
                                                     anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
-                                                    text: "▶ agora: " + recordingRoot.currentBoutSec(campoCard.zi1).toFixed(1) + " s"
+                                                    text: LanguageManager.tr3("▶ agora: ", "▶ now: ", "▶ ahora: ") + recordingRoot.currentBoutSec(campoCard.zi1).toFixed(1) + " s"
                                                     color: "#6688cc"; font.pixelSize: 9; font.bold: true
                                                 }
                                             }
@@ -1499,7 +1536,11 @@ Item {
                                                         font.pixelSize: 12; font.bold: true; font.family: "Consolas"
                                                     }
                                                     Text {
-                                                        text: isNaN(diBox.dv) ? "" : (diBox.dv > 0.199 ? "↑ novo" : diBox.dv < 0 ? "↓ fam" : "=")
+                                                        text: isNaN(diBox.dv) ? "" : (diBox.dv > 0.199
+                                                            ? LanguageManager.tr3("↑ novo", "↑ new", "↑ nuevo")
+                                                            : diBox.dv < 0
+                                                                ? LanguageManager.tr3("↓ fam", "↓ fam", "↓ fam")
+                                                                : "=")
                                                         color: isNaN(diBox.dv) ? "#444466" : (diBox.dv > 0.199 ? "#5aaa70" : "#ff5566")
                                                         font.pixelSize: 9
                                                     }
@@ -1516,7 +1557,7 @@ Item {
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 5
                                                 Rectangle { width: 8; height: 8; radius: 4; color: "#00ff00" }
-                                                Text { text: "Plataforma"; color: "#00aa00"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Text { text: LanguageManager.tr3("Plataforma", "Platform", "Plataforma"); color: "#00aa00"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
                                             }
@@ -1524,7 +1565,7 @@ Item {
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 5
                                                 Rectangle { width: 8; height: 8; radius: 4; color: "#00ccff" }
-                                                Text { text: "Grade"; color: "#0088cc"; font.pixelSize: 10; font.weight: Font.Bold }
+                                                Text { text: LanguageManager.tr3("Grade", "Grid", "Rejilla"); color: "#0088cc"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.textPrimary; font.pixelSize: 11; font.family: "Consolas" }
                                             }
@@ -1533,7 +1574,7 @@ Item {
 
                                             RowLayout {
                                                 Layout.fillWidth: true
-                                                Text { text: "Descidas à grade:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Text { text: LanguageManager.tr3("Descidas a grade:", "Grid descents:", "Descensos a la rejilla:"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationBouts[campoCard.zi1].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
@@ -1547,7 +1588,7 @@ Item {
                                             // Visitas Centro
                                             RowLayout {
                                                 Layout.fillWidth: true
-                                                Text { text: "Visitas ao centro:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Text { text: LanguageManager.tr3("Visitas ao centro:", "Center visits:", "Visitas al centro:"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationBouts[campoCard.zi0].length; color: ThemeManager.textPrimary; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
@@ -1557,7 +1598,7 @@ Item {
                                             // Tempo Centro
                                             RowLayout {
                                                 Layout.fillWidth: true
-                                                Text { text: "Tempo no centro:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Text { text: LanguageManager.tr3("Tempo no centro:", "Time in center:", "Tiempo en el centro:"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi0].toFixed(1) + " s"; color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
@@ -1565,7 +1606,7 @@ Item {
                                             // Tempo Borda
                                             RowLayout {
                                                 Layout.fillWidth: true
-                                                Text { text: "Tempo nas bordas:"; color: ThemeManager.textSecondary; font.pixelSize: 11 }
+                                                Text { text: LanguageManager.tr3("Tempo nas bordas:", "Time at borders:", "Tiempo en bordes:"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
                                                 Item { Layout.fillWidth: true }
                                                 Text { text: recordingRoot.explorationTimes[campoCard.zi1].toFixed(1) + " s"; color: ThemeManager.accent; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
@@ -1632,3 +1673,5 @@ Item {
         }
     }
 }
+
+

@@ -1,4 +1,4 @@
-// qml/MainDashboard.qml
+﻿// qml/MainDashboard.qml
 // Dashboard principal: sidebar de experimentos + planilha de dados.
 
 import QtQuick
@@ -27,24 +27,24 @@ Item {
             ExperimentManager.loadAllContexts("nor")
         }
 
-        // Nova lógica para abrir o experimento recém-criado
+        // Nova lÃ³gica para abrir o experimento recÃ©m-criado
         if (initialExperimentName !== "") {
             experimentList.selectExperimentByName(initialExperimentName)
             
-            // searchMode → abre na aba Dados (índice 2), criação → abre na Arena (índice 0)
+            // searchMode â†’ abre na aba Dados (Ã­ndice 2), criaÃ§Ã£o â†’ abre na Arena (Ã­ndice 0)
             innerTabs.currentIndex = root.currentTabIndex || 0
         }
     }
 
-    // true  → dashboard aberto via "Criar" (experimento já foi criado externamente)
-    // false → dashboard aberto via "Procurar" (só browsing)
+    // true  â†’ dashboard aberto via "Criar" (experimento jÃ¡ foi criado externamente)
+    // false â†’ dashboard aberto via "Procurar" (sÃ³ browsing)
 
     property string pendingDeleteName: ""
 
     signal backRequested()
 
-    // Em modo Criar: context muda de "" para "Padrão"/"Contextual" → dispara scan.
-    // Em modo Procurar: context permanece "" → loadAllContexts é chamado em onCompleted.
+    // Em modo Criar: context muda de "" para "PadrÃ£o"/"Contextual" â†’ dispara scan.
+    // Em modo Procurar: context permanece "" â†’ loadAllContexts Ã© chamado em onCompleted.
     onContextChanged: {
         if (!root.searchMode && context !== "")
             ExperimentManager.loadContext(context, "nor")
@@ -59,12 +59,12 @@ Item {
         
         onExperimentCreated: {
             createPopup.close()
-            successToast.show("Experimento \"" + name + "\" criado!")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" criado!", "\" created!", "\" creado!"))
 
             // 1. Seleciona automaticamente na lista lateral
             experimentList.selectExperimentByName(name)
 
-            // 2. Carrega a configuração da arena do novo local
+            // 2. Carrega a configuraÃ§Ã£o da arena do novo local
             ArenaConfigModel.loadConfigFromPath(path)
 
             // 3. Pula direto para a aba 0 (Arena)
@@ -72,7 +72,7 @@ Item {
         }
 
         onExperimentDeleted: {
-            successToast.show("Experimento \"" + name + "\" excluído.")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluido.", "\" deleted.", "\" eliminado."))
             if (workArea.selectedName === name) {
                 workArea.selectedName = ""
                 workArea.selectedPath = ""
@@ -84,8 +84,8 @@ Item {
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show("Sessão registrada! Carregue o próximo vídeo ou consulte a aba Dados.")
-                innerTabs.currentIndex = 1 // Volta para Gravação — prontos para próxima sessão
+                successToast.show(LanguageManager.tr3("Sessao registrada! Carregue o proximo video ou consulte a aba Dados.", "Session saved! Load the next video or check the Data tab.", "Sesion guardada! Cargue el siguiente video o revise la pestana Datos."))
+                innerTabs.currentIndex = 1 // Volta para GravaÃ§Ã£o â€” prontos para prÃ³xima sessÃ£o
             }
         }
     }
@@ -94,7 +94,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Barra superior ───────────────────────────────────────────────
+        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -108,14 +108,14 @@ Item {
                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                 spacing: 14
 
-                GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+                GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "🧠"; font.pixelSize: 20 }
+                Text { text: "ðŸ§ "; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
-                          ? "Reconhecimento de Objetos — Experimentos"
-                          : "Reconhecimento de Objetos — Dashboard"
+                          ? LanguageManager.tr3("Reconhecimento de Objetos - Experimentos", "Object Recognition - Experiments", "Reconocimiento de Objetos - Experimentos")
+                          : LanguageManager.tr3("Reconhecimento de Objetos - Dashboard", "Object Recognition - Dashboard", "Reconocimiento de Objetos - Panel")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                 }
 
@@ -136,13 +136,13 @@ Item {
             }
         }
 
-        // ── Corpo ────────────────────────────────────────────────────────
+        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar ──────────────────────────────────────────────────
+            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -157,7 +157,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "Experimentos"
+                        text: LanguageManager.tr3("Experimentos", "Experiments", "Experimentos")
                         color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -165,7 +165,7 @@ Item {
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
-                        placeholderText: "Pesquisar…"
+                        placeholderText: LanguageManager.tr3("Pesquisar...", "Search...", "Buscar...")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
@@ -185,7 +185,7 @@ Item {
                                 // Compara o nome com o NameRole (Qt.UserRole + 1)
                                 if (model.data(model.index(i, 0), Qt.UserRole + 1) === name) {
                                     currentIndex = i; 
-                                    // Carrega os dados para a área de trabalho
+                                    // Carrega os dados para a Ã¡rea de trabalho
                                     var path = model.data(model.index(i, 0), Qt.UserRole + 2);
                                     workArea.loadExperiment(name, path);
                                     return;
@@ -225,7 +225,7 @@ Item {
                                 opacity: expDelegate.isHovered ? 1.0 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
-                                    anchors.centerIn: parent; text: "🗑"
+                                    anchors.centerIn: parent; text: "\uD83D\uDDD1"
                                     font.pixelSize: 13
                                     color: trashArea.containsMouse ? ThemeManager.accentHover : ThemeManager.accent; Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -261,7 +261,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
-                            text: "Nenhum experimento\nencontrado"
+                        text: LanguageManager.tr3("Nenhum experimento\nencontrado", "No experiment\nfound", "Ningun experimento\nencontrado")
                             color: ThemeManager.textSecondary; font.pixelSize: 12; Behavior on color { ColorAnimation { duration: 150 } }
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -270,7 +270,7 @@ Item {
                 }
             }
 
-            // ── Área de trabalho ─────────────────────────────────────────
+            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -279,7 +279,7 @@ Item {
                 property string selectedPath: ""
                 property int    colCount:     0
 
-                // ── Dados do experimento carregados do metadata.json ──────
+                // â”€â”€ Dados do experimento carregados do metadata.json â”€â”€â”€â”€â”€â”€
                 property int    activeNumCampos: root.numCampos
                 property string pair1:       ""
                 property string pair2:       ""
@@ -291,15 +291,15 @@ Item {
                 property string analysisMode: "offline"
                 property string saveDirectory: ""
 
-                // ── Sessão de gravação ────────────────────────────────────
-                // Persistem entre rodadas (não pedem ao usuário novamente)
-                property string sessionType: "Treino"
-                readonly property bool isReactivationPhase: (sessionType === "Reativação") || (sessionType === "Teste D2") || (sessionType === "Teste D3")
+                // â”€â”€ SessÃ£o de gravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // Persistem entre rodadas (nÃ£o pedem ao usuÃ¡rio novamente)
+                property string sessionType: LanguageManager.tr3("Treino", "Training", "Entrenamiento")
+                readonly property bool isReactivationPhase: (sessionType === "ReativaÃ§Ã£o") || (sessionType === "Reactivation") || (sessionType === "Teste D2") || (sessionType === "Test D2") || (sessionType === "Teste D3") || (sessionType === "Test D3")
                 readonly property string sessionDia: {
-                    if (sessionType === "Reativação") return "2"
-                    if (sessionType === "Teste D2")   return "2"
-                    if (sessionType === "Teste D3")   return "3"
-                    return "1"  // Treino
+                    if (sessionType === "ReativaÃ§Ã£o" || sessionType === "Reactivation") return "2"
+                    if (sessionType === "Teste D2" || sessionType === "Test D2") return "2"
+                    if (sessionType === "Teste D3" || sessionType === "Test D3") return "3"
+                    return "1"
                 }
 
                 function loadExperiment(name, path) {
@@ -313,7 +313,7 @@ Item {
                     var ctx = meta.context || ""
 
                     // Define o contexto ativo (usado pelo tracker/sessions)
-                    // Se estivermos em searchMode, a sidebar NÃO será limpa (graças ao m_inSearchMode no C++)
+                    // Se estivermos em searchMode, a sidebar NÃƒO serÃ¡ limpa (graÃ§as ao m_inSearchMode no C++)
                     ExperimentManager.setActiveContext(ctx)
 
                     pair1          = meta.pair1 || ""
@@ -321,13 +321,15 @@ Item {
                     pair3          = meta.pair3 || ""
                     includeDrug     = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
-                    dayNames        = meta.dayNames || (meta.hasReactivation ? ["Treino", "Reativação", "Teste"] : ["Treino", "Teste"])
+                    dayNames        = meta.dayNames || (meta.hasReactivation
+                                      ? [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"), LanguageManager.tr3("Teste", "Test", "Prueba")]
+                                      : [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Teste", "Test", "Prueba")])
                     activeNumCampos = meta.numCampos || 3
 
-                    // Carrega configuração da arena usando o path direto (já atualizado no C++)
+                    // Carrega configuraÃ§Ã£o da arena usando o path direto (jÃ¡ atualizado no C++)
                     ArenaConfigModel.loadConfigFromPath(path)
 
-                    // Se a arena já foi configurada (tem parId), pula para aba Gravação
+                    // Se a arena jÃ¡ foi configurada (tem parId), pula para aba GravaÃ§Ã£o
                     innerTabs.currentIndex = ArenaConfigModel.configured ? 1 : 0
                 }
 
@@ -349,18 +351,18 @@ Item {
                             anchors.centerIn: parent; spacing: 12
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: "📋"; font.pixelSize: 48; opacity: 0.3
+                                text: "ðŸ“‹"; font.pixelSize: 48; opacity: 0.3
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: "Selecione um experimento\nna barra lateral"
+                        text: LanguageManager.tr3("Selecione um experimento\nna barra lateral", "Select an experiment\nin the sidebar", "Seleccione un experimento\nen la barra lateral")
                                 color: ThemeManager.textSecondary; font.pixelSize: 14
                                 horizontalAlignment: Text.AlignHCenter
                             }
                         }
                     }
 
-                    // 1: Experimento (tab bar + conteúdo)
+                    // 1: Experimento (tab bar + conteÃºdo)
                     ColumnLayout {
                         spacing: 0
 
@@ -381,7 +383,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -448,7 +450,7 @@ Item {
                                     ExperimentManager.updatePairs(workArea.selectedPath, p1, p2, p3)
                                 }
                                 onZonasEditadas: {
-                                    // Atualiza zonas em tempo real na aba Gravação (sem salvar)
+                                    // Atualiza zonas em tempo real na aba GravaÃ§Ã£o (sem salvar)
                                     var z = tabArenaSetup.zones
                                     liveRecordingTab.zones = z
                                 }
@@ -456,7 +458,7 @@ Item {
                                 aparato: "nor"
                             }
 
-                            // Tab 1: Gravação
+                            // Tab 1: GravaÃ§Ã£o
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath: tabArenaSetup.videoPath
@@ -517,7 +519,7 @@ Item {
                                 pair2: workArea.pair2
                                 pair3: workArea.pair3
 
-                                // Timer de 300 s zerou → injeta dados de tracking e abre o diálogo
+                                // Timer de 300 s zerou â†’ injeta dados de tracking e abre o diÃ¡logo
                                 onSessionEnded: {
                                     resultDialog.sessionExplorationBouts = liveRecordingTab.explorationBouts
                                     resultDialog.sessionExplorationTimes = liveRecordingTab.explorationTimes
@@ -527,14 +529,14 @@ Item {
                                     resultDialog.open()
                                 }
 
-                                // Botão "Carregar Vídeo" na aba Gravação → abre o seletor de vídeo
+                                // BotÃ£o "Carregar VÃ­deo" na aba GravaÃ§Ã£o â†’ abre o seletor de vÃ­deo
                                 onRequestVideoLoad: {
                                     innerTabs.currentIndex = 0  // vai para Arena
                                     tabArenaSetup.openVideoLoader()
                                 }
                             }
 
-                            // Tab 2: Dados — Layout aparato-específico
+                            // Tab 2: Dados â€” Layout aparato-especÃ­fico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -547,9 +549,9 @@ Item {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Popup: criar experimento NOR (colunas fixas, usado apenas na sidebar)
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: createPopup
         anchors.centerIn: parent
@@ -570,14 +572,14 @@ Item {
 
             RowLayout {
                 spacing: 8
-                Text { text: "📋"; font.pixelSize: 20 }
+                Text { text: "ðŸ“‹"; font.pixelSize: 20 }
                 Text {
                     text: "Novo Experimento NOR"
                     color: ThemeManager.textPrimary; font.pixelSize: 17; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                    text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } }
+                    text: "âœ•"; color: ThemeManager.textSecondary; font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: createPopup.close() }
                 }
             }
@@ -590,7 +592,7 @@ Item {
                 TextField {
                     id: createNameField
                     Layout.fillWidth: true
-                    placeholderText: "Ex.: Grupo_Controle_Dia1"
+                        placeholderText: LanguageManager.tr3("Ex.: Control_Group_Day1", "Ex.: Control_Group_Day1", "Ej.: Grupo_Control_Dia1")
                     color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                     leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                     background: Rectangle {
@@ -612,14 +614,22 @@ Item {
                     text: "Criar"
                     enabled: createNameField.text.trim().length > 0
                     onClicked: {
-                        // Colunas padrão NOR (sem droga por simplicidade neste atalho)
+                        // Colunas padrÃ£o NOR (sem droga por simplicidade neste atalho)
                         ExperimentManager.createExperimentWithConfig(
                             createNameField.text.trim(), 0,
-                            ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos",
-                             "Exploração Obj1 (s)", "Bouts Obj1",
-                             "Exploração Obj2 (s)", "Bouts Obj2",
-                             "Exploração Total (s)", "DI",
-                             "Distância (m)", "Velocidade (m/s)"])
+                            [LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+                             LanguageManager.tr3("Animal", "Animal", "Animal"),
+                             LanguageManager.tr3("Campo", "Field", "Campo"),
+                             LanguageManager.tr3("Dia", "Day", "Dia"),
+                             LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
+                             LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
+                             LanguageManager.tr3("Bouts Obj1", "Obj1 Bouts", "Bouts Obj1"),
+                             LanguageManager.tr3("Exploracao Obj2 (s)", "Obj2 Exploration (s)", "Exploracion Obj2 (s)"),
+                             LanguageManager.tr3("Bouts Obj2", "Obj2 Bouts", "Bouts Obj2"),
+                             LanguageManager.tr3("Exploracao Total (s)", "Total Exploration (s)", "Exploracion Total (s)"),
+                             "DI",
+                             LanguageManager.tr3("Distancia (m)", "Distance (m)", "Distancia (m)"),
+                             LanguageManager.tr3("Velocidade (m/s)", "Speed (m/s)", "Velocidad (m/s)")])
                     }
                     background: Rectangle {
                         radius: 8
@@ -636,9 +646,9 @@ Item {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Popup: confirmar exclusão — passo 1
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Popup: confirmar exclusÃ£o â€” passo 1
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
@@ -665,7 +675,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
+                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta aÃ§Ã£o Ã© irreversÃ­vel."
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
@@ -689,9 +699,9 @@ Item {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // Popup: confirmar exclusão — passo 2
-    // ════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Popup: confirmar exclusÃ£o â€” passo 2
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent
@@ -715,7 +725,7 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: "ConfirmaÃ§Ã£o Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
@@ -723,7 +733,7 @@ Item {
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Nome em destaque — igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            // Nome em destaque â€” igual ao GitHub: "Digite exatamente: NomeDoExperimento"
             Rectangle {
                 Layout.fillWidth: true
                 height: nameLabel.implicitHeight + 10
@@ -785,7 +795,7 @@ Item {
         }
     }
 
-    // ── Dialog pós-sessão: inserção dos dados dos animais ────────────────
+    // â”€â”€ Dialog pÃ³s-sessÃ£o: inserÃ§Ã£o dos dados dos animais â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     SessionResultDialog {
         id: resultDialog
         experimentName:   workArea.selectedName
@@ -804,3 +814,4 @@ Item {
     Toast { id: successToast; successMode: true;  anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   successMode: false; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 }
+

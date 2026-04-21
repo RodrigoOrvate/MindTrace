@@ -13,8 +13,8 @@ public:
     Q_INVOKABLE QVariant loadSetting(const QString& key);
     
     static QString getSettingsPath();
-
-private:
     static QJsonObject loadSettingsFile();
     static void saveSettingsFile(const QJsonObject& settings);
+
+private:
 };

@@ -1,4 +1,4 @@
-// qml/NORSetupScreen.qml
+﻿// qml/NORSetupScreen.qml
 // Setup do experimento NOR: nome + pares de objetos por campo + checkbox Droga.
 // Emite experimentReady(name, cols) para o roteador criar o experimento.
 
@@ -35,13 +35,51 @@ Item {
         return true
     }
 
+    function isDefaultDayNames() {
+        if (dayNamesModel.count !== 2) return false
+        var a = dayNamesModel.get(0).dayName
+        var b = dayNamesModel.get(1).dayName
+        var d1 = ["Treino", "Training", "Entrenamiento"]
+        var d2 = ["Teste", "Test", "Prueba"]
+        return d1.indexOf(a) >= 0 && d2.indexOf(b) >= 0
+    }
+
+    function resetDefaultDayNames() {
+        dayNamesModel.clear()
+        dayNamesModel.append({ dayName: LanguageManager.tr3("Treino", "Training", "Entrenamiento") })
+        dayNamesModel.append({ dayName: LanguageManager.tr3("Teste", "Test", "Prueba") })
+    }
+
+    Component.onCompleted: {
+        if (dayNamesModel.count === 0 || isDefaultDayNames())
+            resetDefaultDayNames()
+    }
+
+    Connections {
+        target: LanguageManager
+        function onCurrentLanguageChanged() {
+            if (root.isDefaultDayNames())
+                root.resetDefaultDayNames()
+        }
+    }
+
     function doCreate() {
-        var cols = ["Diretório do Vídeo", "Animal", "Campo", "Dia", "Par de Objetos",
-                    "Exploração Obj1 (s)", "Bouts Obj1",
-                    "Exploração Obj2 (s)", "Bouts Obj2",
-                    "Exploração Total (s)", "DI",
-                    "Distância (m)", "Velocidade (m/s)"]
-        if (drugCheck.checked) cols.push("Tratamento")
+        var cols = [
+            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Animal", "Animal", "Animal"),
+            LanguageManager.tr3("Campo", "Field", "Campo"),
+            LanguageManager.tr3("Dia", "Day", "Dia"),
+            LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
+            LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
+            LanguageManager.tr3("Bouts Obj1", "Obj1 Bouts", "Bouts Obj1"),
+            LanguageManager.tr3("Exploracao Obj2 (s)", "Obj2 Exploration (s)", "Exploracion Obj2 (s)"),
+            LanguageManager.tr3("Bouts Obj2", "Obj2 Bouts", "Bouts Obj2"),
+            LanguageManager.tr3("Exploracao Total (s)", "Total Exploration (s)", "Exploracion Total (s)"),
+            "DI",
+            LanguageManager.tr3("Distancia (m)", "Distance (m)", "Distancia (m)"),
+            LanguageManager.tr3("Velocidade (m/s)", "Speed (m/s)", "Velocidad (m/s)")
+        ]
+        if (drugCheck.checked) cols.push(LanguageManager.tr3("Tratamento", "Treatment", "Tratamiento"))
         var names = []
         for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)
         root.experimentReady(nameField.text.trim(), cols,
@@ -67,14 +105,14 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
-            GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+            GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
             Item { width: 8 }
             Text { text: "🧠"; font.pixelSize: 28; color: "#ab3d4c" }
 
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: "Configuração do Experimento"
+                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -104,13 +142,13 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 8
                     Text {
-                        text: "NOME DO EXPERIMENTO"
+                        text: LanguageManager.tr3("NOME DO EXPERIMENTO", "EXPERIMENT NAME", "NOMBRE DEL EXPERIMENTO")
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                     }
                     TextField {
                         id: nameField
                         Layout.fillWidth: true
-                        placeholderText: "Ex.: Controle_Grupo_A"
+                        placeholderText: LanguageManager.tr3("Ex.: NOR_Control_Group_A", "Ex.: NOR_Control_Group_A", "Ej.: NOR_Grupo_Control_A")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 14
                         leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
                         background: Rectangle {
@@ -134,7 +172,7 @@ Item {
                             Layout.fillWidth: true
                             readOnly: true
                             text: root.selectedPath.replace("file:///", "")
-                            placeholderText: "Padrão: Documentos/MindTrace_Data"
+                    placeholderText: LanguageManager.tr3("Padrao: Documentos/MindTrace_Data", "Default: Documents/MindTrace_Data", "Predeterminado: Documentos/MindTrace_Data")
                             color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 14
                             leftPadding: 14; rightPadding: 14; topPadding: 10; bottomPadding: 10
                             background: Rectangle {
@@ -144,7 +182,7 @@ Item {
                             }
                         }
                         GhostButton {
-                            text: "Procurar..."
+                            text: LanguageManager.tr3("Procurar...", "Browse...", "Buscar...")
                             onClicked: folderDialog.open()
                         }
                     }
@@ -157,11 +195,11 @@ Item {
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 12
                 Text {
-                    text: "PAR DE OBJETOS POR CAMPO"
+                    text: LanguageManager.tr3("PAR DE OBJETOS POR CAMPO", "OBJECT PAIR PER FIELD", "PAR DE OBJETOS POR CAMPO")
                     color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                 }
                 Text {
-                    text: "Selecione um par para cada campo do laboratório."
+                    text: LanguageManager.tr3("Selecione um par para cada campo do laboratorio.", "Select one pair for each field.", "Seleccione un par para cada campo.")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
 
@@ -210,11 +248,11 @@ Item {
                     ColumnLayout {
                         spacing: 2
                         Text {
-                            text: "Incluir coluna \"Tratamento\""
+                            text: LanguageManager.tr3("Incluir coluna \"Tratamento\"", "Include \"Treatment\" column", "Incluir columna \"Tratamiento\"")
                             color: ThemeManager.textPrimary; font.pixelSize: 13; font.weight: Font.Bold
                         }
                         Text {
-                            text: "Para tratamentos farmacológicos."
+                            text: LanguageManager.tr3("Para tratamentos farmacologicos.", "For pharmacological treatments.", "Para tratamientos farmacologicos.")
                             color: ThemeManager.textTertiary; font.pixelSize: 11
                         }
                     }
@@ -226,16 +264,14 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "DIAS DO EXPERIMENTO"
+                        text: LanguageManager.tr3("DIAS DO EXPERIMENTO", "EXPERIMENT DAYS", "DIAS DEL EXPERIMENTO")
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
 
-                    ListModel {
-                        id: dayNamesModel
-                        ListElement { dayName: "Treino" }
-                        ListElement { dayName: "Teste" }
-                    }
+                ListModel {
+                    id: dayNamesModel
+                }
 
                     Flow {
                         Layout.fillWidth: true
@@ -257,7 +293,7 @@ Item {
 
                                     Text {
                                         id: dayLabel
-                                        text: "Dia " + (index + 1) + ":"
+                                    text: LanguageManager.tr3("Dia ", "Day ", "Dia ") + (index + 1) + ":"
                                         color: ThemeManager.textSecondary; font.pixelSize: 11
                                     }
 
@@ -305,13 +341,13 @@ Item {
                             Behavior on color { ColorAnimation { duration: 150 } }
 
                             Text {
-                                anchors.centerIn: parent; text: "+ Dia"
+                                anchors.centerIn: parent; text: LanguageManager.tr3("+ Dia", "+ Day", "+ Dia")
                                 color: ThemeManager.textSecondary; font.pixelSize: 12
                             }
                             MouseArea {
                                 id: addDayHov; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: dayNamesModel.append({ dayName: "Dia " + (dayNamesModel.count + 1) })
+                                onClicked: dayNamesModel.append({ dayName: LanguageManager.tr3("Dia ", "Day ", "Dia ") + (dayNamesModel.count + 1) })
                             }
                         }
                     }
@@ -326,12 +362,12 @@ Item {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
             Text {
-                text: "Passo 3  —  Configuração do Experimento"
+                text: LanguageManager.tr3("Passo 3 - Configuracao do Experimento", "Step 3 - Experiment Setup", "Paso 3 - Configuracion del Experimento")
                 color: ThemeManager.textSecondary; font.pixelSize: 11
             }
 
             Button {
-                text: "Criar Experimento →"
+                text: LanguageManager.tr3("Criar Experimento ->", "Create Experiment ->", "Crear Experimento ->")
                 enabled: nameField.text.trim().length > 0 && root.allPairsSelected
 
                 onClicked: {
@@ -378,13 +414,13 @@ Item {
             spacing: 14
 
             Text {
-                text: "Experimento já existe"
+                text: LanguageManager.tr3("Experimento ja existe", "Experiment already exists", "El experimento ya existe")
                 color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
             }
 
             Text {
                 Layout.fillWidth: true
-                text: "\"" + nameField.text.trim() + "\" já existe neste contexto.\n\nSe continuar, os dados anteriores serão substituídos."
+                            text: LanguageManager.tr3("\"", "\"", "\"") + nameField.text.trim() + LanguageManager.tr3("\" already exists in this context.\n\nIf you continue, previous data will be overwritten.", "\" already exists in this context.\n\nIf you continue, previous data will be overwritten.", "\" ya existe en este contexto.\n\nSi continua, los datos anteriores seran sobrescritos.")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
 
@@ -439,7 +475,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Digite o nome do experimento para confirmar a substituição:"
+                text: LanguageManager.tr3("Digite o nome do experimento para confirmar:", "Type the experiment name to confirm:", "Escriba el nombre del experimento para confirmar:")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
 
@@ -485,3 +521,5 @@ Item {
         }
     }
 }
+
+

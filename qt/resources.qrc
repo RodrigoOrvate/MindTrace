@@ -13,6 +13,7 @@
     <file>qml/core/Theme/qmldir</file>
     <file>qml/core/Theme/ThemeManager.qml</file>
     <file>qml/core/Theme/ColorPalette.qml</file>
+    <file>qml/core/Theme/LanguageManager.qml</file>
     <file>qml/core/Theme/SettingsScreen.qml</file>
 
     <file>qml/shared/LiveRecording.qml</file>

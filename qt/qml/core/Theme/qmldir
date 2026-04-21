@@ -1,3 +1,4 @@
 singleton ThemeManager 1.0 ThemeManager.qml
 singleton ColorPalette 1.0 ColorPalette.qml
+singleton LanguageManager 1.0 LanguageManager.qml
 SettingsScreen 1.0 SettingsScreen.qml

@@ -12,6 +12,7 @@
 #include "ArenaModel.h"
 #include "ArenaConfigModel.h"
 #include "ThemeSettings.h"
+#include "LanguageSettings.h"
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
     // Registra ThemeSettings como context property para acesso QML
     ThemeSettings *themeSettings = new ThemeSettings(&engine);
     engine.rootContext()->setContextProperty("ThemeSettings", themeSettings);
+    LanguageSettings *languageSettings = new LanguageSettings(&engine);
+    engine.rootContext()->setContextProperty("LanguageSettings", languageSettings);
 
     // Coleta todos os warnings/erros emitidos pelo motor QML
     QStringList qmlErrors;

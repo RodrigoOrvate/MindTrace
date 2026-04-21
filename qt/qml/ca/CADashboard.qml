@@ -1,5 +1,5 @@
-// qml/ca/CADashboard.qml
-// Dashboard Campo Aberto: sidebar de experimentos + análise de habituação.
+﻿// qml/ca/CADashboard.qml
+// Dashboard Campo Aberto: sidebar de experimentos + anÃ¡lise de habituaÃ§Ã£o.
 
 import QtQuick
 import QtQuick.Controls
@@ -50,13 +50,13 @@ Item {
         onErrorOccurred: errorToast.show(message)
 
         onExperimentCreated: {
-            successToast.show("Experimento \"" + name + "\" criado!")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" criado!", "\" created!", "\" creado!"))
             experimentList.selectExperimentByName(name)
             innerTabs.currentIndex = 0
         }
 
         onExperimentDeleted: {
-            successToast.show("Experimento \"" + name + "\" excluído.")
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluido.", "\" deleted.", "\" eliminado."))
             if (workArea.selectedName === name) {
                 workArea.selectedName = ""
                 workArea.selectedPath = ""
@@ -68,7 +68,7 @@ Item {
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show("Sessão registrada!")
+                successToast.show(LanguageManager.tr3("Sessao registrada!", "Session saved!", "Sesion guardada!"))
                 innerTabs.currentIndex = 1
             }
         }
@@ -78,7 +78,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Barra superior ───────────────────────────────────────────────
+        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -92,14 +92,14 @@ Item {
                 anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
                 spacing: 14
 
-                GhostButton { text: "← Voltar"; onClicked: root.backRequested() }
+                GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "🐀"; font.pixelSize: 20 }
+                Text { text: "ðŸ€"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
-                          ? "Campo Aberto — Experimentos"
-                          : "Campo Aberto — Dashboard"
+                          ? LanguageManager.tr3("Campo Aberto - Experimentos", "Open Field - Experiments", "Campo Abierto - Experimentos")
+                          : LanguageManager.tr3("Campo Aberto - Dashboard", "Open Field - Dashboard", "Campo Abierto - Panel")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -123,13 +123,13 @@ Item {
             }
         }
 
-        // ── Corpo ────────────────────────────────────────────────────────
+        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // ── Sidebar ──────────────────────────────────────────────────
+            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -144,7 +144,7 @@ Item {
                     spacing: 8
 
                     Text {
-                        text: "Experimentos"
+                        text: LanguageManager.tr3("Experimentos", "Experiments", "Experimentos")
                         color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -152,7 +152,7 @@ Item {
                     TextField {
                         id: searchField
                         Layout.fillWidth: true
-                        placeholderText: "Pesquisar…"
+                        placeholderText: LanguageManager.tr3("Pesquisar...", "Search...", "Buscar...")
                         color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                         leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                         background: Rectangle {
@@ -206,7 +206,7 @@ Item {
                                 width: 30; opacity: expDelegate.isHovered ? 1.0 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                                 Text {
-                                    anchors.centerIn: parent; text: "🗑"; font.pixelSize: 13
+                                    anchors.centerIn: parent; text: "\uD83D\uDDD1"; font.pixelSize: 13
                                     color: trashArea.containsMouse ? "#5590cc" : "#3d7aab"
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -241,7 +241,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: experimentList.count === 0
-                            text: "Nenhum experimento\nencontrado"
+                        text: LanguageManager.tr3("Nenhum experimento\nencontrado", "No experiment\nfound", "Ningun experimento\nencontrado")
                             color: ThemeManager.textSecondary; font.pixelSize: 12
                             Behavior on color { ColorAnimation { duration: 150 } }
                             horizontalAlignment: Text.AlignHCenter
@@ -250,7 +250,7 @@ Item {
                 }
             }
 
-            // ── Área de trabalho ─────────────────────────────────────────
+            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -276,7 +276,9 @@ Item {
 
                     includeDrug     = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
-                    dayNames        = meta.dayNames || (meta.hasReactivation ? ["Treino", "Reativação", "Teste"] : ["Treino", "Teste"])
+                    dayNames        = meta.dayNames || (meta.hasReactivation
+                                      ? [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"), LanguageManager.tr3("Teste", "Test", "Prueba")]
+                                      : [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Teste", "Test", "Prueba")])
                     activeNumCampos = meta.numCampos || root.numCampos
 
                     if (activeNumCampos === 1) {
@@ -308,10 +310,10 @@ Item {
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 12
-                            Text { Layout.alignment: Qt.AlignHCenter; text: "🐀"; font.pixelSize: 48; opacity: 0.3 }
+                            Text { Layout.alignment: Qt.AlignHCenter; text: "ðŸ€"; font.pixelSize: 48; opacity: 0.3 }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: "Selecione um experimento\nna barra lateral"
+                        text: LanguageManager.tr3("Selecione um experimento\nna barra lateral", "Select an experiment\nin the sidebar", "Seleccione un experimento\nen la barra lateral")
                                 color: ThemeManager.textSecondary; font.pixelSize: 14
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 horizontalAlignment: Text.AlignHCenter
@@ -319,7 +321,7 @@ Item {
                         }
                     }
 
-                    // 1: Experimento (tab bar + conteúdo)
+                    // 1: Experimento (tab bar + conteÃºdo)
                     ColumnLayout {
                         spacing: 0
 
@@ -338,7 +340,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 Arena", "🎬 Gravação", "📊 Dados"]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -387,9 +389,9 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // ── Tab 0: Arena ──────────────────────────────────────
+                            // â”€â”€ Tab 0: Arena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             Item {
-                                // ArenaSetup padrão — 2 ou 3 campos
+                                // ArenaSetup padrÃ£o â€” 2 ou 3 campos
                                 ArenaSetup {
                                     id: tabArenaSetup
                                     anchors.fill: parent
@@ -415,7 +417,7 @@ Item {
                                     }
                                 }
 
-                                // EIArenaSetup — 1 campo (arena EI adaptada para CA)
+                                // EIArenaSetup â€” 1 campo (arena EI adaptada para CA)
                                 EIArenaSetup {
                                     id: eiArenaSetupCA
                                     anchors.fill: parent
@@ -437,7 +439,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 1: Gravação ───────────────────────────────────
+                            // â”€â”€ Tab 1: GravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath: workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
@@ -454,7 +456,7 @@ Item {
                                     return m.centroRatio || 0.5
                                 })()
 
-                                // Atualiza zonas, arena e chão ao vivo quando a config é salva
+                                // Atualiza zonas, arena e chÃ£o ao vivo quando a config Ã© salva
                                 Connections {
                                     target: ArenaConfigModel
                                     function onConfigChanged() {
@@ -490,7 +492,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 2: Dados — Layout aparato-específico
+                            // â”€â”€ Tab 2: Dados â€” Layout aparato-especÃ­fico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -503,18 +505,18 @@ Item {
         }
     }
 
-    // ── Diálogo de resultado CA ──────────────────────────────────────────
+    // â”€â”€ DiÃ¡logo de resultado CA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     CAMetadataDialog {
         id: caResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
     }
 
-    // ── Toasts ────────────────────────────────────────────────────────────
+    // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Toast { id: successToast; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 
-    // ── Popup delete — Passo 1 ────────────────────────────────────────────
+    // â”€â”€ Popup delete â€” Passo 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
@@ -530,7 +532,7 @@ Item {
             Text { text: "Excluir Experimento"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
             Text {
                 Layout.fillWidth: true
-                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
+                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta aÃ§Ã£o Ã© irreversÃ­vel."
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
             RowLayout {
@@ -547,7 +549,7 @@ Item {
         }
     }
 
-    // ── Popup delete — Passo 2 (Confirmar digitando o nome) ─────────────
+    // â”€â”€ Popup delete â€” Passo 2 (Confirmar digitando o nome) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent
@@ -561,7 +563,7 @@ Item {
             id: step2Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: "ConfirmaÃ§Ã£o Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
             Text {
                 Layout.fillWidth: true
                 text: "Para confirmar, digite o nome do experimento:"
@@ -606,3 +608,4 @@ Item {
         }
     }
 }
+
