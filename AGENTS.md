@@ -423,6 +423,7 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | Aba Dados EI com cor verde em vez de amarelo | `EIDataView.qml` tinha `accentColor: "#2f7a4b"` (verde). Alterado para `"#c8a000"` (amarelo). |
 | Popup EI nunca aparecia (mesmo com vídeo terminado) | `EIMetadataDialog` estava com `parent: root` (Item do dashboard) em vez de `parent: Overlay.overlay`. Corrigido para `Overlay.overlay` + `anchors.centerIn: parent`. |
 | Impossível reaproveitar configuração de arena entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: lê config do experimento fonte via `ArenaConfigModel`, detecta shape (quadrada/retangular por bounding-box ratio) e tipo de zona (`zoneCount≥4`=objetos, `floorPoints≥8`=plataforma_grade, else=padrão), exibe popup de aviso se incompatível, confirma → recarrega config. |
+| Live em 1080p com FPS real baixo (~22 FPS) | Perfil solicitado/aplicado pode mostrar 1920x1080 @ up to 60 FPS, mas FPS real ainda fica em ~22 no runtime atual. **PENDENTE (passo 2):** investigar gargalo ponta a ponta (fonte DroidCam/driver, formato de pixel, custo `toImage()`/conversão, throughput de inferência) para buscar **request alvo de 60 FPS reais**. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 

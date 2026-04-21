@@ -1,5 +1,5 @@
 ﻿// qml/ei/EIDashboard.qml
-// Dashboard Esquiva InibitÃ³ria: sidebar + Arena + GravaÃ§Ã£o + Dados.
+// Dashboard Esquiva Inibitória: sidebar + Arena + Gravação + Dados.
 
 import QtQuick
 import QtQuick.Controls
@@ -29,7 +29,7 @@ Item {
         if (root.searchMode) {
             ExperimentManager.loadAllContexts("esquiva_inibitoria")
         } else {
-            ExperimentManager.loadContext("PadrÃ£o", "esquiva_inibitoria")
+            ExperimentManager.loadContext("Padrão", "esquiva_inibitoria")
         }
         if (initialExperimentName !== "") {
             pendingInitialSelection = initialExperimentName
@@ -57,30 +57,67 @@ Item {
 
     property string pendingDeleteName: ""
 
+    function _isCurrentSelectionStillInModel() {
+        if (!workArea.selectedName || !workArea.selectedPath)
+            return false
+        var m = ExperimentManager.model
+        if (!m) return false
+        for (var i = 0; i < m.count; ++i) {
+            var idx = m.index(i, 0)
+            var name = m.data(idx, Qt.UserRole + 1)
+            var path = m.data(idx, Qt.UserRole + 2)
+            if (name === workArea.selectedName && path === workArea.selectedPath)
+                return true
+        }
+        return false
+    }
+
+    function _resetSelectionState() {
+        try {
+            if (liveRecordingTab && liveRecordingTab.isAnalyzing)
+                liveRecordingTab.stopSession()
+        } catch (e) {}
+        try {
+            if (tabArenaSetup && tabArenaSetup.stopCameraPreview)
+                tabArenaSetup.stopCameraPreview()
+        } catch (e2) {}
+
+        workArea.selectedName = ""
+        workArea.selectedPath = ""
+        workArea.analysisMode = "offline"
+        workArea.saveDirectory = ""
+        workArea.cameraId = ""
+        workStack.currentIndex = 0
+        innerTabs.currentIndex = 0
+        experimentList.currentIndex = -1
+    }
+
+    function _syncSelectionWithModel() {
+        if (!workArea.selectedName && !workArea.selectedPath)
+            return
+        if (!_isCurrentSelectionStillInModel())
+            _resetSelectionState()
+    }
+
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
     Connections {
         target: ExperimentManager
 
-        onErrorOccurred: errorToast.show(message)
+        function onErrorOccurred(message) { errorToast.show(message) }
 
-        onExperimentCreated: {
+        function onExperimentCreated(name, path) {
             successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" criado!", "\" created!", "\" creado!"))
             experimentList.selectExperimentByName(name)
             innerTabs.currentIndex = 0
         }
 
-        onExperimentDeleted: {
+        function onExperimentDeleted(name) {
             successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluido.", "\" deleted.", "\" eliminado."))
-            if (workArea.selectedName === name) {
-                workArea.selectedName = ""
-                workArea.selectedPath = ""
-                workStack.currentIndex = 0
-                experimentList.currentIndex = -1
-            }
+            root._syncSelectionWithModel()
         }
 
-        onSessionDataInserted: {
+        function onSessionDataInserted(experimentName, sessionPath) {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show(LanguageManager.tr3("Sessao registrada!", "Session saved!", "Sesion guardada!"))
@@ -89,11 +126,17 @@ Item {
         }
     }
 
+    Connections {
+        target: ExperimentManager.model
+        function onRowsRemoved() { root._syncSelectionWithModel() }
+        function onModelReset() { root._syncSelectionWithModel() }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -109,7 +152,7 @@ Item {
 
                 GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "âš¡"; font.pixelSize: 20 }
+                Text { text: "⚡"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
@@ -123,13 +166,13 @@ Item {
             }
         }
 
-        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -251,7 +294,7 @@ Item {
                 }
             }
 
-            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -261,6 +304,8 @@ Item {
                 property int    colCount:     0
                 property bool   includeDrug:      true
                 property string analysisMode:     "offline"
+                property string saveDirectory:    ""
+                property string cameraId:         ""
                 property int    activeNumCampos:  1
                 property var    dayNames:         []
 
@@ -293,18 +338,18 @@ Item {
                 }
 
                 ExperimentTableModel { id: tableModel }
-                Connections { target: tableModel; onModelReset: workArea.colCount = tableModel.columnCount() }
+                Connections { target: tableModel; function onModelReset() { workArea.colCount = tableModel.columnCount() } }
 
                 StackLayout {
                     id: workStack
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Ãndice 0: placeholder "selecione um experimento"
+                    // Índice 0: placeholder "selecione um experimento"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
-                            Text { text: "âš¡"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
+                            Text { text: "⚡"; font.pixelSize: 48; opacity: 0.15; Layout.alignment: Qt.AlignHCenter }
                             Text {
                                 text: LanguageManager.tr3("Selecione um experimento", "Select an experiment", "Seleccione un experimento")
                                 color: ThemeManager.textSecondary; font.pixelSize: 16
@@ -314,11 +359,11 @@ Item {
                         }
                     }
 
-                    // Ãndice 1: painel com abas
+                    // Índice 1: painel com abas
                     ColumnLayout {
                         spacing: 0
 
-                        // â”€â”€ Barra de abas interna â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                        // â"€â"€ Barra de abas interna â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -386,7 +431,7 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // â”€â”€ Tab 0: Arena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // â"€â"€ Tab 0: Arena â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                             EIArenaSetup {
                                 id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
@@ -400,14 +445,19 @@ Item {
 
                                 onAnalysisModeChangedExternally: function(mode) {
                                     workArea.analysisMode = mode
+                                    workArea.cameraId     = tabArenaSetup.cameraId
+                                    if (mode !== "offline") workArea.saveDirectory = tabArenaSetup.saveDirectory
                                 }
                             }
 
-                            // â”€â”€ Tab 1: GravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // â"€â"€ Tab 1: Gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                saveDirectory: workArea.saveDirectory
+                                liveOutputName: tabArenaSetup.liveOutputName
+                                cameraId:     workArea.cameraId
                                 numCampos:    1
                                 aparato:      "esquiva_inibitoria"
                                 sessionDurationMinutes: 5
@@ -417,7 +467,7 @@ Item {
                                 floorPoints: tabArenaSetup.floorPoints
 
                                 onSessionEnded: {
-                                    // LatÃªncia = tempo decorrido atÃ© primeira entrada na grade
+                                    // Latência = tempo decorrido até primeira entrada na grade
                                     var latencia = eiLatencySeconds >= 0 ? eiLatencySeconds : 0
 
                                     eiResultDialog.latencia        = latencia
@@ -429,17 +479,23 @@ Item {
                                     eiResultDialog.avgVelocity     = avgVelocityMeans[0] || 0
                                     eiResultDialog.includeDrug    = workArea.includeDrug
                                     eiResultDialog.experimentName = workArea.selectedName
-                                    eiResultDialog.videoPath      = tabArenaSetup.videoPath
+                                    eiResultDialog.videoPath      = workArea.analysisMode === "ao_vivo"
+                                                                     ? ((liveRecordingTab.liveRecordedVideoPath && liveRecordingTab.liveRecordedVideoPath !== "")
+                                                                        ? liveRecordingTab.liveRecordedVideoPath
+                                                                        : ("camera://" + workArea.cameraId))
+                                                                     : tabArenaSetup.videoPath
                                     eiResultDialog.dayNames       = workArea.dayNames
                                     eiResultDialog.open()
                                 }
+
+                                onLiveAnalysisStarting: tabArenaSetup.stopCameraPreview()
 
                                 onRequestVideoLoad: {
                                     innerTabs.currentIndex = 0
                                 }
                             }
 
-                            // â”€â”€ Tab 2: Dados â€” Layout aparato-especÃ­fico
+                            // â"€â"€ Tab 2: Dados â€" Layout aparato-específico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -452,7 +508,7 @@ Item {
         }
     }
 
-    // â”€â”€ DiÃ¡logo de metadados pÃ³s-sessÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Diálogo de metadados pós-sessão â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     EIMetadataDialog {
         id: eiResultDialog
         parent: Overlay.overlay
@@ -462,7 +518,7 @@ Item {
         }
     }
 
-    // â”€â”€ Popups de exclusÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Popups de exclusão â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400; height: 200
@@ -476,7 +532,7 @@ Item {
             Text { text: "Excluir experimento?"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text {
                 Layout.fillWidth: true
-                text: "\"" + root.pendingDeleteName + "\" serÃ¡ permanentemente excluÃ­do.\n\nEsta aÃ§Ã£o nÃ£o pode ser desfeita."
+                text: "\"" + root.pendingDeleteName + "\" será permanentemente excluído.\n\nEsta ação não pode ser desfeita."
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap
             }
             RowLayout {
@@ -504,7 +560,7 @@ Item {
         ColumnLayout {
             anchors { fill: parent; margins: 24 }
             spacing: 14
-            Text { text: "Confirmar ExclusÃ£o"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: "Confirmar Exclusão"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text { Layout.fillWidth: true; text: "Digite o nome do experimento para confirmar:"; color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             TextField {
                 id: delConfirmField; Layout.fillWidth: true
@@ -528,9 +584,7 @@ Item {
         }
     }
 
-    // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     Toast { id: successToast }
     Toast { id: errorToast }
 }
-
-

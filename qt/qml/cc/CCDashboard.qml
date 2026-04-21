@@ -1,5 +1,5 @@
 ﻿// qml/cc/CCDashboard.qml
-// Dashboard Comportamento Complexo: sidebar + Arena + GravaÃ§Ã£o + ClassificaÃ§Ã£o + Dados.
+// Dashboard Comportamento Complexo: sidebar + Arena + Gravação + Classificação + Dados.
 
 import QtQuick
 import QtQuick.Controls
@@ -39,18 +39,64 @@ Item {
 
     property string pendingDeleteName: ""
 
-    // â”€â”€ B-SOiD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function _isCurrentSelectionStillInModel() {
+        if (!workArea.selectedName || !workArea.selectedPath)
+            return false
+        var m = ExperimentManager.model
+        if (!m) return false
+        for (var i = 0; i < m.count; ++i) {
+            var idx = m.index(i, 0)
+            var name = m.data(idx, Qt.UserRole + 1)
+            var path = m.data(idx, Qt.UserRole + 2)
+            if (name === workArea.selectedName && path === workArea.selectedPath)
+                return true
+        }
+        return false
+    }
+
+    function _resetSelectionState() {
+        try {
+            if (liveRecordingTab && liveRecordingTab.isAnalyzing)
+                liveRecordingTab.stopSession()
+        } catch (e) {}
+        try {
+            if (tabArenaSetup && tabArenaSetup.stopCameraPreview)
+                tabArenaSetup.stopCameraPreview()
+        } catch (e2) {}
+        try {
+            if (eiArenaSetupCC && eiArenaSetupCC.stopCameraPreview)
+                eiArenaSetupCC.stopCameraPreview()
+        } catch (e3) {}
+
+        workArea.selectedName = ""
+        workArea.selectedPath = ""
+        workArea.analysisMode = "offline"
+        workArea.saveDirectory = ""
+        workArea.cameraId = ""
+        workStack.currentIndex = 0
+        innerTabs.currentIndex = 0
+        experimentList.currentIndex = -1
+    }
+
+    function _syncSelectionWithModel() {
+        if (!workArea.selectedName && !workArea.selectedPath)
+            return
+        if (!_isCurrentSelectionStillInModel())
+            _resetSelectionState()
+    }
+
+    // â"€â"€ B-SOiD â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     property bool   bsoidRunning:   false
     property int    bsoidProgress:  0
     property var    bsoidGroups:    []   // lista de {clusterId, frameCount, percentage, ...}
-    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editÃ¡veis)
+    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editáveis)
     property string bsoidError:     ""
     property bool   bsoidDone:      false
     property double bsoidFps:       30.0
     property string bsoidVideoPath: ""
-    property int    bsoidCampo:     0    // campo selecionado para anÃ¡lise (0=C1, 1=C2, 2=C3)
+    property int    bsoidCampo:     0    // campo selecionado para análise (0=C1, 1=C2, 2=C3)
 
-    // â”€â”€ EstatÃ­sticas de comportamento (computadas apÃ³s B-SOiD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Estatísticas de comportamento (computadas após B-SOiD) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     property var    behaviorStats:    []   // [{name, seconds, bouts, color}]
 
     function computeBehaviorStats(fps) {
@@ -77,7 +123,7 @@ Item {
         return result
     }
 
-    // â”€â”€ Snippets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Snippets â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     property bool   snippetsRunning:  false
     property int    snippetsProgress: 0
     property bool   snippetsComplete: false
@@ -97,13 +143,13 @@ Item {
             var names = []
             for (var n = 0; n < groups.length; n++) names.push("")
             root.bsoidGroupNames = names
-            // Computa estatÃ­sticas por comportamento
+            // Computa estatísticas por comportamento
             root.behaviorStats = root.computeBehaviorStats(root.bsoidFps)
             // Preenche timeline dupla a partir de C++ (mais eficiente que iterar em JS)
             Qt.callLater(function() {
                 ruleTimeline.clear()
                 clusterTimeline.clear()
-                // Cores para regras nativas â€” alinhadas com badges e legenda
+                // Cores para regras nativas â€" alinhadas com badges e legenda
                 ruleTimeline.setLabelColor(0, "#8b5cf6")  // Walking  â†’ violeta
                 ruleTimeline.setLabelColor(1, "#f97316")  // Zonas de objetos â†’ laranja
                 ruleTimeline.setLabelColor(2, "#eab308")  // Grooming â†’ amarelo
@@ -129,7 +175,7 @@ Item {
         }
     }
 
-    // Cores dos clusters B-SOiD â€” famÃ­lia vermelhos/amarelos/violetas,
+    // Cores dos clusters B-SOiD â€" família vermelhos/amarelos/violetas,
     // deliberadamente distintas das regras nativas:
     // Walking=#10b981(verde), Sniffing=#3b82f6(azul), Grooming=#ec4899(rosa),
     // Resting=#6b7280(cinza), Rearing=#f97316(laranja)
@@ -137,15 +183,15 @@ Item {
         "#ef4444",  // vermelho      G1
         "#eab308",  // amarelo       G2
         "#8b5cf6",  // violeta       G3
-        "#d946ef",  // fÃºcsia        G4
-        "#6366f1",  // Ã­ndigo        G5
+        "#d946ef",  // fúcsia        G4
+        "#6366f1",  // índigo        G5
         "#dc2626",  // vermelho esc  G6
         "#ca8a04",  // ouro          G7
         "#7c3aed",  // violeta esc   G8
         "#c026d3",  // magenta       G9
         "#be123c",  // carmim        G10
         "#a21caf",  // magenta esc   G11
-        "#4f46e5"   // Ã­ndigo esc    G12
+        "#4f46e5"   // índigo esc    G12
     ]
 
     function bsoidRuleName(ruleId) {
@@ -161,7 +207,7 @@ Item {
         var csvPath = sessionPath + "/bsoid_features_campo" + (campo + 1) + "_tmp.csv"
         var ok = liveRecordingTab.exportBehaviorFeatures(csvPath, campo)
         if (!ok) { root.bsoidError = LanguageManager.tr3("Nenhum dado de features disponivel. Execute uma analise primeiro.", "No feature data available. Run an analysis first.", "No hay datos de features disponibles. Ejecute un analisis primero."); return }
-        // Captura FPS e caminho do vÃ­deo para timeline e snippets
+        // Captura FPS e caminho do vídeo para timeline e snippets
         root.bsoidFps       = (liveRecordingTab.dlcFps > 0) ? liveRecordingTab.dlcFps : 30.0
         root.bsoidVideoPath = liveRecordingTab.videoPath
         root.bsoidRunning    = true
@@ -187,38 +233,39 @@ Item {
     Connections {
         target: ExperimentManager
 
-        onErrorOccurred: errorToast.show(message)
+        function onErrorOccurred(message) { errorToast.show(message) }
 
-        onExperimentCreated: {
+        function onExperimentCreated(name, path) {
             successToast.show(LanguageManager.tr3("Experiment \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" created!", "\" created!", "\" creado!"))
             experimentList.selectExperimentByName(name)
             innerTabs.currentIndex = 0
         }
 
-        onExperimentDeleted: {
+        function onExperimentDeleted(name) {
             successToast.show(LanguageManager.tr3("Experiment \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" deleted.", "\" deleted.", "\" eliminado."))
-            if (workArea.selectedName === name) {
-                workArea.selectedName = ""
-                workArea.selectedPath = ""
-                workStack.currentIndex = 0
-                experimentList.currentIndex = -1
-            }
+            root._syncSelectionWithModel()
         }
 
-        onSessionDataInserted: {
+        function onSessionDataInserted(experimentName, sessionPath) {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show(LanguageManager.tr3("Session saved!", "Session saved!", "Sesion guardada!"))
-                innerTabs.currentIndex = 2  // aba ClassificaÃ§Ã£o
+                innerTabs.currentIndex = 2  // aba Classificação
             }
         }
+    }
+
+    Connections {
+        target: ExperimentManager.model
+        function onRowsRemoved() { root._syncSelectionWithModel() }
+        function onModelReset() { root._syncSelectionWithModel() }
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -263,13 +310,13 @@ Item {
             }
         }
 
-        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -390,7 +437,7 @@ Item {
                 }
             }
 
-            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -401,6 +448,7 @@ Item {
                 property bool   includeDrug:      true
                 property bool   hasObjectZones:   true
                 property string analysisMode:     "offline"
+                property string cameraId:         ""
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
                 property var    dayNames:         []
@@ -433,11 +481,11 @@ Item {
                         ArenaConfigModel.loadConfigFromPath(path)
                     }
 
-                    // Propaga pontos de arena para aba GravaÃ§Ã£o
+                    // Propaga pontos de arena para aba Gravação
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                     liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
                     
-                    // Propaga zonas se hasObjectZones; limpa explicitamente se nÃ£o
+                    // Propaga zonas se hasObjectZones; limpa explicitamente se não
                     if (workArea.hasObjectZones) {
                         var src = ArenaConfigModel.zones || []
                         if (src.length > 0) {
@@ -460,14 +508,14 @@ Item {
                 }
 
                 ExperimentTableModel { id: tableModel }
-                Connections { target: tableModel; onModelReset: workArea.colCount = tableModel.columnCount() }
+                Connections { target: tableModel; function onModelReset() { workArea.colCount = tableModel.columnCount() } }
 
                 StackLayout {
                     id: workStack
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Ãndice 0: placeholder "selecione um experimento"
+                    // Índice 0: placeholder "selecione um experimento"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
@@ -481,11 +529,11 @@ Item {
                         }
                     }
 
-                    // Ãndice 1: painel com abas
+                    // Índice 1: painel com abas
                     ColumnLayout {
                         spacing: 0
 
-                        // â”€â”€ Barra de abas interna â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                        // â"€â"€ Barra de abas interna â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -553,9 +601,9 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // â”€â”€ Tab 0: Arena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // â"€â"€ Tab 0: Arena â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                             Item {
-                                // ArenaSetup padrÃ£o â€” 2 ou 3 campos
+                                // ArenaSetup padrão â€" 2 ou 3 campos
                                 ArenaSetup {
                                     id: tabArenaSetup
                                     anchors.fill: parent
@@ -568,8 +616,10 @@ Item {
                                     ccMode: true
                                     showObjectZones: workArea.hasObjectZones
 
-                                    onAnalysisModeChangedExternally: mode => {
+                                    onAnalysisModeChangedExternally: function(mode) {
                                         workArea.analysisMode = mode
+                                        workArea.cameraId     = tabArenaSetup.cameraId
+                                        if (mode !== "offline") workArea.saveDirectory = tabArenaSetup.saveDirectory
                                     }
                                     onZonasEditadas: {
                                         if (workArea.activeNumCampos === 1) return
@@ -579,7 +629,7 @@ Item {
                                     }
                                 }
 
-                                // EIArenaSetup â€” 1 campo (arena EI adaptada para CC)
+                                // EIArenaSetup â€" 1 campo (arena EI adaptada para CC)
                                 EIArenaSetup {
                                     id: eiArenaSetupCC
                                     anchors.fill: parent
@@ -589,8 +639,10 @@ Item {
                                     primaryColor:   "#7a3dab"
                                     secondaryColor: "#6a2d9a"
 
-                                    onAnalysisModeChangedExternally: mode => {
+                                    onAnalysisModeChangedExternally: function(mode) {
                                         workArea.analysisMode = mode
+                                        workArea.cameraId     = eiArenaSetupCC.cameraId
+                                        if (mode !== "offline") workArea.saveDirectory = eiArenaSetupCC.saveDirectory
                                     }
                                     onZonasEditadas: {
                                         liveRecordingTab.zones       = []
@@ -600,11 +652,14 @@ Item {
                                 }
                             }
 
-                            // â”€â”€ Tab 1: GravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // â"€â"€ Tab 1: Gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                             LiveRecording {
                                 id: liveRecordingTab
-                                videoPath: workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
+                                videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                saveDirectory: workArea.saveDirectory
+                                liveOutputName: workArea.activeNumCampos === 1 ? eiArenaSetupCC.liveOutputName : tabArenaSetup.liveOutputName
+                                cameraId:     workArea.cameraId
                                 numCampos:    workArea.activeNumCampos
                                 aparato:      workArea.activeNumCampos === 1 ? "esquiva_inibitoria" : "comportamento_complexo"
                                 ccMode:       true
@@ -631,10 +686,19 @@ Item {
                                     ccResultDialog.experimentName = workArea.selectedName
                                     ccResultDialog.experimentPath = workArea.selectedPath
                                     ccResultDialog.numCampos      = workArea.activeNumCampos
-                                    ccResultDialog.videoPath      = workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
+                                    ccResultDialog.videoPath      = workArea.analysisMode === "ao_vivo"
+                                                                    ? ((liveRecordingTab.liveRecordedVideoPath && liveRecordingTab.liveRecordedVideoPath !== "")
+                                                                       ? liveRecordingTab.liveRecordedVideoPath
+                                                                       : ("camera://" + workArea.cameraId))
+                                                                    : (workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath)
                                     ccResultDialog.dayNames       = workArea.dayNames
                                     ccResultDialog.sessionMinutes = workArea.sessionMinutes || 5
                                     ccResultDialog.open()
+                                }
+
+                                onLiveAnalysisStarting: {
+                                    tabArenaSetup.stopCameraPreview()
+                                    eiArenaSetupCC.stopCameraPreview()
                                 }
 
                                 onRequestVideoLoad: {
@@ -642,7 +706,7 @@ Item {
                                 }
                             }
 
-                            // â”€â”€ Tab 2: ClassificaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                            // â"€â"€ Tab 2: Classificação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                             Item {
                                 id: classificationTab
 
@@ -663,7 +727,7 @@ Item {
                                             anchors.topMargin: 28
                                             spacing: 20
 
-                                            // TÃ­tulo
+                                            // Título
                                             RowLayout {
                                                 Layout.alignment: Qt.AlignHCenter
                                                 spacing: 12
@@ -822,7 +886,7 @@ Item {
                                                 Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
                                             }
 
-                                            // Card B-SOiD (pÃ³s-sessÃ£o â€” interativo)
+                                            // Card B-SOiD (pós-sessão â€" interativo)
                                             Rectangle {
                                                 Layout.fillWidth: true; radius: 12
                                                 color: ThemeManager.surfaceDim
@@ -836,7 +900,7 @@ Item {
                                                     anchors { fill: parent; margins: 14 }
                                                     spacing: 12
 
-                                                    // Header: tÃ­tulo + status + botÃ£o
+                                                    // Header: título + status + botão
                                                     RowLayout {
                                                         spacing: 10
                                                         Text { text: "\uD83D\uDD2C"; font.pixelSize: 18 }
@@ -924,7 +988,7 @@ Item {
                                                             }
                                                         }
 
-                                                        // BotÃ£o Analisar
+                                                        // Botão Analisar
                                                         Button {
                                                             visible: !root.bsoidRunning
                                                             text: root.bsoidDone ? LanguageManager.tr3("Reanalisar", "Re-analyze", "Reanalizar") : LanguageManager.tr3("Analisar", "Analyze", "Analizar")
@@ -943,7 +1007,7 @@ Item {
                                                             leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
                                                         }
 
-                                                        // Spinner durante anÃ¡lise
+                                                        // Spinner durante análise
                                                         BusyIndicator {
                                                             visible: root.bsoidRunning
                                                             width: 28; height: 28
@@ -973,7 +1037,7 @@ Item {
                                                         wrapMode: Text.WordWrap; Layout.fillWidth: true
                                                     }
 
-                                                    // Texto de ajuda (apenas antes da anÃ¡lise)
+                                                    // Texto de ajuda (apenas antes da análise)
                                                     Text {
                                                         visible: !root.bsoidDone && !root.bsoidRunning && root.bsoidError === ""
                                                         text: LanguageManager.tr3("Clique em Analisar apos finalizar a gravacao. O algoritmo analisa os dados de trajetoria coletados e descobre grupos comportamentais adicionais as regras nativas.", "Click Analyze after recording ends. The algorithm analyzes trajectory data and discovers behavioral groups in addition to native rules.", "Haga clic en Analizar despues de finalizar la grabacion. El algoritmo analiza los datos de trayectoria y descubre grupos conductuales adicionales a las reglas nativas.")
@@ -982,7 +1046,7 @@ Item {
                                                         Behavior on color { ColorAnimation { duration: 150 } }
                                                     }
 
-                                                    // â”€â”€ EstatÃ­sticas por comportamento (pÃ³s B-SOiD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                                                    // â"€â"€ Estatísticas por comportamento (pós B-SOiD) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone && root.behaviorStats.length > 0
                                                         Layout.fillWidth: true; spacing: 6
@@ -996,7 +1060,7 @@ Item {
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // CabeÃ§alho tabela
+                                                        // Cabeçalho tabela
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 0
                                                             Text { text: LanguageManager.tr3("Comportamento", "Behavior", "Comportamiento"); width: 100; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold }
@@ -1105,7 +1169,7 @@ Item {
                                                                         }
                                                                     }
 
-                                                                    // Campo de nomeaÃ§Ã£o do grupo
+                                                                    // Campo de nomeação do grupo
                                                                     RowLayout {
                                                                         spacing: 6
                                                                         Text {
@@ -1116,7 +1180,7 @@ Item {
                                                                         TextField {
                                                                             id: groupNameField
                                                                             Layout.fillWidth: true; height: 26
-                                                                            // Sem binding reativo â€” inicializa uma vez; onTextEdited atualiza o array
+                                                                            // Sem binding reativo â€" inicializa uma vez; onTextEdited atualiza o array
                                                                             Component.onCompleted: {
                                                                                 text = (root.bsoidGroupNames && root.bsoidGroupNames.length > grpIdx)
                                                                                        ? (root.bsoidGroupNames[grpIdx] || "") : ""
@@ -1146,7 +1210,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // â”€â”€ Timeline Dupla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                                                    // â"€â"€ Timeline Dupla â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone
                                                         Layout.fillWidth: true; spacing: 6
@@ -1160,7 +1224,7 @@ Item {
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // Linha 1 â€” Regras nativas
+                                                        // Linha 1 â€" Regras nativas
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
@@ -1176,7 +1240,7 @@ Item {
                                                             }
                                                         }
 
-                                                        // Linha 2 â€” Clusters B-SOiD
+                                                        // Linha 2 â€" Clusters B-SOiD
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
@@ -1213,7 +1277,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // â”€â”€ ExtraÃ§Ã£o de Clips de VÃ­deo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                                                    // â"€â"€ Extração de Clips de Vídeo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
                                                     ColumnLayout {
                                                         visible: root.bsoidDone
                                                         Layout.fillWidth: true; spacing: 6
@@ -1322,7 +1386,7 @@ Item {
                                 }
                             }
 
-                            // â”€â”€ Tab 3: Dados â€” Layout aparato-especÃ­fico
+                            // â"€â"€ Tab 3: Dados â€" Layout aparato-específico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -1335,18 +1399,18 @@ Item {
         }
     }
 
-    // â”€â”€ DiÃ¡logo de resultado CC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Diálogo de resultado CC â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     CCMetadataDialog {
         id: ccResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
     }
 
-    // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     Toast { id: successToast; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 
-    // â”€â”€ Popup delete â€” Passo 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Popup delete â€" Passo 1 â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400
@@ -1386,7 +1450,7 @@ Item {
         }
     }
 
-    // â”€â”€ Popup delete â€” Passo 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Popup delete â€" Passo 2 â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent; width: 420
@@ -1440,5 +1504,3 @@ Item {
         }
     }
 }
-
-

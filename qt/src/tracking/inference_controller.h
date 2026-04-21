@@ -3,6 +3,10 @@
 #include <QMediaPlayer>
 #include <QVideoSink>
 #include <QVideoFrame>
+#include <QCamera>
+#include <QMediaCaptureSession>
+#include <QMediaDevices>
+#include <QMediaRecorder>
 #include "inference_engine.h"
 
 // ── Inference Controller ───────────────────────────────────────────────────
@@ -30,6 +34,17 @@ public:
     Q_INVOKABLE void setFullFrameMode(bool enabled);
     Q_INVOKABLE void startAnalysis(const QString& videoPath, const QString& modelDir);
     Q_INVOKABLE void stopAnalysis();
+    Q_INVOKABLE QVariantList listVideoInputs();
+    Q_INVOKABLE void startLiveAnalysis(const QString& cameraName, const QString& modelDir);
+    Q_INVOKABLE void startLiveAnalysis(const QString& cameraName,
+                                       const QString& modelDir,
+                                       const QString& saveDirectory,
+                                       const QString& preferredFileName,
+                                       int preferredWidth,
+                                       int preferredHeight,
+                                       double preferredFps);
+    Q_INVOKABLE QString liveRecordingPath() const;
+    Q_INVOKABLE void setLivePreviewOutput(QObject* videoOutput);  // QML VideoOutput para display ao vivo
     Q_INVOKABLE void setPlaybackRate(double rate);
     Q_INVOKABLE qint64 position() const;
     Q_INVOKABLE void seekTo(qint64 ms);
@@ -54,12 +69,22 @@ private slots:
 private:
     void setAnalyzing(bool v);
 
-    QMediaPlayer*    m_player;
-    QVideoSink*      m_videoSink;
-    InferenceEngine* m_engine;
+    QMediaPlayer*         m_player;
+    QVideoSink*           m_videoSink;
+    InferenceEngine*      m_engine;
+
+    // Live camera mode
+    bool                  m_isLiveMode     = false;
+    QCamera*              m_camera         = nullptr;
+    QMediaCaptureSession* m_captureSession = nullptr;
+    QMediaRecorder*       m_mediaRecorder  = nullptr;
+    QVideoSink*           m_livePreviewSink = nullptr;
+    QString               m_liveRecordingPath;
 
     bool m_isAnalyzing = false;
     bool m_modelReady  = false;
     int  m_videoW      = 0;
     int  m_videoH      = 0;
+    qint64 m_liveFpsWindowStartMs = 0;
+    int    m_liveFpsFrameCount    = 0;
 };

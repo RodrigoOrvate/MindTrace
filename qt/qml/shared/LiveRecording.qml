@@ -11,6 +11,9 @@ Item {
 
     // ── Propriedades injetadas pelo MainDashboard ─────────────────────────────
     property string videoPath: ""
+    property string saveDirectory: ""
+    property string liveOutputName: ""
+    property string cameraId: ""             // descrição da câmera para modo ao_vivo
     property string pair1: ""
     property string pair2: ""
     property string pair3: ""
@@ -77,6 +80,7 @@ Item {
 
     signal sessionEnded()
     signal requestVideoLoad()   // solicitado quando usuário quer carregar próximo vídeo
+    signal liveAnalysisStarting() // emitido antes de startLiveAnalysis — dashboards devem parar preview da arena
 
     // ── Estado interno ────────────────────────────────────────────────────────
     property bool isAnalyzing:   false
@@ -105,6 +109,14 @@ Item {
 
     // DLC-reported FPS (sent via FPS, signal)
     property double dlcFps:       30.0
+
+    // Diagnóstico ao vivo (visível apenas no modo ao_vivo)
+    property string liveCameraName: ""
+    property string liveRecordedVideoPath: ""
+    property int    liveFrameCount: 0
+    property int    _lastFpsFrameCount: 0
+    property double _lastFpsTimestampMs: 0
+    property double _lastFpsLogTimestampMs: 0
 
     // Exploração por zona (6 zonas — 2 por campo)
     property var explorationTimes: [0, 0, 0, 0, 0, 0]
@@ -244,12 +256,21 @@ Item {
         }
         function onFpsReceived(fps) {
             recordingRoot.dlcFps = fps
-            logModel.append({ msg: "FPS: " + fps.toFixed(2), isErr: false })
-            logView.positionViewAtEnd()
+            var nowMs = Date.now()
+            if (recordingRoot.isOffline || nowMs - recordingRoot._lastFpsLogTimestampMs >= 5000) {
+                recordingRoot._lastFpsLogTimestampMs = nowMs
+                logModel.append({ msg: "FPS: " + fps.toFixed(2), isErr: false })
+                logView.positionViewAtEnd()
+            }
         }
         function onInfoReceived(message) {
             logModel.append({ msg: localizeBackendInfo(message), isErr: false })
             logView.positionViewAtEnd()
+            // Captura nome da câmera emitido por startLiveAnalysis
+            if (!recordingRoot.isOffline && message.indexOf("📹") >= 0)
+                recordingRoot.liveCameraName = message.replace("📹 Câmera: ", "").replace("📹 Camera: ", "")
+            if (message.indexOf("Live recording file: ") === 0)
+                recordingRoot.liveRecordedVideoPath = message.substring("Live recording file: ".length)
         }
         function onReadyReceived() {
             recordingRoot._dlcReady = true
@@ -257,6 +278,24 @@ Item {
             logView.positionViewAtEnd()
         }
         function onTrackReceived(campo, x, y, p) {
+            // Conta frames ao vivo para diagnóstico
+            if (!recordingRoot.isOffline && campo === 0) {
+                recordingRoot.liveFrameCount++
+                var nowMs = Date.now()
+                if (recordingRoot._lastFpsTimestampMs <= 0) {
+                    recordingRoot._lastFpsTimestampMs = nowMs
+                    recordingRoot._lastFpsFrameCount = recordingRoot.liveFrameCount
+                } else {
+                    var dt = nowMs - recordingRoot._lastFpsTimestampMs
+                    if (dt >= 1000) {
+                        var df = recordingRoot.liveFrameCount - recordingRoot._lastFpsFrameCount
+                        if (df >= 0) recordingRoot.dlcFps = (df * 1000.0) / dt
+                        recordingRoot._lastFpsTimestampMs = nowMs
+                        recordingRoot._lastFpsFrameCount = recordingRoot.liveFrameCount
+                    }
+                }
+            }
+            if (recordingRoot.fieldFinished[campo]) return
             // Nose position — direct signal from C++ ONNX inference
             if (recordingRoot.videoWidth <= 0 || recordingRoot.videoHeight <= 0) return
             var nx = recordingRoot.ratNormX.slice()
@@ -276,6 +315,7 @@ Item {
             recordingRoot.ratLikelihood = nl
         }
         function onBodyReceived(campo, x, y, p) {
+            if (recordingRoot.fieldFinished[campo]) return
             if (recordingRoot.videoWidth <= 0 || recordingRoot.videoHeight <= 0) return
             var bx = recordingRoot.bodyNormX.slice()
             var by = recordingRoot.bodyNormY.slice()
@@ -296,6 +336,7 @@ Item {
             recordingRoot.bodyLikelihood = bl
         }
         function onBehaviorReceived(campo, labelId) {
+            if (recordingRoot.fieldFinished[campo]) return
             var bs = recordingRoot.currentBehaviorString.slice()
             if (labelId === -1) {
                 bs[campo] = "---"
@@ -358,6 +399,20 @@ Item {
                         var ff = recordingRoot.fieldFinished.slice()
                         ff[i] = true
                         recordingRoot.fieldFinished = ff
+                        for (var zf = 0; zf < 2; zf++) {
+                            var ziField = i * 2 + zf
+                            if (recordingRoot._inZone[ziField]) {
+                                var durField = (Date.now() - recordingRoot._entryTime[ziField]) / 1000.0
+                                if (durField > 0.1) {
+                                    var eb = recordingRoot.explorationBouts.slice()
+                                    var ebz = eb[ziField] ? eb[ziField].slice() : []
+                                    ebz.push(parseFloat(durField.toFixed(1)))
+                                    eb[ziField] = ebz
+                                    recordingRoot.explorationBouts = eb
+                                }
+                                recordingRoot._inZone[ziField] = false
+                            }
+                        }
                     logModel.append({ msg: LanguageManager.tr3("Field ", "Field ", "Campo ") + (i+1) + LanguageManager.tr3(" finished!", " finished!", " finalizado!"), isErr: false })
                     logView.positionViewAtEnd()
                     }
@@ -403,8 +458,13 @@ Item {
     // ── Funções de controle ───────────────────────────────────────────────────
     function startSession() {
         if (isAnalyzing) return
-        if (videoPath === "" || videoPath === "file:///") {
-            logModel.append({ msg: LanguageManager.tr3("Select a video in the Arena tab first.", "Select a video in the Arena tab first.", "Seleccione primero un video en la pestana Arena."), isErr: true })
+        if (analysisMode !== "ao_vivo" && (videoPath === "" || videoPath === "file:///")) {
+            logModel.append({ msg: LanguageManager.tr3("Selecione um video na aba Arena primeiro.", "Select a video in the Arena tab first.", "Seleccione primero un video en la pestana Arena."), isErr: true })
+            logView.positionViewAtEnd()
+            return
+        }
+        if (analysisMode === "ao_vivo" && cameraId === "") {
+            logModel.append({ msg: LanguageManager.tr3("Selecione uma camera na aba Arena primeiro.", "Select a camera in the Arena tab first.", "Seleccione primero una camara en la pestana Arena."), isErr: true })
             logView.positionViewAtEnd()
             return
         }
@@ -446,19 +506,39 @@ Item {
         _explorationTick = 0
         _dlcReady        = false
         eiLatencySeconds = -1
+        liveFrameCount   = 0
+        _lastFpsFrameCount = 0
+        _lastFpsTimestampMs = 0
+        _lastFpsLogTimestampMs = 0
+        liveCameraName   = ""
+        liveRecordedVideoPath = ""
         logModel.clear()
         logModel.append({ msg: LanguageManager.tr3("Loading native inference engine...", "Loading native inference engine...", "Cargando motor nativo de inferencia..."), isErr: false })
         logView.positionViewAtEnd()
-        // Start display player immediately
-        var pr = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
-        displayPlayer.source = videoPath
-        displayPlayer.playbackRate = pr
-        displayPlayer.play()
         // EI e 1-campo usam frame completo (720×480); demais usam quadrantes
         inference.setFullFrameMode(aparato === "esquiva_inibitoria" || numCampos === 1)
-        // Start C++ backend (Model load + frame capture)
-        inference.startAnalysis(videoPath, "")
-        if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
+        if (recordingRoot.isOffline) {
+            // Modo offline: MediaPlayer reproduz arquivo de vídeo
+            var pr = recordingRoot.playbackRate
+            displayPlayer.videoOutput = framePreviewMaster
+            inference.setLivePreviewOutput(null)
+            displayPlayer.source = videoPath
+            displayPlayer.playbackRate = pr
+            displayPlayer.play()
+            inference.startAnalysis(videoPath, "")
+            if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
+        } else {
+            // Modo ao vivo: câmera USB — sem MediaPlayer
+            // Sinaliza dashboards para parar preview da arena (libera câmera para inferência)
+            liveAnalysisStarting()
+            displayPlayer.videoOutput = null
+            displayPlayer.source = ""
+            inference.startLiveAnalysis(recordingRoot.cameraId, "", recordingRoot.saveDirectory, recordingRoot.liveOutputName, 1920, 1080, 60.0)
+            // Conecta o CaptureSession C++ ao VideoOutput para exibir o feed ao vivo
+            Qt.callLater(function() {
+                inference.setLivePreviewOutput(framePreviewMaster)
+            })
+        }
         isAnalyzing = true
     }
 
@@ -476,6 +556,8 @@ Item {
         }
         explorationBouts = nb
         inference.stopAnalysis()
+        inference.setLivePreviewOutput(null)
+        displayPlayer.videoOutput = framePreviewMaster
         displayPlayer.stop()
         isAnalyzing = false
         logModel.append({ msg: LanguageManager.tr3("Sessao parada.", "Session stopped.", "Sesion detenida."), isErr: false })
@@ -510,6 +592,7 @@ Item {
         for (var i = 0; i < 6; i++) newBouts.push(explorationBouts[i].slice())
         var boutsChanged = false
         for (var campo = 0; campo < 3; campo++) {
+            if (recordingRoot.fieldFinished[campo]) continue
             var rx, ry, rli;
             if (recordingRoot.aparato === "campo_aberto") {
                 rx  = recordingRoot.bodyNormX[campo]
@@ -642,6 +725,12 @@ Item {
         ]
 
         for (var ci = 0; ci < 3; ci++) {
+            if (recordingRoot.fieldFinished[ci]) {
+                newVel[ci] = 0.0
+                newPBLX[ci] = -1.0
+                newPBLY[ci] = -1.0
+                continue
+            }
             var blx = bodyLocalX(ci)
             var bly = bodyLocalY(ci)
             var bl  = bodyLikelihood[ci]
@@ -904,9 +993,10 @@ Item {
                                     anchors.fill: parent
                                     sourceItem: framePreviewMaster
                                     sourceRect: {
-                                        if (!framePreviewMaster || framePreviewMaster.width === 0)
+                                        var _vo = framePreviewMaster
+                                        if (!_vo || _vo.width === 0)
                                             return Qt.rect(0, 0, 0, 0)
-                                        var cr = framePreviewMaster.contentRect
+                                        var cr = _vo.contentRect
                                         if (recordingRoot.aparato === "esquiva_inibitoria") return cr
                                         var cw = cr.width / 2
                                         var ch = cr.height / 2
@@ -1225,6 +1315,7 @@ Item {
 
                         // Qt 6: VideoOutput não tem "source". O MediaPlayer referencia
                         // o VideoOutput via sua propriedade "videoOutput".
+                        // Offline: fed by MediaPlayer. Live: fed by C++ CaptureSession via setLivePreviewOutput.
                         VideoOutput {
                             id: framePreviewMaster
                             anchors.fill: parent
@@ -1232,11 +1323,11 @@ Item {
                             opacity: 0.45
                         }
 
-                        // Estado da análise sobreposto
+                        // Estado da análise sobreposto (modo offline sem vídeo carregado)
                         Column {
                             anchors.centerIn: parent
                             spacing: 6
-                            visible: !recordingRoot.isAnalyzing
+                            visible: !recordingRoot.isAnalyzing && recordingRoot.isOffline
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -1247,6 +1338,70 @@ Item {
                                 text: recordingRoot.videoPath !== "" ? LanguageManager.tr3("Video pronto\npressione Iniciar", "Video ready\npress Start", "Video listo\npresione Iniciar") : LanguageManager.tr3("Carregue um video\nna aba Arena", "Load a video\nin the Arena tab", "Cargue un video\nen la pestana Arena")
                                 color: "#444466"; font.pixelSize: 9
                                 horizontalAlignment: Text.AlignHCenter
+                            }
+                        }
+
+                        // Overlay modo ao vivo — câmera pronta para iniciar
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            visible: !recordingRoot.isAnalyzing && !recordingRoot.isOffline
+
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: "📹"; font.pixelSize: 20; opacity: 0.6
+                            }
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: recordingRoot.cameraId !== ""
+                                      ? LanguageManager.tr3("Camera selecionada\npressione Iniciar", "Camera selected\npress Start", "Camara seleccionada\npresione Iniciar")
+                                      : LanguageManager.tr3("Selecione uma camera\nna aba Arena", "Select a camera\nin the Arena tab", "Seleccione una camara\nen la pestana Arena")
+                                color: "#446644"; font.pixelSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                visible: recordingRoot.cameraId !== ""
+                                text: recordingRoot.cameraId
+                                color: "#5aaa70"; font.pixelSize: 8
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+                                width: 120
+                            }
+                        }
+
+                        // Painel de diagnóstico ao vivo (visível durante análise ao vivo)
+                        Rectangle {
+                            anchors { top: parent.top; left: parent.left; margins: 5 }
+                            visible: !recordingRoot.isOffline && recordingRoot.isAnalyzing
+                            color: "#cc000010"; radius: 5
+                            border.color: "#5aaa70"; border.width: 1
+                            width: liveDiagCol.implicitWidth + 14
+                            height: liveDiagCol.implicitHeight + 10
+
+                            Column {
+                                id: liveDiagCol
+                                anchors.centerIn: parent
+                                spacing: 3
+
+                                Text {
+                                    text: "📹 AO VIVO"
+                                    color: "#5aff80"; font.pixelSize: 9; font.weight: Font.Bold
+                                }
+                                Text {
+                                    visible: recordingRoot.liveCameraName !== ""
+                                    text: recordingRoot.liveCameraName
+                                    color: "#aaffcc"; font.pixelSize: 8
+                                    elide: Text.ElideRight; width: 120
+                                }
+                                Text {
+                                    text: "FPS: " + recordingRoot.dlcFps.toFixed(0)
+                                    color: "#aaffcc"; font.pixelSize: 8
+                                }
+                                Text {
+                                    text: "Frames: " + recordingRoot.liveFrameCount
+                                    color: "#aaffcc"; font.pixelSize: 8
+                                }
                             }
                         }
 
@@ -1300,7 +1455,9 @@ Item {
                             Behavior on border.color { ColorAnimation { duration: 120 } }
                             Text {
                                 anchors.centerIn: parent
-                                text: LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
+                                text: recordingRoot.isOffline
+                                      ? LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
+                                      : LanguageManager.tr3("Configurar Ao Vivo", "Setup Live", "Configurar En Vivo")
                                 color: ThemeManager.textSecondary; font.pixelSize: 11; font.bold: true
                             }
                             MouseArea {
@@ -1399,7 +1556,11 @@ Item {
                     }
 
                     Text {
-                        text: recordingRoot.aparato === "campo_aberto" ? LanguageManager.tr3("EXPLORACAO DE CAMPO", "FIELD EXPLORATION", "EXPLORACION DE CAMPO") : recordingRoot.aparato === "comportamento_complexo" ? LanguageManager.tr3("EXPLORACAO GERAL", "GENERAL EXPLORATION", "EXPLORACION GENERAL") : LanguageManager.tr3("EXPLORACAO DE OBJETOS", "OBJECT EXPLORATION", "EXPLORACION DE OBJETOS")
+                        text: recordingRoot.aparato === "campo_aberto"
+                              ? LanguageManager.tr3("EXPLORACAO DE CAMPO", "FIELD EXPLORATION", "EXPLORACION DE CAMPO")
+                              : (recordingRoot.aparato === "comportamento_complexo" || recordingRoot.aparato === "esquiva_inibitoria")
+                                ? LanguageManager.tr3("EXPLORACAO GERAL", "GENERAL EXPLORATION", "EXPLORACION GENERAL")
+                                : LanguageManager.tr3("EXPLORACAO DE OBJETOS", "OBJECT EXPLORATION", "EXPLORACION DE OBJETOS")
                         color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold
                         font.letterSpacing: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -1673,5 +1834,3 @@ Item {
         }
     }
 }
-
-

@@ -424,6 +424,22 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | Aba Dados EI com cor verde em vez de amarelo | `EIDataView.qml` tinha `accentColor: "#2f7a4b"` (verde). Alterado para `"#c8a000"` (amarelo). |
 | Popup EI nunca aparecia (mesmo com vídeo terminado) | `EIMetadataDialog` estava com `parent: root` (Item do dashboard) em vez de `parent: Overlay.overlay`. Corrigido para `Overlay.overlay` + `anchors.centerIn: parent`. |
 | Impossível reaproveitar configuração de arena entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: lê config do experimento fonte via `ArenaConfigModel`, detecta shape (quadrada/retangular por bounding-box ratio) e tipo de zona (`zoneCount≥4`=objetos, `floorPoints≥8`=plataforma_grade, else=padrão), exibe popup de aviso se incompatível, confirma → recarrega config. |
+| Ícones sumindo após implementação de traduções | Emoji de 4 bytes (ex: 🧠, 📋) corrompidos por double-UTF-8 ao editar arquivos com encoding errado. Corrigido com replacement binário exato por arquivo. Smart quotes (U+201C/U+201D) introduzidas como delimitadores de string causavam parse error; substituídas por ASCII `"` em todos os QML. |
+| Acentos corrompidos em dashboards (PadrÃ£o, Ã‰rea) | Double-encoding de 128 caracteres Unicode U+0080–U+00FF nos mesmos arquivos. `ExperimentManager.loadContext("PadrÃ£o")` falhava silenciosamente deixando lista vazia no EIDashboard. Corrigido com script Python que gerou e aplicou todos os pares de substituição C383/C382 + C2 → bytes originais. |
+| EIDashboard vazio ao criar novo experimento | `loadContext("PadrÃ£o", "esquiva_inibitoria")` (double-encoding de "Padrão") não encontrava o contexto → lista de experimentos ficava vazia → `initialSelectTimer` nunca selecionava o experimento criado. Corrigido pelo fix de double-encoding acima. |
+| "EXPLORAÇÃO DE OBJETOS" visível na aba Gravação do EI | Label usava fallback NOR para `aparato === "esquiva_inibitoria"`. Adicionada condição para mostrar "EXPLORAÇÃO GERAL" igual ao CC. |
+| Start no modo ao_vivo bloqueado por falta de videoPath | `startSession()` checava `videoPath === ""` antes do modo. Adicionada condição `analysisMode !== "ao_vivo"` para bypass; erro específico quando `cameraId === ""` no modo ao vivo. |
+| Aba Arena sem preview de câmera ao vivo | `CaptureSession` + `Camera` adicionados em `ArenaSetup.qml` e `EIArenaSetup.qml`. Ao selecionar câmera, `arenaCamera.active = true` alimenta o `framePreview` (mesmo VideoOutput usado offline). `ShaderEffectSource` nos campos atualizado para `visible` quando modo ao_vivo ativo. |
+| Seleção de câmera (modo ao_vivo) não navegava para aba Gravação | `onAnalysisModeChangedExternally` em todos os 4 dashboards não trocava de aba. Adicionado `if (mode === "ao_vivo") Qt.callLater(function() { innerTabs.currentIndex = 1 })` em NORDashboard, CADashboard (2 handlers), CCDashboard (2 handlers) e EIDashboard. |
+| Botão "Carregar Video" sem feedback visual no modo câmera | Botão mostrava estado "vazio" mesmo após selecionar câmera. Atualizado em `ArenaSetup.qml` e `EIArenaSetup.qml`: mostra "📹 Camera Selecionada" (verde) quando `analysisMode === "ao_vivo" && cameraId !== ""`. |
+| Diálogo "Salvar em" sem botão de browse | Campo de diretório tinha apenas TextInput sem botão de abrir janela nativa. Adicionado `FolderDialog` do Qt Quick Dialogs + botão "Pesquisar" em `ArenaSetup.qml` e `EIArenaSetup.qml`. |
+| Texto dev-mode não traduzível | Hint bar do dev-mode usava string literal. Migrado para `LanguageManager.tr3()` com unicode escapes `\u{1F527}` / `\u{1F5B1}` para evitar corrupção de emoji. |
+| Frames: 0 e tela preta na aba Gravação (ao vivo) | `startLiveAnalysis` chamava `m_captureSession->setVideoOutput(m_liveSink)` passando `QVideoSink*` para o método de display. Correto é `setVideoSink(m_liveSink)`. Segundo problema: `displayPlayer.source = ""` matava o `framePreviewMaster` sem nova fonte. Corrigido com `InferenceController::setLivePreviewOutput(QObject*)` que chama `m_captureSession->setVideoOutput(videoOutput)`, alimentando o `VideoOutput` QML diretamente pelo `CaptureSession` do C++. |
+| Conflito de câmera entre ArenaSetup e inferência ao vivo | Dois `QMediaCaptureSession` tentavam abrir o mesmo device simultaneamente. Adicionado sinal `liveAnalysisStarting()` no `LiveRecording`; dashboards conectam ao `stopCameraPreview()` de `ArenaSetup`/`EIArenaSetup` que desativa `arenaCamera.active` antes do `startLiveAnalysis` C++ abrir a câmera. |
+| Tela verde ao vivo (Arena e Gravação) | `MediaPlayer` e `CaptureSession` apontavam estaticamente para o mesmo `VideoOutput` (`framePreview`/`framePreviewMaster`). Qt 6 não suporta dois provedores simultâneos no mesmo VideoOutput → tela verde. Corrigido: `CaptureSession` sem `videoOutput` estático; `_updateCameraPreview()` faz `videoPlayer.videoOutput = null` antes de `arenaCaptureSession.videoOutput = framePreview`. `LiveRecording` faz `displayPlayer.videoOutput = null` antes de `startLiveAnalysis`; restaura ao parar. |
+| `saveDirectory` não existe em `workArea` do EIDashboard | Handler `onAnalysisModeChangedExternally` do EI tentava `workArea.saveDirectory = ...` mas `workArea` (Item local) não tem essa propriedade. Removida a linha — EI sempre usa 1 campo e não precisa de `saveDirectory`. |
+| Tela verde ao vivo ainda persiste + `stopCameraPreview` not a function | **PENDENTE.** Abordagem atual (dois `VideoOutput` por arena: `framePreviewOffline`/`framePreviewLive`) ainda resulta em tela verde. Adicionalmente, `stopCameraPreview` foi acidentalmente removida de `ArenaSetup.qml` pelo script de simplificação de `_updateCameraPreview` (o script calculou `idx_end` como o `}` de `stopCameraPreview` em vez do `}` de `_updateCameraPreview`, porque `stopCameraPreview` ficou entre as duas funções e antes do `FileDialog`). **Para resolver:** (1) Re-adicionar `function stopCameraPreview() { arenaCamera.active = false }` em `ArenaSetup.qml` após `_updateCameraPreview`; (2) Diagnosticar root cause real do verde — verificar se o problema é NV12→RGB no shader Qt 6 com DroidCam, ou se a abordagem de dois VideoOutputs com `ShaderEffectSource` tem outro conflito. |
+| Live em 1080p com FPS real baixo (~22 FPS) | Perfil solicitado/aplicado pode mostrar 1920x1080 @ up to 60 FPS, mas FPS real ainda fica em ~22 no runtime atual. **PENDENTE (passo 2):** investigar gargalo ponta a ponta (fonte DroidCam/driver, formato de pixel, custo `toImage()`/conversão, throughput de inferência) para buscar **request alvo de 60 FPS reais**. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
@@ -633,3 +649,100 @@ JSON metadados:
   "droga": "saline"
 }
 ```
+
+## 🌐 Sistema de Idiomas (Implementado)
+
+Suporte a pt-BR, en-US e es-ES persistido em `mindtrace_settings.json`.
+
+### Arquitetura
+
+| Componente | Localização | Responsabilidade |
+|---|---|---|
+| `LanguageSettings` (C++) | `src/settings/LanguageSettings.h/cpp` | Lê/escreve `language` em `mindtrace_settings.json` via `QStandardPaths::AppDataLocation` |
+| `LanguageManager.qml` | `qml/core/Theme/LanguageManager.qml` | Singleton QML; expõe `currentLanguage`, `tr3(pt, en, es)`, `toggleLanguage()` |
+| `qmldir` | `qml/core/Theme/qmldir` | Registra `LanguageManager` e `ThemeManager` como singletons — **obrigatório** |
+| `SettingsScreen.qml` | `qml/core/Theme/SettingsScreen.qml` | Selector de idioma com 3 botões PT / EN / ES |
+
+### Uso em QML
+
+```qml
+import "core/Theme" as Theme
+// Depois usar LanguageManager diretamente (singleton global após import)
+text: LanguageManager.tr3("Salvar", "Save", "Guardar")
+```
+
+### Regra de encoding para emoji em strings traduzidas
+
+Usar **unicode escapes** `\u{XXXXX}` — nunca embutir emoji literais em strings QML. O Edit tool pode re-codificar bytes suplementares e corromper o arquivo:
+
+```qml
+// CORRETO
+text: LanguageManager.tr3("\u{1F527} Dev Mode", "\u{1F527} Dev Mode", "\u{1F527} Dev Mode")
+// ERRADO — emoji literal pode corromper o arquivo ao editar
+text: LanguageManager.tr3("🔧 Dev Mode", "🔧 Dev Mode", "🔧 Dev Mode")
+```
+
+### Idioma padrão
+
+App sempre inicia em **pt-BR** na primeira execução. Preferência persistida em `mindtrace_settings.json` e restaurada via `LanguageSettings::language()` em `main.cpp`.
+
+---
+
+## 📹 Análise ao Vivo com Câmera (Implementado)
+
+Suporte a câmeras USB (DroidCam, Camo, IVCam ou qualquer UVC/webcam) como fonte de vídeo.
+
+### Arquitetura C++ (InferenceController)
+
+| Método | Descrição |
+|---|---|
+| `startLiveAnalysis(cameraId, modelDir)` | Inicia análise usando `QCamera` + `QMediaCaptureSession` + `QVideoSink` |
+| `listVideoInputs()` | Retorna `QStringList` com descrições de câmeras via `QMediaDevices::videoInputs()` |
+| `startAnalysis(videoPath, modelDir)` | Modo offline (inalterado) |
+
+Pipeline ao vivo:
+```
+QCamera → QMediaCaptureSession → QVideoSink
+  → videoFrameChanged → InferenceController::onVideoFrameChanged
+    → frame.toImage() → InferenceEngine::enqueueFrame
+      → (mesma cadeia do modo offline)
+```
+
+### UI — Seleção de Câmera
+
+Popup `analysisModePrompt` em `ArenaSetup.qml` e `EIArenaSetup.qml`:
+1. Usuário clica "Carregar Vídeo"
+2. Popup oferece "Vídeo" vs "Ao Vivo"
+3. Se "Ao Vivo": lista câmeras detectadas via `InferenceController.listVideoInputs()`
+4. Ao confirmar câmera: `analysisMode = "ao_vivo"`, `cameraId = <descrição>` e emite `analysisModeChangedExternally(mode)`
+
+### UX — Navegação Automática
+
+Ao selecionar câmera, todos os dashboards (NOR, CA, CC, EI) navegam automaticamente para a **aba Gravação** via `Qt.callLater` no handler `onAnalysisModeChangedExternally`.
+
+Botão "Carregar Vídeo" muda para **"📹 Camera Selecionada"** (verde) quando `analysisMode === "ao_vivo" && cameraId !== ""`.
+
+### Câmera USB via DroidCam
+
+- Instalar **DroidCam** no celular e no PC (Windows client)
+- Conectar celular por USB; o app cria dispositivo UVC virtual
+- O dispositivo aparece como "DroidCam Source" na lista de câmeras do MindTrace
+- Resolução recomendada: 720p / 30fps
+- 1 câmera física → 3 campos virtuais por corte de mosaico (360×240 cada)
+
+### Gravação ao vivo
+
+A gravação do stream (salvar vídeo da câmera) ainda não está implementada. A sessão ao vivo executa inferência em tempo real mas **não salva arquivo de vídeo**. Um aviso "Gravação não disponível no modo ao vivo" é exibido na UI.
+
+### Feed de Vídeo na Aba Gravação (ao vivo)
+
+`QMediaCaptureSession` suporta **dois destinos simultâneos**:
+- `setVideoSink(QVideoSink*)` — entrega raw frames para inferência C++
+- `setVideoOutput(QObject*)` — alimenta `VideoOutput` QML para display
+
+Fluxo ao iniciar sessão ao vivo:
+1. `liveAnalysisStarting()` — sinal emitido ANTES de `startLiveAnalysis`; dashboards param o preview da arena (`stopCameraPreview()`) para liberar a câmera
+2. `inference.startLiveAnalysis(cameraId, "")` — cria `QMediaCaptureSession` + `QVideoSink`
+3. `Qt.callLater(() => inference.setLivePreviewOutput(framePreviewMaster))` — conecta `VideoOutput` do painel de gravação ao `CaptureSession`
+
+Preview na aba Arena usa `CaptureSession` separado com `arenaCamera`/`eiArenaCamera` que são desativados ao iniciar análise.

@@ -27,24 +27,66 @@ Item {
             ExperimentManager.loadAllContexts("nor")
         }
 
-        // Nova lÃ³gica para abrir o experimento recÃ©m-criado
+        // Nova lógica para abrir o experimento recém-criado
         if (initialExperimentName !== "") {
             experimentList.selectExperimentByName(initialExperimentName)
             
-            // searchMode â†’ abre na aba Dados (Ã­ndice 2), criaÃ§Ã£o â†’ abre na Arena (Ã­ndice 0)
+            // searchMode â†’ abre na aba Dados (índice 2), criação â†’ abre na Arena (índice 0)
             innerTabs.currentIndex = root.currentTabIndex || 0
         }
     }
 
-    // true  â†’ dashboard aberto via "Criar" (experimento jÃ¡ foi criado externamente)
-    // false â†’ dashboard aberto via "Procurar" (sÃ³ browsing)
+    // true  â†’ dashboard aberto via "Criar" (experimento já foi criado externamente)
+    // false â†’ dashboard aberto via "Procurar" (só browsing)
 
     property string pendingDeleteName: ""
 
     signal backRequested()
 
-    // Em modo Criar: context muda de "" para "PadrÃ£o"/"Contextual" â†’ dispara scan.
-    // Em modo Procurar: context permanece "" â†’ loadAllContexts Ã© chamado em onCompleted.
+    function _isCurrentSelectionStillInModel() {
+        if (!workArea.selectedName || !workArea.selectedPath)
+            return false
+        var m = ExperimentManager.model
+        if (!m) return false
+        for (var i = 0; i < m.count; ++i) {
+            var idx = m.index(i, 0)
+            var name = m.data(idx, Qt.UserRole + 1)
+            var path = m.data(idx, Qt.UserRole + 2)
+            if (name === workArea.selectedName && path === workArea.selectedPath)
+                return true
+        }
+        return false
+    }
+
+    function _resetSelectionState() {
+        try {
+            if (liveRecordingTab && liveRecordingTab.isAnalyzing)
+                liveRecordingTab.stopSession()
+        } catch (e) {}
+        try {
+            if (tabArenaSetup && tabArenaSetup.stopCameraPreview)
+                tabArenaSetup.stopCameraPreview()
+        } catch (e2) {}
+
+        workArea.selectedName = ""
+        workArea.selectedPath = ""
+        workArea.analysisMode = "offline"
+        workArea.saveDirectory = ""
+        workArea.cameraId = ""
+        workStack.currentIndex = 0
+        innerTabs.currentIndex = 0
+        experimentList.currentIndex = -1
+    }
+
+    function _syncSelectionWithModel() {
+        if (!workArea.selectedName && !workArea.selectedPath)
+            return
+        if (!_isCurrentSelectionStillInModel())
+            _resetSelectionState()
+    }
+
+    // Em modo Criar: context muda de "" para "Padrão"/"Contextual" â†’ dispara scan.
+    // Em modo Procurar: context permanece "" â†’ loadAllContexts é chamado em onCompleted.
     onContextChanged: {
         if (!root.searchMode && context !== "")
             ExperimentManager.loadContext(context, "nor")
@@ -54,47 +96,48 @@ Item {
 
     Connections {
         target: ExperimentManager
-        
-        onErrorOccurred: errorToast.show(message)
-        
-        onExperimentCreated: {
+
+        function onErrorOccurred(message) { errorToast.show(message) }
+
+        function onExperimentCreated(name, path) {
             createPopup.close()
             successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" criado!", "\" created!", "\" creado!"))
 
             // 1. Seleciona automaticamente na lista lateral
             experimentList.selectExperimentByName(name)
 
-            // 2. Carrega a configuraÃ§Ã£o da arena do novo local
+            // 2. Carrega a configuração da arena do novo local
             ArenaConfigModel.loadConfigFromPath(path)
 
             // 3. Pula direto para a aba 0 (Arena)
             innerTabs.currentIndex = 0 
         }
 
-        onExperimentDeleted: {
+        function onExperimentDeleted(name) {
             successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluido.", "\" deleted.", "\" eliminado."))
-            if (workArea.selectedName === name) {
-                workArea.selectedName = ""
-                workArea.selectedPath = ""
-                workStack.currentIndex = 0
-                experimentList.currentIndex = -1
-            }
+            root._syncSelectionWithModel()
         }
 
         onSessionDataInserted: {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show(LanguageManager.tr3("Sessao registrada! Carregue o proximo video ou consulte a aba Dados.", "Session saved! Load the next video or check the Data tab.", "Sesion guardada! Cargue el siguiente video o revise la pestana Datos."))
-                innerTabs.currentIndex = 1 // Volta para GravaÃ§Ã£o â€” prontos para prÃ³xima sessÃ£o
+                innerTabs.currentIndex = 1 // Volta para Gravação â€" prontos para próxima sessão
             }
         }
+    }
+
+    Connections {
+        target: ExperimentManager.model
+        function onRowsRemoved() { root._syncSelectionWithModel() }
+        function onModelReset() { root._syncSelectionWithModel() }
     }
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -110,7 +153,7 @@ Item {
 
                 GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
 
-                Text { text: "ðŸ§ "; font.pixelSize: 20 }
+                Text { text: "🧠"; font.pixelSize: 20 }
 
                 Text {
                     text: root.searchMode
@@ -136,13 +179,13 @@ Item {
             }
         }
 
-        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -185,7 +228,7 @@ Item {
                                 // Compara o nome com o NameRole (Qt.UserRole + 1)
                                 if (model.data(model.index(i, 0), Qt.UserRole + 1) === name) {
                                     currentIndex = i; 
-                                    // Carrega os dados para a Ã¡rea de trabalho
+                                    // Carrega os dados para a área de trabalho
                                     var path = model.data(model.index(i, 0), Qt.UserRole + 2);
                                     workArea.loadExperiment(name, path);
                                     return;
@@ -270,7 +313,7 @@ Item {
                 }
             }
 
-            // â”€â”€ Ãrea de trabalho â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -279,7 +322,7 @@ Item {
                 property string selectedPath: ""
                 property int    colCount:     0
 
-                // â”€â”€ Dados do experimento carregados do metadata.json â”€â”€â”€â”€â”€â”€
+                // â"€â"€ Dados do experimento carregados do metadata.json â"€â"€â"€â"€â"€â"€
                 property int    activeNumCampos: root.numCampos
                 property string pair1:       ""
                 property string pair2:       ""
@@ -290,13 +333,14 @@ Item {
                 property bool   hasObjectZones: true
                 property string analysisMode: "offline"
                 property string saveDirectory: ""
+                property string cameraId: ""
 
-                // â”€â”€ SessÃ£o de gravaÃ§Ã£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                // Persistem entre rodadas (nÃ£o pedem ao usuÃ¡rio novamente)
+                // â"€â"€ Sessão de gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                // Persistem entre rodadas (não pedem ao usuário novamente)
                 property string sessionType: LanguageManager.tr3("Treino", "Training", "Entrenamiento")
-                readonly property bool isReactivationPhase: (sessionType === "ReativaÃ§Ã£o") || (sessionType === "Reactivation") || (sessionType === "Teste D2") || (sessionType === "Test D2") || (sessionType === "Teste D3") || (sessionType === "Test D3")
+                readonly property bool isReactivationPhase: (sessionType === "Reativação") || (sessionType === "Reactivation") || (sessionType === "Teste D2") || (sessionType === "Test D2") || (sessionType === "Teste D3") || (sessionType === "Test D3")
                 readonly property string sessionDia: {
-                    if (sessionType === "ReativaÃ§Ã£o" || sessionType === "Reactivation") return "2"
+                    if (sessionType === "Reativação" || sessionType === "Reactivation") return "2"
                     if (sessionType === "Teste D2" || sessionType === "Test D2") return "2"
                     if (sessionType === "Teste D3" || sessionType === "Test D3") return "3"
                     return "1"
@@ -313,7 +357,7 @@ Item {
                     var ctx = meta.context || ""
 
                     // Define o contexto ativo (usado pelo tracker/sessions)
-                    // Se estivermos em searchMode, a sidebar NÃƒO serÃ¡ limpa (graÃ§as ao m_inSearchMode no C++)
+                    // Se estivermos em searchMode, a sidebar NÃO será limpa (graças ao m_inSearchMode no C++)
                     ExperimentManager.setActiveContext(ctx)
 
                     pair1          = meta.pair1 || ""
@@ -326,10 +370,10 @@ Item {
                                       : [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Teste", "Test", "Prueba")])
                     activeNumCampos = meta.numCampos || 3
 
-                    // Carrega configuraÃ§Ã£o da arena usando o path direto (jÃ¡ atualizado no C++)
+                    // Carrega configuração da arena usando o path direto (já atualizado no C++)
                     ArenaConfigModel.loadConfigFromPath(path)
 
-                    // Se a arena jÃ¡ foi configurada (tem parId), pula para aba GravaÃ§Ã£o
+                    // Se a arena já foi configurada (tem parId), pula para aba Gravação
                     innerTabs.currentIndex = ArenaConfigModel.configured ? 1 : 0
                 }
 
@@ -337,7 +381,7 @@ Item {
 
                 Connections {
                     target: tableModel
-                    onModelReset: workArea.colCount = tableModel.columnCount()
+                    function onModelReset() { workArea.colCount = tableModel.columnCount() }
                 }
 
                 StackLayout {
@@ -351,7 +395,7 @@ Item {
                             anchors.centerIn: parent; spacing: 12
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: "ðŸ“‹"; font.pixelSize: 48; opacity: 0.3
+                                text: "📋"; font.pixelSize: 48; opacity: 0.3
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
@@ -362,7 +406,7 @@ Item {
                         }
                     }
 
-                    // 1: Experimento (tab bar + conteÃºdo)
+                    // 1: Experimento (tab bar + conteúdo)
                     ColumnLayout {
                         spacing: 0
 
@@ -435,7 +479,7 @@ Item {
 
                             // Tab 0: Arena
                             ArenaSetup {
-                                id: tabArenaSetup 
+                                id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
                                 context: root.context
 
@@ -450,20 +494,27 @@ Item {
                                     ExperimentManager.updatePairs(workArea.selectedPath, p1, p2, p3)
                                 }
                                 onZonasEditadas: {
-                                    // Atualiza zonas em tempo real na aba GravaÃ§Ã£o (sem salvar)
                                     var z = tabArenaSetup.zones
                                     liveRecordingTab.zones = z
+                                }
+                                onAnalysisModeChangedExternally: function(mode) {
+                                    workArea.analysisMode  = mode
+                                    workArea.cameraId      = tabArenaSetup.cameraId
+                                    if (mode !== "offline") workArea.saveDirectory = tabArenaSetup.saveDirectory
                                 }
                                 numCampos: workArea.activeNumCampos
                                 aparato: "nor"
                             }
 
-                            // Tab 1: GravaÃ§Ã£o
+                            // Tab 1: Gravação
                             LiveRecording {
                                 id: liveRecordingTab
-                                videoPath: tabArenaSetup.videoPath
+                                videoPath:    tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
-                                numCampos: workArea.activeNumCampos
+                                saveDirectory: workArea.saveDirectory
+                                liveOutputName: tabArenaSetup.liveOutputName
+                                cameraId:     workArea.cameraId
+                                numCampos:    workArea.activeNumCampos
                                 aparato: "nor"
                                 isReactivation: workArea.isReactivationPhase
 
@@ -519,7 +570,7 @@ Item {
                                 pair2: workArea.pair2
                                 pair3: workArea.pair3
 
-                                // Timer de 300 s zerou â†’ injeta dados de tracking e abre o diÃ¡logo
+                                // Timer de 300 s zerou â†’ injeta dados de tracking e abre o diálogo
                                 onSessionEnded: {
                                     resultDialog.sessionExplorationBouts = liveRecordingTab.explorationBouts
                                     resultDialog.sessionExplorationTimes = liveRecordingTab.explorationTimes
@@ -529,14 +580,16 @@ Item {
                                     resultDialog.open()
                                 }
 
-                                // BotÃ£o "Carregar VÃ­deo" na aba GravaÃ§Ã£o â†’ abre o seletor de vÃ­deo
+                                // Botão "Carregar Vídeo" na aba Gravação â†’ abre o seletor de vídeo
+                                onLiveAnalysisStarting: tabArenaSetup.stopCameraPreview()
+
                                 onRequestVideoLoad: {
                                     innerTabs.currentIndex = 0  // vai para Arena
                                     tabArenaSetup.openVideoLoader()
                                 }
                             }
 
-                            // Tab 2: Dados â€” Layout aparato-especÃ­fico
+                            // Tab 2: Dados â€" Layout aparato-específico
                             DataView {
                                 anchors.fill: parent
                                 tableModel: tableModel
@@ -572,14 +625,14 @@ Item {
 
             RowLayout {
                 spacing: 8
-                Text { text: "ðŸ“‹"; font.pixelSize: 20 }
+                Text { text: "📋"; font.pixelSize: 20 }
                 Text {
                     text: "Novo Experimento NOR"
                     color: ThemeManager.textPrimary; font.pixelSize: 17; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } }
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                    text: "âœ•"; color: ThemeManager.textSecondary; font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } }
+                    text: "✕"; color: ThemeManager.textSecondary; font.pixelSize: 14; Behavior on color { ColorAnimation { duration: 150 } }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: createPopup.close() }
                 }
             }
@@ -614,7 +667,7 @@ Item {
                     text: "Criar"
                     enabled: createNameField.text.trim().length > 0
                     onClicked: {
-                        // Colunas padrÃ£o NOR (sem droga por simplicidade neste atalho)
+                        // Colunas padrão NOR (sem droga por simplicidade neste atalho)
                         ExperimentManager.createExperimentWithConfig(
                             createNameField.text.trim(), 0,
                             [LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
@@ -647,7 +700,7 @@ Item {
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusÃ£o â€” passo 1
+    // Popup: confirmar exclusão â€" passo 1
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep1Popup
@@ -675,7 +728,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta aÃ§Ã£o Ã© irreversÃ­vel."
+                text: "Tem certeza que deseja excluir\n\"" + root.pendingDeleteName + "\"?\n\nEsta ação é irreversível."
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
@@ -700,7 +753,7 @@ Item {
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusÃ£o â€” passo 2
+    // Popup: confirmar exclusão â€" passo 2
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep2Popup
@@ -725,7 +778,7 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: "ConfirmaÃ§Ã£o Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: "Confirmação Final"; color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
@@ -733,7 +786,7 @@ Item {
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Nome em destaque â€” igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            // Nome em destaque â€" igual ao GitHub: "Digite exatamente: NomeDoExperimento"
             Rectangle {
                 Layout.fillWidth: true
                 height: nameLabel.implicitHeight + 10
@@ -795,7 +848,7 @@ Item {
         }
     }
 
-    // â”€â”€ Dialog pÃ³s-sessÃ£o: inserÃ§Ã£o dos dados dos animais â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Dialog pós-sessão: inserção dos dados dos animais â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     SessionResultDialog {
         id: resultDialog
         experimentName:   workArea.selectedName
@@ -807,11 +860,14 @@ Item {
         includeDrug:      workArea.includeDrug
         analysisMode:     workArea.analysisMode
         saveDirectory:    workArea.saveDirectory
-        videoPath:        liveRecordingTab.videoPath
+        videoPath:        workArea.analysisMode === "ao_vivo"
+                          ? ((liveRecordingTab.liveRecordedVideoPath && liveRecordingTab.liveRecordedVideoPath !== "")
+                             ? liveRecordingTab.liveRecordedVideoPath
+                             : ("camera://" + workArea.cameraId))
+                          : liveRecordingTab.videoPath
         numCampos:        workArea.activeNumCampos
     }
 
     Toast { id: successToast; successMode: true;  anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   successMode: false; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 }
-

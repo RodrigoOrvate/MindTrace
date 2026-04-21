@@ -1,5 +1,5 @@
 ﻿// qml/shared/DataView.qml
-// Visualizador de dados aparato-especÃ­fico com layout e cores personalizadas.
+// Visualizador de dados aparato-específico com layout e cores personalizadas.
 // Detecta o aparato pelos headers do CSV e renderiza o componente apropriado.
 
 import QtQuick
@@ -15,7 +15,7 @@ Item {
     property alias tableModel: placeholder.model
     property alias workArea: placeholder.workArea
 
-    // Detecta aparato a partir do modelo â€” reativo Ã s mudanÃ§as de colunas/headers
+    // Detecta aparato a partir do modelo â€" reativo às mudanças de colunas/headers
     property string aparato: "generic"
 
     Connections {
@@ -59,7 +59,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // â”€â”€ Barra superior com informaÃ§Ãµes do aparato â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Barra superior com informações do aparato â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         Rectangle {
             Layout.fillWidth: true
             height: 56
@@ -136,7 +136,7 @@ Item {
             }
         }
 
-        // â”€â”€ ConteÃºdo dinÃ¢mico por aparato â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Conteúdo dinâmico por aparato â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -168,7 +168,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // EI - Esquiva InibitÃ³ria
+            // EI - Esquiva Inibitória
             EIDataView {
                 id: eiView
                 anchors.fill: parent
@@ -177,7 +177,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // GenÃ©rico/Fallback
+            // Genérico/Fallback
             GenericDataView {
                 anchors.fill: parent
                 visible: root.aparato === "generic" || root.aparato === ""
@@ -187,7 +187,7 @@ Item {
         }
     }
 
-    // â”€â”€ Helper functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Helper functions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     function getAparatoIcon() {
         switch (root.aparato) {
             case "nor": return "\uD83E\uDDE0"
@@ -258,7 +258,7 @@ Item {
         }
     }
 
-    // Toast â€” centralizado na parte inferior
+    // Toast â€" centralizado na parte inferior
     Toast {
         id: exportFeedback
         anchors.horizontalCenter: parent.horizontalCenter

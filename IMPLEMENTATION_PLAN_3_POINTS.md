@@ -64,6 +64,14 @@ Escopo: idioma nas configuracoes, analise ao vivo com celular USB, e evolucao da
 - Sessao ao vivo inicia e recebe frames continuamente por 20 min.
 - Tracking e classificacao atualizam sem travamentos.
 
+### Status atual (2026-04-21)
+- Passo 1: OK no momento (sem bloqueios abertos).
+- Passo 2: funcional com selecao de camera, preview, inferencia ao vivo e gravacao em arquivo com pasta + nome.
+- Pendente do passo 2 (prioridade alta):
+  - FPS real em execucao permanece em ~22 FPS no perfil 1920x1080.
+  - Request alvo: atingir 60 FPS reais no modo ao vivo.
+  - Esta tentativa de otimizacao fica registrada como proxima acao.
+
 ---
 
 ## 3) Comportamento Complexo - aba Classificacao (B-SOiD)
@@ -105,4 +113,3 @@ Escopo: idioma nas configuracoes, analise ao vivo com celular USB, e evolucao da
   - Mitigacao: manter APIs separadas `startAnalysis` (offline) e `startLiveAnalysis` (live).
 - Risco: complexidade da edicao de bouts.
   - Mitigacao: entregar MVP sem regras automaticas complexas de reconciliacao.
-

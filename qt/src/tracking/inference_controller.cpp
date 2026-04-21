@@ -2,12 +2,19 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
 #include <QImage>
 #include <QMetaObject>
 #include <QMediaMetaData>
 #include <QTextStream>
 #include <QDebug>
+#include <QDateTime>
+#include <QMediaFormat>
+#include <QCameraFormat>
+#include <QVideoFrameFormat>
+#include <climits>
+#include <QRegularExpression>
 
 InferenceController::InferenceController(QObject* parent)
     : QObject(parent)
@@ -154,6 +161,32 @@ void InferenceController::setFullFrameMode(bool enabled) {
     m_engine->setFullFrameMode(enabled);
 }
 
+void InferenceController::setLivePreviewOutput(QObject* videoOutput) {
+    if (!m_captureSession)
+        return;
+
+    if (m_livePreviewSink) {
+        m_livePreviewSink->disconnect(this);
+        m_livePreviewSink = nullptr;
+    }
+
+    m_captureSession->setVideoOutput(videoOutput);
+    if (!videoOutput)
+        return;
+
+    QObject* sinkObj = videoOutput->property("videoSink").value<QObject*>();
+    auto* sink = qobject_cast<QVideoSink*>(sinkObj);
+    if (!sink) {
+        emit infoReceived("Live preview sem videoSink valido.");
+        return;
+    }
+
+    m_livePreviewSink = sink;
+    connect(m_livePreviewSink, &QVideoSink::videoFrameChanged,
+            this, &InferenceController::onVideoFrameChanged,
+            Qt::DirectConnection);
+}
+
 bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int campo)
 {
     if (campo < 0 || campo >= 3) return false;
@@ -266,12 +299,202 @@ void InferenceController::seekTo(qint64 ms)
     m_player->setPosition(ms);
 }
 
+QVariantList InferenceController::listVideoInputs()
+{
+    QVariantList result;
+    const auto devices = QMediaDevices::videoInputs();
+    for (const auto& dev : devices) {
+        QVariantMap map;
+        map["name"] = dev.description();
+        result.append(map);
+    }
+    return result;
+}
+
+void InferenceController::startLiveAnalysis(const QString& cameraName, const QString& modelDir)
+{
+    startLiveAnalysis(cameraName, modelDir, QString(), QString(), 1920, 1080, 60.0);
+}
+
+QString InferenceController::liveRecordingPath() const
+{
+    return m_liveRecordingPath;
+}
+
+void InferenceController::startLiveAnalysis(const QString& cameraName,
+                                            const QString& modelDir,
+                                            const QString& saveDirectory,
+                                            const QString& preferredFileName,
+                                            int preferredWidth,
+                                            int preferredHeight,
+                                            double preferredFps)
+{
+    if (m_isAnalyzing) return;
+
+    // Find camera device by description; fall back to default
+    const auto devices = QMediaDevices::videoInputs();
+    QCameraDevice selected;
+    for (const auto& dev : devices) {
+        if (dev.description() == cameraName) { selected = dev; break; }
+    }
+    if (selected.isNull() && !devices.isEmpty())
+        selected = devices.first();
+    if (selected.isNull()) {
+        emit errorOccurred("Nenhuma câmera encontrada.");
+        return;
+    }
+
+    // Locate model
+    QString appDir    = QCoreApplication::applicationDirPath();
+    QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
+    if (!QFile::exists(modelPath))
+        modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+    if (!modelDir.isEmpty() && QFile::exists(modelDir))
+        modelPath = modelDir;
+    if (!QFile::exists(modelPath)) {
+        emit errorOccurred("Modelo ONNX não encontrado: " + modelPath);
+        return;
+    }
+
+    m_videoW = 0;
+    m_videoH = 0;
+    m_isLiveMode = true;
+    m_liveRecordingPath.clear();
+
+    m_engine->loadModel(modelPath);
+    if (m_modelReady && m_engine->isRunning()) {
+        QMetaObject::invokeMethod(this, [this]() { emit readyReceived(); }, Qt::QueuedConnection);
+    } else if (!m_engine->isRunning()) {
+        m_modelReady = false;
+        m_engine->start();
+    }
+
+    // Emit camera info for the UI log
+    emit infoReceived("📹 Câmera: " + selected.description());
+
+    // FPS is measured from received frames in onVideoFrameChanged().
+    m_liveFpsWindowStartMs = 0;
+    m_liveFpsFrameCount = 0;
+
+    // Build capture pipeline: QCamera -> QMediaCaptureSession.
+    m_camera         = new QCamera(selected);
+    m_captureSession = new QMediaCaptureSession();
+
+    // Try to honor preferred live profile (e.g. 1920x1080@60) with fallback.
+    QCameraFormat bestFormat;
+    bool hasBest = false;
+    int bestScore = INT_MAX;
+    const auto formats = selected.videoFormats();
+    for (const auto& fmt : formats) {
+        const QSize res = fmt.resolution();
+        if (!res.isValid()) continue;
+
+        const int dw = qAbs(res.width()  - preferredWidth);
+        const int dh = qAbs(res.height() - preferredHeight);
+        const double maxFps = fmt.maxFrameRate();
+        const int fpsPenalty = static_cast<int>(qAbs(maxFps - preferredFps) * 12.0);
+
+        // Prefer uncompressed/known-stable frame formats over compressed ones when possible.
+        int pixPenalty = 0;
+        const auto pix = fmt.pixelFormat();
+        if (pix == QVideoFrameFormat::Format_Jpeg)
+            pixPenalty = 250;
+        else if (pix == QVideoFrameFormat::Format_Invalid)
+            pixPenalty = 400;
+
+        const int score = dw + dh + fpsPenalty + pixPenalty;
+        if (!hasBest || score < bestScore) {
+            bestScore = score;
+            bestFormat = fmt;
+            hasBest = true;
+        }
+    }
+    if (hasBest)
+        m_camera->setCameraFormat(bestFormat);
+
+    m_captureSession->setCamera(m_camera);
+    m_captureSession->setVideoOutput(nullptr);
+
+    // Optional live recording to disk.
+    QString outDir = saveDirectory.trimmed();
+    if (outDir.startsWith("file:///"))
+        outDir = outDir.mid(8);
+    if (outDir.isEmpty()) {
+        outDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+                 + "/MindTrace_Data/live_recordings";
+    }
+    QDir().mkpath(outDir);
+    QDir out(outDir);
+    QString baseName = preferredFileName.trimmed();
+    if (baseName.startsWith("file:///"))
+        baseName = QFileInfo(baseName.mid(8)).fileName();
+    baseName = QFileInfo(baseName).completeBaseName();
+    if (baseName.isEmpty())
+        baseName = "live";
+    baseName.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), "_");
+
+    QString candidate = out.filePath(baseName + ".mp4");
+    if (QFile::exists(candidate)) {
+        const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+        candidate = out.filePath(baseName + "_" + stamp + ".mp4");
+    }
+    m_liveRecordingPath = candidate;
+
+    m_mediaRecorder = new QMediaRecorder(this);
+    QMediaFormat mediaFormat;
+    mediaFormat.setFileFormat(QMediaFormat::MPEG4);
+    mediaFormat.setVideoCodec(QMediaFormat::VideoCodec::H264);
+    m_mediaRecorder->setMediaFormat(mediaFormat);
+    m_mediaRecorder->setOutputLocation(QUrl::fromLocalFile(m_liveRecordingPath));
+    m_mediaRecorder->setVideoResolution(preferredWidth, preferredHeight);
+    m_mediaRecorder->setVideoFrameRate(preferredFps);
+    m_captureSession->setRecorder(m_mediaRecorder);
+
+    if (hasBest) {
+        const QSize chosenRes = bestFormat.resolution();
+        emit infoReceived(QString("Live profile requested: %1x%2 @ %3 FPS")
+                          .arg(preferredWidth).arg(preferredHeight).arg(preferredFps, 0, 'f', 0));
+        emit infoReceived(QString("Live profile applied: %1x%2 @ up to %3 FPS")
+                          .arg(chosenRes.width()).arg(chosenRes.height())
+                          .arg(bestFormat.maxFrameRate(), 0, 'f', 2));
+    } else {
+        emit infoReceived("Live profile: using camera default format/FPS.");
+    }
+    emit infoReceived("Live recording file: " + m_liveRecordingPath);
+
+    m_camera->start();
+    m_mediaRecorder->record();
+    setAnalyzing(true);
+}
+
 void InferenceController::stopAnalysis()
 {
     if (!m_isAnalyzing) return;
-    m_player->stop();
+
+    if (m_isLiveMode) {
+        if (m_livePreviewSink) { m_livePreviewSink->disconnect(this); m_livePreviewSink = nullptr; }
+        if (m_mediaRecorder)  {
+            if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState)
+                m_mediaRecorder->stop();
+            delete m_mediaRecorder;
+            m_mediaRecorder = nullptr;
+        }
+        if (m_camera)         { m_camera->stop();         delete m_camera;         m_camera         = nullptr; }
+        if (m_captureSession) {
+            m_captureSession->setRecorder(nullptr);
+            m_captureSession->setVideoOutput(nullptr);
+            delete m_captureSession;
+            m_captureSession = nullptr;
+        }
+        m_isLiveMode = false;
+    } else {
+        m_player->stop();
+    }
+
     m_engine->requestStop();
     m_engine->wait(3000);
+    m_liveFpsWindowStartMs = 0;
+    m_liveFpsFrameCount = 0;
     setAnalyzing(false);
 }
 
@@ -300,6 +523,24 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
         QMetaObject::invokeMethod(this, [this, w, h]() {
             emit dimsReceived(w, h);
         }, Qt::QueuedConnection);
+    }
+
+    if (m_isLiveMode) {
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        if (m_liveFpsWindowStartMs <= 0)
+            m_liveFpsWindowStartMs = nowMs;
+        m_liveFpsFrameCount++;
+
+        const qint64 elapsed = nowMs - m_liveFpsWindowStartMs;
+        if (elapsed >= 1000) {
+            const double measuredFps = (1000.0 * static_cast<double>(m_liveFpsFrameCount))
+                                       / static_cast<double>(elapsed);
+            QMetaObject::invokeMethod(this, [this, measuredFps]() {
+                emit fpsReceived(measuredFps);
+            }, Qt::QueuedConnection);
+            m_liveFpsWindowStartMs = nowMs;
+            m_liveFpsFrameCount = 0;
+        }
     }
 
     // Hand off to the ONNX engine thread (single-slot queue, drops stale frames)

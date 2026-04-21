@@ -97,7 +97,7 @@ Item {
                         Rectangle { Layout.preferredWidth: 140; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.fill: parent; anchors.margins: 6
-                                text: cellAny(dataRow.index, ["Diretorio do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
+                                text: cellAny(dataRow.index, ["Vídeo", "Video", "Diretorio do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
                                 color: ThemeManager.textTertiary; font.pixelSize: 9; elide: Text.ElideLeft
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
                         Rectangle { Layout.preferredWidth: 90; height: 36; color: dataRow.rowBg

@@ -19,6 +19,10 @@ Item {
     property string videoPath:      ""
     property string analysisMode:   ""
     property string saveDirectory:  ""
+    property string liveOutputName: "live"
+    property string cameraId:       ""    // descrição da câmera selecionada para ao_vivo
+    property bool   livePreviewFrozen: false
+    property int    livePreviewFrameCount: 0
     property int    numCampos:      1
     property bool   devMode:        false
     property real   videoAspectRatio: 1.5 // 720x480 padrão
@@ -96,6 +100,8 @@ Item {
 
     signal zonasEditadas()
     signal analysisModeChangedExternally(string mode)
+
+    MediaDevices { id: mediaDevices }
 
     // Função pública: abre o popup de modo
     function openVideoLoader() { analysisModePrompt.open() }
@@ -186,6 +192,83 @@ Item {
         }
     }
 
+    // ── Preview de câmera ao vivo ────────────────────────────────────────────
+    CaptureSession {
+        id: eiArenaCaptureSession
+        videoOutput: null
+        camera: Camera {
+            id: eiArenaCamera
+            active: false
+        }
+    }
+
+    onCameraIdChanged: _updateEICameraPreview()
+    onAnalysisModeChanged: _updateEICameraPreview()
+    Timer {
+        id: eiLiveFreezeTimer
+        interval: 2500
+        repeat: false
+        onTriggered: {
+            if (analysisMode === "ao_vivo" && cameraId !== "" && eiArenaCamera.active) {
+                eiArenaCamera.active = false
+                livePreviewFrozen = true
+            }
+        }
+    }
+
+    Connections {
+        target: framePreview.videoSink
+        enabled: root.analysisMode === "ao_vivo"
+        function onVideoFrameChanged(frame) {
+            if (!frame || root.livePreviewFrozen || !eiArenaCamera.active)
+                return
+            root.livePreviewFrameCount += 1
+            // Evita congelar frames iniciais (startup verde/instável) do driver.
+            if (root.livePreviewFrameCount >= 12) {
+                eiArenaCamera.active = false
+                root.livePreviewFrozen = true
+                eiLiveFreezeTimer.stop()
+            }
+        }
+    }
+
+    function _updateEICameraPreview() {
+        if (analysisMode !== "ao_vivo" || cameraId === "") {
+            eiLiveFreezeTimer.stop()
+            livePreviewFrozen = false
+            livePreviewFrameCount = 0
+            eiArenaCamera.active = false
+            eiArenaCaptureSession.videoOutput = null
+            videoPlayer.videoOutput = framePreview
+            return
+        }
+        var devices = mediaDevices.videoInputs
+        for (var i = 0; i < devices.length; i++) {
+            if (devices[i].description === cameraId) {
+                eiArenaCamera.cameraDevice = devices[i]
+                videoPlayer.videoOutput = null
+                eiArenaCaptureSession.videoOutput = framePreview
+                livePreviewFrozen = false
+                livePreviewFrameCount = 0
+                eiArenaCamera.active = true
+                eiLiveFreezeTimer.restart()
+                return
+            }
+        }
+        eiLiveFreezeTimer.stop()
+        livePreviewFrozen = false
+        livePreviewFrameCount = 0
+        eiArenaCaptureSession.videoOutput = null
+        eiArenaCamera.active = false
+    }
+
+    function stopCameraPreview() {
+        eiLiveFreezeTimer.stop()
+        livePreviewFrameCount = 0
+        eiArenaCamera.active = false
+        eiArenaCaptureSession.videoOutput = null
+    }
+
     // ── Diálogos ─────────────────────────────────────────────────────────────
     FileDialog {
         id: videoFileDialog
@@ -197,6 +280,12 @@ Item {
             videoPlayer.source = selectedFile
             root.analysisModeChangedExternally(root.analysisMode)
         }
+    }
+
+    FolderDialog {
+        id: eiSaveFolderPicker
+        title: LanguageManager.tr3("Selecionar pasta de gravacao", "Select recording folder", "Seleccionar carpeta de grabacion")
+        onAccepted: savePathField.text = selectedFolder.toString().replace("file:///", "")
     }
 
     FileDialog {
@@ -288,7 +377,7 @@ Item {
             }
             Text {
                 Layout.fillWidth: true
-                text: LanguageManager.tr3("Escolha o modo e carregue o video:", "Choose the mode and load the video:", "Elija el modo y cargue el video:")
+                text: LanguageManager.tr3("Escolha o modo de analise:", "Choose analysis mode:", "Elija el modo de analisis:")
                 color: ThemeManager.textSecondary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 13
@@ -349,7 +438,7 @@ Item {
                             horizontalAlignment: Text.AlignHCenter
                         }
                         Text {
-                            text: LanguageManager.tr3("Camera (salva o video)", "Camera (saves video)", "Camara (guarda el video)")
+                            text: LanguageManager.tr3("Camera ao vivo (grava video em arquivo)", "Live camera (records video to file)", "Camara en vivo (graba video en archivo)")
                             color: ThemeManager.textSecondary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
@@ -361,6 +450,8 @@ Item {
                         onClicked: {
                             root.analysisMode = "ao_vivo"
                             analysisModePrompt.close()
+                            savePathField.text = root.saveDirectory
+                            saveNameField.text = root.liveOutputName
                             saveDirPopup.open()
                         }
                     }
@@ -382,7 +473,7 @@ Item {
     Popup {
         id: saveDirPopup
         anchors.centerIn: parent
-        width: 440; height: 180
+        width: 440; height: 220
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape
         background: Rectangle {
@@ -394,44 +485,188 @@ Item {
             anchors { fill: parent; margins: 20 }
             spacing: 12
             Text {
-                text: "Selecionar diretório de gravação"
+                text: LanguageManager.tr3("Selecionar pasta de gravacao", "Select recording folder", "Seleccionar carpeta de grabacion")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 15; font.weight: Font.Bold
             }
-            TextField {
-                id: savePathField
-                Layout.fillWidth: true
-                placeholderText: "Cole o caminho ou confirme vazio para padrão"
-                color: ThemeManager.textPrimary
-                Behavior on color { ColorAnimation { duration: 150 } }
-                placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
-                onTextChanged: root.saveDirectory = text
-                leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
-                background: Rectangle {
-                    radius: 6; color: ThemeManager.surfaceDim
-                    Behavior on color { ColorAnimation { duration: 200 } }
-                    border.color: savePathField.activeFocus ? root.primaryColor : ThemeManager.border; border.width: 1
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                TextField {
+                    id: savePathField
+                    Layout.fillWidth: true
+                    placeholderText: LanguageManager.tr3("Cole o caminho ou clique Pesquisar...", "Paste path or click Browse...", "Pegue la ruta o haga clic en Buscar...")
+                    color: ThemeManager.textPrimary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
+                    onTextChanged: root.saveDirectory = text
+                    leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
+                    background: Rectangle {
+                        radius: 6; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: savePathField.activeFocus ? root.primaryColor : ThemeManager.border; border.width: 1
+                    }
+                }
+                Button {
+                    text: LanguageManager.tr3("Pesquisar", "Browse", "Buscar")
+                    onClicked: eiSaveFolderPicker.open()
+                    background: Rectangle {
+                        radius: 6
+                        color: parent.hovered ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: ThemeManager.border; border.width: 1
+                    }
+                    contentItem: Text {
+                        text: parent.text; color: ThemeManager.textSecondary; Behavior on color { ColorAnimation { duration: 150 } }
+                        font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    }
+                    leftPadding: 12; rightPadding: 12; topPadding: 8; bottomPadding: 8
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                TextField {
+                    id: saveNameField
+                    Layout.fillWidth: true
+                    placeholderText: LanguageManager.tr3("Nome do video (ex: sessao_rato_01)", "Video name (e.g., rat_session_01)", "Nombre del video (ej: sesion_rata_01)")
+                    color: ThemeManager.textPrimary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 12
+                    text: root.liveOutputName
+                    onTextChanged: root.liveOutputName = text
+                    leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
+                    background: Rectangle {
+                        radius: 6; color: ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        border.color: saveNameField.activeFocus ? root.primaryColor : ThemeManager.border; border.width: 1
+                    }
                 }
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
                 Item { Layout.fillWidth: true }
-                GhostButton { text: "Cancelar"; onClicked: saveDirPopup.close() }
+                GhostButton { text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar"); onClicked: saveDirPopup.close() }
                 Button {
-                    text: "Confirmar"
+                    text: LanguageManager.tr3("Confirmar", "Confirm", "Confirmar")
+                    enabled: savePathField.text.trim().length > 0 && saveNameField.text.trim().length > 0
                     onClicked: {
                         root.saveDirectory = savePathField.text.trim()
+                        root.liveOutputName = saveNameField.text.trim()
                         saveDirPopup.close()
-                        root.analysisModeChangedExternally("ao_vivo")
+                        eiCameraSelectPopup.open()
                     }
                     background: Rectangle {
                         radius: 8
-                        color: parent.hovered ? root.secondaryColor : root.primaryColor
+                        color: parent.enabled ? (parent.hovered ? root.secondaryColor : root.primaryColor) : ThemeManager.surfaceDim
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     contentItem: Text {
                         text: parent.text; color: ThemeManager.buttonText
+                        font.pixelSize: 13; font.weight: Font.Bold
+                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    }
+                    leftPadding: 18; rightPadding: 18; topPadding: 9; bottomPadding: 9
+                }
+            }
+        }
+    }
+
+    // Popup: selecionar câmera para análise ao vivo
+    Popup {
+        id: eiCameraSelectPopup
+        anchors.centerIn: parent
+        width: 400; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
+        height: Math.min(80 + Math.max(1, mediaDevices.videoInputs.length) * 52 + 130, 460)
+        background: Rectangle {
+            radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
+            border.color: ThemeManager.success; border.width: 1
+        }
+
+        property int selectedIndex: 0
+        onOpened: selectedIndex = 0
+
+        ColumnLayout {
+            anchors { fill: parent; margins: 20 }
+            spacing: 12
+
+            Text {
+                text: "📹  " + LanguageManager.tr3("Selecionar Camera", "Select Camera", "Seleccionar Camara")
+                color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                font.pixelSize: 15; font.weight: Font.Bold
+            }
+            Text {
+                Layout.fillWidth: true
+                text: LanguageManager.tr3("Recomendado no DroidCam: MJPEG ou YUY2 (1280x720 @ 30 FPS). Evite AVC/H.264, pois pode causar tela verde.", "Recommended for DroidCam: MJPEG or YUY2 (1280x720 @ 30 FPS). Avoid AVC/H.264, as it may cause green video.", "Recomendado para DroidCam: MJPEG o YUY2 (1280x720 @ 30 FPS). Evite AVC/H.264, puede causar pantalla verde.")
+                color: "#d8c26a"
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+            }
+
+            ListView {
+                Layout.fillWidth: true
+                height: Math.min(mediaDevices.videoInputs.length * 52, 220)
+                clip: true
+                model: mediaDevices.videoInputs
+                delegate: Rectangle {
+                    width: ListView.view.width; height: 48; radius: 8
+                    color: eiCameraSelectPopup.selectedIndex === index
+                           ? Qt.rgba(0.15, 0.55, 0.25, 0.25)
+                           : (eiCamMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim)
+                    border.color: eiCameraSelectPopup.selectedIndex === index ? ThemeManager.success : ThemeManager.border
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    ColumnLayout {
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 12 }
+                        spacing: 2
+                        Text {
+                            Layout.fillWidth: true
+                            text: modelData.description
+                            color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                            font.pixelSize: 12; font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            text: modelData.isDefault ? LanguageManager.tr3("Padrao", "Default", "Predeterminada") : ""
+                            color: ThemeManager.success; font.pixelSize: 10
+                            visible: modelData.isDefault
+                        }
+                    }
+                    MouseArea {
+                        id: eiCamMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: eiCameraSelectPopup.selectedIndex = index
+                    }
+                }
+            }
+
+            Text {
+                visible: mediaDevices.videoInputs.length === 0
+                Layout.fillWidth: true
+                text: LanguageManager.tr3("Nenhuma camera detectada.\nConecte uma camera USB e tente novamente.", "No camera detected.\nConnect a USB camera and try again.", "Ninguna camara detectada.\nConecte una camara USB e intente de nuevo.")
+                color: ThemeManager.textSecondary; font.pixelSize: 12
+                horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                Item { Layout.fillWidth: true }
+                GhostButton { text: "Cancelar"; onClicked: { root.analysisMode = ""; eiCameraSelectPopup.close() } }
+                Button {
+                    text: LanguageManager.tr3("Iniciar ao Vivo", "Start Live", "Iniciar en Vivo")
+                    enabled: mediaDevices.videoInputs.length > 0
+                    onClicked: {
+                        var idx = eiCameraSelectPopup.selectedIndex
+                        if (idx >= 0 && idx < mediaDevices.videoInputs.length)
+                            root.cameraId = mediaDevices.videoInputs[idx].description
+                        eiCameraSelectPopup.close()
+                        root.analysisModeChangedExternally("ao_vivo")
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled ? (parent.hovered ? Qt.darker(ThemeManager.success, 1.15) : ThemeManager.success) : ThemeManager.surfaceDim
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    contentItem: Text {
+                        text: parent.text; color: "white"
                         font.pixelSize: 13; font.weight: Font.Bold
                         horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     }
@@ -516,23 +751,26 @@ Item {
             // Carregar vídeo
             Button {
                 id: videoBtnRect
-                text: root.videoPath !== ""
-                      ? "🎬 " + LanguageManager.tr3("Video OK", "Video OK", "Video OK")
-                      : "🎬 " + LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
+                text: root.analysisMode === "ao_vivo" && root.cameraId !== ""
+                      ? "📹 " + LanguageManager.tr3("Camera Selecionada", "Camera Selected", "Camara Seleccionada")
+                      : root.videoPath !== ""
+                        ? "🎬 " + LanguageManager.tr3("Video OK", "Video OK", "Video OK")
+                        : "🎬 " + LanguageManager.tr3("Carregar Video", "Load Video", "Cargar Video")
                 onClicked: analysisModePrompt.open()
                 background: Rectangle {
                     radius: 6
-                    color: root.videoPath !== ""
-                           ? (videoBtnRect.hovered ? ThemeManager.success : ThemeManager.successLight)
-                           : (videoBtnRect.hovered ? ThemeManager.surfaceAlt : ThemeManager.background)
+                    property bool active: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
+                    color: active ? (videoBtnRect.hovered ? ThemeManager.success : ThemeManager.successLight)
+                                  : (videoBtnRect.hovered ? ThemeManager.surfaceAlt : ThemeManager.background)
                     Behavior on color { ColorAnimation { duration: 200 } }
-                    border.color: root.videoPath !== "" ? ThemeManager.success : (videoBtnRect.hovered ? ThemeManager.border : ThemeManager.borderLight)
+                    border.color: active ? ThemeManager.success : (videoBtnRect.hovered ? ThemeManager.border : ThemeManager.borderLight)
                     Behavior on border.color { ColorAnimation { duration: 200 } }
                     border.width: 2
                 }
                 contentItem: Text {
                     text: parent.text
-                    color: root.videoPath !== "" ? ThemeManager.textPrimary : (videoBtnRect.hovered ? ThemeManager.textPrimary : ThemeManager.textSecondary)
+                    property bool active: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
+                    color: active ? ThemeManager.textPrimary : (videoBtnRect.hovered ? ThemeManager.textPrimary : ThemeManager.textSecondary)
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 11; font.weight: Font.Bold
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
@@ -614,12 +852,13 @@ Item {
                     // Preview do vídeo (campo único, sem crop de mosaico)
                     ShaderEffectSource {
                         anchors.fill: parent
-                        visible: root.videoPath !== ""
+                        visible: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
                         sourceItem: framePreview
                         // Nenhum crop — mostra o vídeo inteiro
                         sourceRect: {
-                            if (!framePreview || framePreview.width === 0) return Qt.rect(0,0,0,0)
-                            var cr = framePreview.contentRect
+                            var _fp = framePreview
+                            if (!_fp || _fp.width === 0) return Qt.rect(0,0,0,0)
+                            var cr = _fp.contentRect
                             return Qt.rect(cr.x, cr.y, cr.width, cr.height)
                         }
                         opacity: 0.9

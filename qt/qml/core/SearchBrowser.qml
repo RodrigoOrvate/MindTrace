@@ -1,5 +1,5 @@
 ﻿// qml/core/SearchBrowser.qml
-// Browser universal de experimentos â€” agrupa NOR e Campo Aberto.
+// Browser universal de experimentos â€" agrupa NOR e Campo Aberto.
 // Ao selecionar um experimento emite openExperiment(aparato, numCampos, name, path)
 // para que main.qml roteie ao dashboard correto.
 
@@ -33,7 +33,7 @@ Item {
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
-    // â”€â”€ Barra superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -65,13 +65,13 @@ Item {
             }
         }
 
-        // â”€â”€ Corpo: sidebar + preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â"€â"€ Corpo: sidebar + preview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Rectangle {
                 width: 300; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -153,7 +153,7 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
 
-                            // BotÃ£o Excluir (lixeira) - sempre visÃ­vel
+                            // Botão Excluir (lixeira) - sempre visível
                             Rectangle {
                                 id: deleteBtn
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
@@ -217,12 +217,12 @@ Item {
                 }
             }
 
-            // â”€â”€ Painel de preview / abertura â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // â"€â"€ Painel de preview / abertura â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
             Item {
                 id: previewContainer
                 Layout.fillWidth: true; Layout.fillHeight: true
 
-                // Valores temporÃ¡rios para o experimento selecionado
+                // Valores temporários para o experimento selecionado
                 property string previewAparatoVal:   "nor"
                 property int    previewNumCamposVal: 3
                 property string previewPathVal:      ""
@@ -322,7 +322,7 @@ Item {
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusÃ£o â€” passo 1
+    // Popup: confirmar exclusão â€" passo 1
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep1Popup
@@ -375,7 +375,7 @@ Item {
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusÃ£o â€” passo 2
+    // Popup: confirmar exclusão â€" passo 2
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     Popup {
         id: deleteStep2Popup
@@ -408,7 +408,7 @@ Item {
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Nome em destaque â€” igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            // Nome em destaque â€" igual ao GitHub: "Digite exatamente: NomeDoExperimento"
             Rectangle {
                 Layout.fillWidth: true
                 height: nameLabel.implicitHeight + 10
