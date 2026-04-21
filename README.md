@@ -243,7 +243,7 @@ MindTrace/
     │   └── analysis/       — BSoidAnalyzer.h/cpp (PCA + K-Means + snippets)
     ├── qml/
     │   ├── core/           — Navegação e componentes base (main.qml, GhostButton, Theme/)
-    │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml, **DataView.qml + 5 aparato-views**
+    │   ├── shared/         — LiveRecording.qml, SessionResultDialog.qml, BoutEditorPanel.qml, **DataView.qml + 5 aparato-views**
     │   ├── nor/            — NORDashboard, ArenaSetup, NORSetupScreen
     │   ├── ca/             — CADashboard, CAArenaSelection, CASetup, CAMetadataDialog
     │   ├── cc/             — CCDashboard, CCArenaSelection, CCSetup, CCMetadataDialog
@@ -307,6 +307,7 @@ O app suporta dark mode e light mode via `ThemeManager` (singleton QML em `qml/c
   - **Recursos:** Botões Exportar/Salvar, BusyIndicator, scroll, edição de células, legends contextualizadas
 - **Zonas Editáveis (CC)**: Em modo Comportamento Complexo, as zonas podem ser editadas na ArenaSetup (Shift+drag para mover, scroll para redimensionar). Tamanho e posição são salvos/restaurados.
 - **Importar Arena**: Botão "📥 Importar Arena" nas telas de configuração (`ArenaSetup.qml` e `EIArenaSetup.qml`). Selecione a pasta de outro experimento para copiar sua configuração de arena. Aviso automático se houver incompatibilidade de forma (quadrada ↔ retangular) ou tipo de zona (objetos / plataforma-grade / padrão).
+- **Revisão de Bouts (BoutEditorPanel):** Painel de revisão pós-sessão integrado ao CCDashboard na aba Comportamento. Carrega o histórico de frames classificados e permite editar labels, dividir bouts, mesclar bouts adjacentes, desfazer (undo 30 níveis) e exportar a revisão como CSV ou JSON. Exportação via `XMLHttpRequest PUT` diretamente do QML, sem backend C++.
 
 ---
 
@@ -355,6 +356,8 @@ Para realizar a descoberta de novos comportamentos após uma sessão de Comporta
 | Aba Dados EI verde em vez de amarelo | `EIDataView.qml` tinha `accentColor: "#2f7a4b"`. Alterado para `"#c8a000"`. |
 | Popup EI nunca abria | `EIMetadataDialog` estava com `parent: root` em vez de `parent: Overlay.overlay`. |
 | Configuração de arena não reutilizável entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: detecta incompatibilidade de forma/zona e exibe popup de aviso antes de importar. |
+| `startLiveAnalysis` ignora resolução/FPS configurados | `LiveRecording.qml` tem `1920, 1080, 60.0` hardcoded — câmera sempre solicita 1080p/60fps independente da config DroidCam. **PENDENTE:** passar `0, 0, 0.0` para usar formato padrão da câmera. |
+| `BoutEditorPanel is not a type` ao carregar CCDashboard | Componente em `qml/shared/` não estava registrado em `qml/shared/qmldir`. Adicionada linha `BoutEditorPanel 1.0 BoutEditorPanel.qml`. Regra: todo `.qml` novo em `shared/` precisa de entrada no `qmldir`. |
 ---
 
 ## 12. Esquiva Inibitória (EI)

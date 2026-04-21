@@ -45,7 +45,7 @@ QMediaPlayer (headless)
 | Pasta / Arquivo | Responsabilidade |
 |---|---|
 | `qml/core/` | Navegação base (`main.qml`, `LandingScreen.qml`), componentes reutilizáveis (`GhostButton.qml`, `Toast.qml`) |
-| `qml/shared/` | Funcionalidades comuns: `LiveRecording.qml` (Análise), `SessionResultDialog.qml` (Dados pós-sessão), **Data Views por aparato** (`DataView.qml`, `NORDataView.qml`, `CADataView.qml`, `CCDataView.qml`, `EIDataView.qml`, `GenericDataView.qml`) |
+| `qml/shared/` | Funcionalidades comuns: `LiveRecording.qml` (Análise), `SessionResultDialog.qml` (Dados pós-sessão), **Data Views por aparato** (`DataView.qml`, `NORDataView.qml`, `CADataView.qml`, `CCDataView.qml`, `EIDataView.qml`, `GenericDataView.qml`), **`BoutEditorPanel.qml`** (revisão post-sessão de bouts) |
 | `qml/nor/` | Fluxo do Reconhecimento de Objetos: `NORDashboard.qml` (Antigo `MainDashboard`), `ArenaSetup.qml`, `NORSetupScreen.qml` |
 | `qml/ca/` | Fluxo do Campo Aberto: `CADashboard.qml`, `CAArenaSelection.qml`, `CASetup.qml`, `CAMetadataDialog.qml` |
 | `qml/cc/` | Fluxo do Comportamento Complexo: `CCDashboard.qml`, `CCArenaSelection.qml`, `CCSetup.qml`, `CCMetadataDialog.qml` |
@@ -259,6 +259,7 @@ setPlaybackRate(rate)   — sincroniza headless player com displayPlayer
 position()              — posição atual do headless em ms
 seekTo(ms)              — salta headless para posição (usado pelo positionSyncTimer)
 loadBehaviorModel(path) — carrega modelo de comportamento manualmente
+getBehaviorFrames(campo) — retorna [{frameIdx, ruleLabel, movNose, movBody, movMean}] para BoutEditorPanel
 ```
 
 ### Pre-warm de Sessões
@@ -440,6 +441,8 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | `saveDirectory` não existe em `workArea` do EIDashboard | Handler `onAnalysisModeChangedExternally` do EI tentava `workArea.saveDirectory = ...` mas `workArea` (Item local) não tem essa propriedade. Removida a linha — EI sempre usa 1 campo e não precisa de `saveDirectory`. |
 | Tela verde ao vivo ainda persiste + `stopCameraPreview` not a function | **PENDENTE.** Abordagem atual (dois `VideoOutput` por arena: `framePreviewOffline`/`framePreviewLive`) ainda resulta em tela verde. Adicionalmente, `stopCameraPreview` foi acidentalmente removida de `ArenaSetup.qml` pelo script de simplificação de `_updateCameraPreview` (o script calculou `idx_end` como o `}` de `stopCameraPreview` em vez do `}` de `_updateCameraPreview`, porque `stopCameraPreview` ficou entre as duas funções e antes do `FileDialog`). **Para resolver:** (1) Re-adicionar `function stopCameraPreview() { arenaCamera.active = false }` em `ArenaSetup.qml` após `_updateCameraPreview`; (2) Diagnosticar root cause real do verde — verificar se o problema é NV12→RGB no shader Qt 6 com DroidCam, ou se a abordagem de dois VideoOutputs com `ShaderEffectSource` tem outro conflito. |
 | Live em 1080p com FPS real baixo (~22 FPS) | Perfil solicitado/aplicado pode mostrar 1920x1080 @ up to 60 FPS, mas FPS real ainda fica em ~22 no runtime atual. **PENDENTE (passo 2):** investigar gargalo ponta a ponta (fonte DroidCam/driver, formato de pixel, custo `toImage()`/conversão, throughput de inferência) para buscar **request alvo de 60 FPS reais**. |
+| `startLiveAnalysis` ignora resolução/FPS da câmera | `LiveRecording.qml` linha 536 tem `1920, 1080, 60.0` hardcoded — qualquer câmera sempre solicita 1080p/60fps. **PENDENTE:** passar `0, 0, 0.0` para usar formato padrão da câmera, ou expor seletores de resolução/FPS no ArenaSetup. |
+| `BoutEditorPanel is not a type` ao iniciar app | Novo componente QML em `qml/shared/` não estava registrado em `qml/shared/qmldir`. Adicionada linha `BoutEditorPanel 1.0 BoutEditorPanel.qml`. Regra: qualquer novo `.qml` em `shared/` exige entrada no `qmldir`. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
@@ -499,9 +502,12 @@ Sessão finalizada
 |---|---|---|
 | `BehaviorScanner._frameHistory` | Buffer `{frameIdx, features[21], ruleLabel}` por sessão; `reset()` não limpa (só `clearHistory()`) | ✅ Implementado |
 | `LiveRecording::exportBehaviorFeatures(path, campo)` | Wrapper público QML que delega ao InferenceController interno (IDs de componente não são acessíveis de fora) | ✅ Implementado |
+| `LiveRecording::getBehaviorFrames(campo)` | Wrapper público QML que expõe `getBehaviorFrames` do InferenceController para BoutEditorPanel | ✅ Implementado |
 | `InferenceController::exportBehaviorFeatures` | Exporta CSV com 21 features + rule_label por frame | ✅ Implementado |
+| `InferenceController::getBehaviorFrames(campo)` | Retorna `QVariantList` de `{frameIdx, ruleLabel, movNose, movBody, movMean}` para revisão de bouts | ✅ Implementado |
 | `src/analysis/BSoidAnalyzer.h/cpp` | PCA + K-Means nativo + `populateTimelines()` + `extractSnippets()` | ✅ Implementado |
-| `CCDashboard` aba Comportamento | Clusters, timeline dupla (Regras vs B-SOiD), extração de clips de vídeo | ✅ Implementado |
+| `CCDashboard` aba Comportamento | Clusters, timeline dupla (Regras vs B-SOiD), extração de clips de vídeo, **Revisão de Bouts** | ✅ Implementado |
+| `qml/shared/BoutEditorPanel.qml` | Painel de revisão post-sessão: tabela de bouts, filtros por label, editar label, split, merge, undo, exportar CSV/JSON | ✅ Implementado |
 
 ### FrameCluster (mapeamento frame → cluster)
 
@@ -746,3 +752,34 @@ Fluxo ao iniciar sessão ao vivo:
 3. `Qt.callLater(() => inference.setLivePreviewOutput(framePreviewMaster))` — conecta `VideoOutput` do painel de gravação ao `CaptureSession`
 
 Preview na aba Arena usa `CaptureSession` separado com `arenaCamera`/`eiArenaCamera` que são desativados ao iniciar análise.
+
+## Atualizacao da Sessao (2026-04-21)
+
+### CC/B-SOiD - fluxo e confiabilidade
+- Fluxo da aba Classificacao reorganizado para sequencia guiada:
+1. Analisar
+2. Filtrar clusters (Min %)
+3. Fixar clusters visiveis
+4. Gerar snippets e nomear
+5. Gerar comparacao
+6. Salvar rotulos + estatistica
+- Comparacao final condicionada ao preenchimento dos clusters visiveis.
+- Filtro `Min %` propagado para matriz, timeline e exportacao final.
+- Limiar de confianca B-SOiD padrao alterado para 50%.
+- Helpers adicionados:
+1. explicacao do `~ Regra (x%)`
+2. explicacao leiga dos 3 modos de rotulo final.
+
+### Relatorios
+- Exportacao de PDF de resultados implementada no backend C++:
+1. grafico de colunas Rules
+2. grafico de colunas B-SOiD
+3. timeline Rules vs B-SOiD
+4. matriz de concordancia
+- Novo metodo `InferenceController::savePdfReport(...)`.
+- Novo botao na UI `Salvar PDF Results Report`.
+
+### UI e idioma
+- Badge `ACTIVE` corrigido para `ATIVO` em portugues.
+- Popup de modo de analise (NOR/EI) com layout adaptativo para PT/EN/ES (sem overflow de texto).
+- Icone de configuracoes padronizado para engrenagem (`\u2699`) para evitar renderizacao como reticencias.

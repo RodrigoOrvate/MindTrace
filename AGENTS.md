@@ -45,7 +45,7 @@ QMediaPlayer (headless)
 | Pasta / Arquivo | Responsabilidade |
 |---|---|
 | `qml/core/` | Navegação base (`main.qml`, `LandingScreen.qml`), componentes reutilizáveis (`GhostButton.qml`, `Toast.qml`) |
-| `qml/shared/` | Funcionalidades comuns: `LiveRecording.qml` (Análise), `SessionResultDialog.qml` (Dados pós-sessão), **Data Views por aparato** (`DataView.qml`, `NORDataView.qml`, `CADataView.qml`, `CCDataView.qml`, `EIDataView.qml`, `GenericDataView.qml`) |
+| `qml/shared/` | Funcionalidades comuns: `LiveRecording.qml` (Análise), `SessionResultDialog.qml` (Dados pós-sessão), `BoutEditorPanel.qml` (Revisão de bouts pós-sessão), **Data Views por aparato** (`DataView.qml`, `NORDataView.qml`, `CADataView.qml`, `CCDataView.qml`, `EIDataView.qml`, `GenericDataView.qml`) |
 | `qml/nor/` | Fluxo do Reconhecimento de Objetos: `NORDashboard.qml` (Antigo `MainDashboard`), `ArenaSetup.qml`, `NORSetupScreen.qml` |
 | `qml/ca/` | Fluxo do Campo Aberto: `CADashboard.qml`, `CAArenaSelection.qml`, `CASetup.qml`, `CAMetadataDialog.qml` |
 | `qml/cc/` | Fluxo do Comportamento Complexo: `CCDashboard.qml`, `CCArenaSelection.qml`, `CCSetup.qml`, `CCMetadataDialog.qml` |
@@ -259,6 +259,7 @@ setPlaybackRate(rate)   — sincroniza headless player com displayPlayer
 position()              — posição atual do headless em ms
 seekTo(ms)              — salta headless para posição (usado pelo positionSyncTimer)
 loadBehaviorModel(path) — carrega modelo de comportamento manualmente
+getBehaviorFrames(campo) — retorna QVariantList de {frameIdx, ruleLabel, movNose, movBody, movMean} do _frameHistory
 ```
 
 ### Pre-warm de Sessões
@@ -424,6 +425,8 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | Popup EI nunca aparecia (mesmo com vídeo terminado) | `EIMetadataDialog` estava com `parent: root` (Item do dashboard) em vez de `parent: Overlay.overlay`. Corrigido para `Overlay.overlay` + `anchors.centerIn: parent`. |
 | Impossível reaproveitar configuração de arena entre experimentos | Implementada função **Importar Arena** em `ArenaSetup.qml` e `EIArenaSetup.qml`: lê config do experimento fonte via `ArenaConfigModel`, detecta shape (quadrada/retangular por bounding-box ratio) e tipo de zona (`zoneCount≥4`=objetos, `floorPoints≥8`=plataforma_grade, else=padrão), exibe popup de aviso se incompatível, confirma → recarrega config. |
 | Live em 1080p com FPS real baixo (~22 FPS) | Perfil solicitado/aplicado pode mostrar 1920x1080 @ up to 60 FPS, mas FPS real ainda fica em ~22 no runtime atual. **PENDENTE (passo 2):** investigar gargalo ponta a ponta (fonte DroidCam/driver, formato de pixel, custo `toImage()`/conversão, throughput de inferência) para buscar **request alvo de 60 FPS reais**. |
+| `startLiveAnalysis` ignora resolução/FPS configurados | `LiveRecording.qml` linha ~536 tem `1920, 1080, 60.0` hardcoded. Câmera sempre solicita 1080p/60fps independente da config DroidCam. **PENDENTE:** passar `0, 0, 0.0` para usar formato padrão da câmera. |
+| `BoutEditorPanel is not a type` (CCDashboard) | `BoutEditorPanel.qml` em `qml/shared/` não estava registrado em `qml/shared/qmldir`. Adicionada linha `BoutEditorPanel 1.0 BoutEditorPanel.qml`. Regra: **todo .qml novo em `shared/` precisa de entrada no qmldir**. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
 
@@ -483,9 +486,12 @@ Sessão finalizada
 |---|---|---|
 | `BehaviorScanner._frameHistory` | Buffer `{frameIdx, features[21], ruleLabel}` por sessão; `reset()` não limpa (só `clearHistory()`) | ✅ Implementado |
 | `LiveRecording::exportBehaviorFeatures(path, campo)` | Wrapper público QML que delega ao InferenceController interno (IDs de componente não são acessíveis de fora) | ✅ Implementado |
+| `LiveRecording::getBehaviorFrames(campo)` | Wrapper público QML que retorna frames do `_frameHistory` para o BoutEditorPanel sem expor `inference` diretamente | ✅ Implementado |
 | `InferenceController::exportBehaviorFeatures` | Exporta CSV com 21 features + rule_label por frame | ✅ Implementado |
+| `InferenceController::getBehaviorFrames` | Q_INVOKABLE — retorna `QVariantList` de `{frameIdx, ruleLabel, movNose, movBody, movMean}` do `_frameHistory` para revisão de bouts no QML | ✅ Implementado |
 | `src/analysis/BSoidAnalyzer.h/cpp` | PCA + K-Means nativo + `populateTimelines()` + `extractSnippets()` | ✅ Implementado |
-| `CCDashboard` aba Comportamento | Clusters, timeline dupla (Regras vs B-SOiD), extração de clips de vídeo | ✅ Implementado |
+| `qml/shared/BoutEditorPanel.qml` | Painel standalone de revisão de bouts: edição de label, split, merge, undo (30 níveis), exportação CSV/JSON via `XMLHttpRequest PUT` | ✅ Implementado |
+| `CCDashboard` aba Comportamento | Clusters, timeline dupla (Regras vs B-SOiD), extração de clips de vídeo, painel Revisão de Bouts | ✅ Implementado |
 
 ### FrameCluster (mapeamento frame → cluster)
 
@@ -633,3 +639,34 @@ JSON metadados:
   "droga": "saline"
 }
 ```
+
+## Atualizacao da Sessao (2026-04-21)
+
+### CC/B-SOiD - fluxo e confiabilidade
+- Fluxo da aba Classificacao reestruturado para ordem guiada:
+1. Analisar
+2. Filtrar clusters (Min %)
+3. Fixar clusters visiveis
+4. Gerar snippets e nomear
+5. Gerar comparacao
+6. Salvar rotulos + estatistica
+- Comparacao final bloqueada ate validacao de rotulos nos clusters visiveis.
+- Filtro `Min %` agora afeta tambem matriz, timeline e exportacao final.
+- Limiar de confianca B-SOiD padrao atualizado para 50%.
+- Helpers adicionados para explicar:
+1. significado de `~ Regra (x%)`
+2. modos de rotulo final para usuarios leigos.
+
+### Relatorios
+- Exportacao de PDF de resultados implementada (backend C++):
+1. grafico de colunas Rules
+2. grafico de colunas B-SOiD
+3. timeline Rules vs B-SOiD
+4. matriz de concordancia
+- Novo metodo: `InferenceController::savePdfReport(...)`.
+- Novo botao na UI: `Salvar PDF Results Report`.
+
+### UI e idioma
+- Badge do motor de regras: `ACTIVE` -> `ATIVO` em portugues.
+- Popup de escolha de modo de analise (NOR/EI) com layout adaptativo para PT/EN/ES.
+- Icone de configuracoes padronizado para engrenagem (`\u2699`) para evitar renderizacao como reticencias.

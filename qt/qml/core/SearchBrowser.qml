@@ -158,7 +158,7 @@ Item {
                                 id: deleteBtn
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
                                 width: 32; height: 32; radius: 16
-                                color: deleteMa.containsMouse ? ThemeManager.errorDim : "transparent"
+                                color: deleteMa.containsMouse ? ThemeManager.error : "transparent"
                                 opacity: expDelegate.isHovered ? 1.0 : 0.0
                                 visible: true
                                 Behavior on color   { ColorAnimation { duration: 150 } }

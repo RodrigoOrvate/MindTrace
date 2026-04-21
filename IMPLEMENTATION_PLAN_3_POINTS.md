@@ -3,6 +3,44 @@
 Data: 2026-04-20
 Escopo: idioma nas configuracoes, analise ao vivo com celular USB, e evolucao da aba de classificacao (CC/B-SOiD).
 
+## Atualizacao da sessao (2026-04-21)
+
+### Classificacao CC/B-SOiD - progresso aplicado
+- Fluxo guiado da aba Classificacao reorganizado para sequencia unidirecional:
+1. Analisar
+2. Filtrar clusters relevantes (Min %)
+3. Fixar clusters visiveis
+4. Gerar snippets e nomear clusters
+5. Gerar comparacao Rules x B-SOiD
+6. Salvar rotulos + estatistica
+- Comparacao final passa a ser liberada somente quando os clusters visiveis estao nomeados e editados no fluxo atual.
+- Filtro `Min % cluster` agora impacta matriz, timeline, legenda e exportacao final (nao apenas lista visual).
+- Seccao de grupos some apos liberar comparacao para manter UI limpa.
+- Revisao de bouts ganhou toggle mostrar/ocultar.
+- Removidos botoes duplicados no rodape (salvar rotulos/extrair clips), mantendo acao principal no fluxo superior.
+- Limiar de confianca B-SOiD ajustado para padrao 50%.
+- Adicionados helpers explicativos:
+1. significado de `~ Regra (x%)`
+2. guia leigo dos 3 modos de rotulo final.
+
+### Relatorios visuais (novo)
+- Implementado exportador nativo de PDF no C++ (`InferenceController::savePdfReport`).
+- Aba Classificacao agora gera:
+1. grafico de colunas Rules
+2. grafico de colunas B-SOiD
+3. timeline Rules vs B-SOiD
+4. matriz de concordancia
+- Botao novo: `Salvar PDF Results Report`.
+- Saida: PDF unico no diretorio do experimento com capturas das secoes de comparacao.
+
+### UI/idioma - ajustes aplicados
+- Badge do motor de regras: `ACTIVE` -> `ATIVO` em portugues.
+- Popup de modo de analise (NOR e EI) tornou-se adaptativo para textos PT/EN/ES:
+1. largura/altura dinamicas
+2. cards com altura implicita
+3. quebra de linha em titulos/subtitulos para evitar overflow.
+- Botao de configuracoes no topo alterado para glifo estavel de engrenagem (`\u2699`) para evitar renderizacao como reticencias.
+
 ## 1) Idioma nas configuracoes (em andamento)
 
 ### Objetivo
@@ -98,6 +136,16 @@ Escopo: idioma nas configuracoes, analise ao vivo com celular USB, e evolucao da
 
 ### Criterio de aceite
 - Usuario revisa classificacao e exporta resultado auditavel da sessao.
+
+### Status atual (2026-04-21)
+- Fluxo de nomeacao de grupos + exportacao de relatorio (JSON/CSV) em `analysis_cache`: implementado.
+- Visualizacao de concordancia `Rules x B-SOiD` na UI (matriz com percentuais por regra): implementado.
+- Indicadores no painel de concordancia: Top-1 medio por regra e Top-1 ponderado por frames.
+- Modo de seguranca para rotulo final: implementado (`Rules only` padrao, `Rules + B-SOiD confiavel` com limiar, `B-SOiD exploratorio`).
+- Refatoracao da aba Classificacao para fluxo estilo B-SOiD (etapas guiadas) e comparacao `Rules vs B-SOiD` liberada apenas no final do fluxo.
+- PENDENTE (prioridade alta):
+  - Alinhamento visual da timeline `Rules vs B-SOiD` ainda inconsistente em alguns cenarios.
+  - Necessario revisar estrategia de sincronizacao visual (offset inicial, corte, e validacao com ground-truth de frames).
 
 ---
 

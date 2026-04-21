@@ -7,6 +7,7 @@
 #include <QMediaCaptureSession>
 #include <QMediaDevices>
 #include <QMediaRecorder>
+#include <QStringList>
 #include "inference_engine.h"
 
 // ── Inference Controller ───────────────────────────────────────────────────
@@ -50,6 +51,18 @@ public:
     Q_INVOKABLE void seekTo(qint64 ms);
     // B-SOiD: exporta CSV com features[21] + ruleLabel por frame para análise pós-sessão
     Q_INVOKABLE bool exportBehaviorFeatures(const QString& csvPath, int campo);
+    // Revisão de bouts: retorna [{frameIdx, ruleLabel, movNose, movBody, movMean}] para QML
+    Q_INVOKABLE QVariantList getBehaviorFrames(int campo) const;
+    Q_INVOKABLE QString behaviorCachePath(const QString& experimentPath, int campo) const;
+    Q_INVOKABLE bool behaviorCacheExists(const QString& experimentPath, int campo) const;
+    Q_INVOKABLE bool saveBehaviorCache(const QString& experimentPath, int campo);
+    Q_INVOKABLE QVariantList getBehaviorFramesFromCache(const QString& experimentPath, int campo) const;
+    Q_INVOKABLE bool writeTextFile(const QString& filePath, const QString& content, bool utf8Bom = false);
+    Q_INVOKABLE QString readTextFile(const QString& filePath) const;
+    Q_INVOKABLE bool savePdfReport(const QString& pdfPath,
+                                   const QStringList& imagePaths,
+                                   const QString& title,
+                                   const QStringList& captions = QStringList());
 
 signals:
     void analyzingChanged();

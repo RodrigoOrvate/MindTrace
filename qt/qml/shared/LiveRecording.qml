@@ -175,6 +175,30 @@ Item {
     function exportBehaviorFeatures(csvPath, campo) {
         return inference.exportBehaviorFeatures(csvPath, campo)
     }
+    function saveBehaviorCache(experimentPath, campo) {
+        return inference.saveBehaviorCache(experimentPath, campo)
+    }
+    function behaviorCacheExists(experimentPath, campo) {
+        return inference.behaviorCacheExists(experimentPath, campo)
+    }
+    function behaviorCachePath(experimentPath, campo) {
+        return inference.behaviorCachePath(experimentPath, campo)
+    }
+    function getBehaviorFrames(campo) {
+        return inference.getBehaviorFrames(campo)
+    }
+    function getBehaviorFramesFromCache(experimentPath, campo) {
+        return inference.getBehaviorFramesFromCache(experimentPath, campo)
+    }
+    function writeTextFile(path, content, utf8Bom) {
+        return inference.writeTextFile(path, content, utf8Bom)
+    }
+    function readTextFile(path) {
+        return inference.readTextFile(path)
+    }
+    function savePdfReport(path, imagePaths, title, captions) {
+        return inference.savePdfReport(path, imagePaths, title, captions)
+    }
 
     // ── Log ───────────────────────────────────────────────────────────────────
     ListModel { id: logModel }

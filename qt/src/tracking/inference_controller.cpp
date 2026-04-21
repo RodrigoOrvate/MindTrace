@@ -13,6 +13,10 @@
 #include <QMediaFormat>
 #include <QCameraFormat>
 #include <QVideoFrameFormat>
+#include <QPdfWriter>
+#include <QPainter>
+#include <QPageSize>
+#include <QPageLayout>
 #include <climits>
 #include <QRegularExpression>
 
@@ -187,6 +191,203 @@ void InferenceController::setLivePreviewOutput(QObject* videoOutput) {
             Qt::DirectConnection);
 }
 
+QVariantList InferenceController::getBehaviorFrames(int campo) const
+{
+    if (campo < 0 || campo >= 3) return {};
+    const auto& history = m_engine->getScannerHistory(campo);
+    QVariantList result;
+    result.reserve(static_cast<int>(history.size()));
+    for (const auto& rec : history) {
+        QVariantMap m;
+        m["frameIdx"]  = rec.frameIdx;
+        m["ruleLabel"] = rec.ruleLabel;
+        m["movNose"]   = static_cast<double>(rec.features[0]);
+        m["movBody"]   = static_cast<double>(rec.features[1]);
+        m["movMean"]   = static_cast<double>(rec.features[3]);
+        result.append(m);
+    }
+    return result;
+}
+
+QString InferenceController::behaviorCachePath(const QString& experimentPath, int campo) const
+{
+    if (campo < 0 || campo >= 3) return QString();
+    QString base = experimentPath.trimmed();
+    if (base.startsWith("file:///")) base = base.mid(8);
+    if (base.isEmpty()) return QString();
+    return QDir(base).filePath(QStringLiteral("analysis_cache/behavior_features_campo%1.csv")
+                               .arg(campo + 1));
+}
+
+bool InferenceController::behaviorCacheExists(const QString& experimentPath, int campo) const
+{
+    const QString path = behaviorCachePath(experimentPath, campo);
+    return !path.isEmpty() && QFile::exists(path);
+}
+
+bool InferenceController::saveBehaviorCache(const QString& experimentPath, int campo)
+{
+    const QString path = behaviorCachePath(experimentPath, campo);
+    if (path.isEmpty()) return false;
+    QFileInfo fi(path);
+    QDir().mkpath(fi.absolutePath());
+    return exportBehaviorFeatures(path, campo);
+}
+
+QVariantList InferenceController::getBehaviorFramesFromCache(const QString& experimentPath, int campo) const
+{
+    QVariantList result;
+    if (campo < 0 || campo >= 3) return result;
+
+    const QString path = behaviorCachePath(experimentPath, campo);
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return result;
+
+    QTextStream in(&file);
+    QString header = in.readLine();
+    Q_UNUSED(header)
+
+    while (!in.atEnd()) {
+        const QString line = in.readLine().trimmed();
+        if (line.isEmpty()) continue;
+        const QStringList cols = line.split(',');
+        // frame + 21 features + rule_label = 23
+        if (cols.size() < 23) continue;
+
+        bool okFrame = false, okRule = false, okNose = false, okBody = false, okMean = false;
+        const int frameIdx = cols[0].toInt(&okFrame);
+        const double movNose = cols[1].toDouble(&okNose);
+        const double movBody = cols[2].toDouble(&okBody);
+        const double movMean = cols[4].toDouble(&okMean);   // bp_mean
+        const int ruleLabel = cols[22].toInt(&okRule);
+        if (!okFrame || !okRule || !okNose || !okBody || !okMean) continue;
+
+        QVariantMap m;
+        m["frameIdx"] = frameIdx;
+        m["ruleLabel"] = ruleLabel;
+        m["movNose"] = movNose;
+        m["movBody"] = movBody;
+        m["movMean"] = movMean;
+        result.append(m);
+    }
+    return result;
+}
+
+bool InferenceController::writeTextFile(const QString& filePath, const QString& content, bool utf8Bom)
+{
+    QString path = filePath.trimmed();
+    if (path.startsWith("file:///"))
+        path = path.mid(8);
+    if (path.isEmpty())
+        return false;
+
+    QFileInfo fi(path);
+    if (!QDir().mkpath(fi.absolutePath()))
+        return false;
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+    if (utf8Bom)
+        out << "\xEF\xBB\xBF";
+    out << content;
+    file.close();
+    return true;
+}
+
+QString InferenceController::readTextFile(const QString& filePath) const
+{
+    QString path = filePath.trimmed();
+    if (path.startsWith("file:///"))
+        path = path.mid(8);
+    if (path.isEmpty())
+        return QString();
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+
+    QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf8);
+    return in.readAll();
+}
+
+bool InferenceController::savePdfReport(const QString& pdfPath,
+                                        const QStringList& imagePaths,
+                                        const QString& title,
+                                        const QStringList& captions)
+{
+    QString outPath = pdfPath.trimmed();
+    if (outPath.startsWith("file:///"))
+        outPath = outPath.mid(8);
+    if (outPath.isEmpty() || imagePaths.isEmpty())
+        return false;
+
+    QFileInfo fi(outPath);
+    if (!QDir().mkpath(fi.absolutePath()))
+        return false;
+
+    QPdfWriter pdf(outPath);
+    pdf.setResolution(150);
+    pdf.setPageSize(QPageSize(QPageSize::A4));
+    pdf.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
+
+    QPainter painter(&pdf);
+    if (!painter.isActive())
+        return false;
+
+    const QRect page = painter.viewport();
+    const int margin = 36;
+    const QRect contentRect = page.adjusted(margin, margin, -margin, -margin);
+
+    bool drewAny = false;
+    for (int i = 0; i < imagePaths.size(); ++i) {
+        QString imgPath = imagePaths[i].trimmed();
+        if (imgPath.startsWith("file:///"))
+            imgPath = imgPath.mid(8);
+        QImage img(imgPath);
+        if (img.isNull())
+            continue;
+
+        if (drewAny)
+            pdf.newPage();
+        drewAny = true;
+
+        painter.fillRect(page, Qt::white);
+        painter.setPen(QColor("#111827"));
+
+        painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+        const QString pageTitle = title.isEmpty() ? QStringLiteral("MindTrace Results Report") : title;
+        painter.drawText(contentRect.left(), contentRect.top(), contentRect.width(), 26,
+                         Qt::AlignLeft | Qt::AlignVCenter, pageTitle);
+
+        painter.setFont(QFont("Segoe UI", 9));
+        const QString cap = (i < captions.size() ? captions[i] : QString());
+        const int captionH = cap.isEmpty() ? 0 : 24;
+        if (!cap.isEmpty()) {
+            painter.drawText(contentRect.left(), contentRect.top() + 28, contentRect.width(), 20,
+                             Qt::AlignLeft | Qt::AlignVCenter, cap);
+        }
+
+        QRect imgRect = contentRect.adjusted(0, 34 + captionH, 0, 0);
+        if (imgRect.height() < 40)
+            imgRect = contentRect.adjusted(0, 34, 0, 0);
+
+        const QSize target = img.size().scaled(imgRect.size(), Qt::KeepAspectRatio);
+        const QRect centered(QPoint(imgRect.left() + (imgRect.width() - target.width()) / 2,
+                                    imgRect.top() + (imgRect.height() - target.height()) / 2),
+                            target);
+        painter.drawImage(centered, img);
+    }
+
+    painter.end();
+    return drewAny;
+}
+
 bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int campo)
 {
     if (campo < 0 || campo >= 3) return false;
@@ -313,7 +514,8 @@ QVariantList InferenceController::listVideoInputs()
 
 void InferenceController::startLiveAnalysis(const QString& cameraName, const QString& modelDir)
 {
-    startLiveAnalysis(cameraName, modelDir, QString(), QString(), 1920, 1080, 60.0);
+    // preferredWidth/Height = 0 → use camera's default format (honors DroidCam/driver setting)
+    startLiveAnalysis(cameraName, modelDir, QString(), QString(), 0, 0, 0.0);
 }
 
 QString InferenceController::liveRecordingPath() const
@@ -380,37 +582,80 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     m_camera         = new QCamera(selected);
     m_captureSession = new QMediaCaptureSession();
 
-    // Try to honor preferred live profile (e.g. 1920x1080@60) with fallback.
-    QCameraFormat bestFormat;
-    bool hasBest = false;
-    int bestScore = INT_MAX;
-    const auto formats = selected.videoFormats();
-    for (const auto& fmt : formats) {
-        const QSize res = fmt.resolution();
-        if (!res.isValid()) continue;
-
-        const int dw = qAbs(res.width()  - preferredWidth);
-        const int dh = qAbs(res.height() - preferredHeight);
-        const double maxFps = fmt.maxFrameRate();
-        const int fpsPenalty = static_cast<int>(qAbs(maxFps - preferredFps) * 12.0);
-
-        // Prefer uncompressed/known-stable frame formats over compressed ones when possible.
-        int pixPenalty = 0;
-        const auto pix = fmt.pixelFormat();
-        if (pix == QVideoFrameFormat::Format_Jpeg)
-            pixPenalty = 250;
-        else if (pix == QVideoFrameFormat::Format_Invalid)
-            pixPenalty = 400;
-
-        const int score = dw + dh + fpsPenalty + pixPenalty;
-        if (!hasBest || score < bestScore) {
-            bestScore = score;
-            bestFormat = fmt;
-            hasBest = true;
+    // Helper: pixel format enum → readable name
+    auto pixFmtName = [](QVideoFrameFormat::PixelFormat pix) -> QString {
+        switch (pix) {
+            case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
+            case QVideoFrameFormat::Format_NV12:    return "NV12";
+            case QVideoFrameFormat::Format_NV21:    return "NV21";
+            case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
+            case QVideoFrameFormat::Format_YUYV:    return "YUYV";
+            case QVideoFrameFormat::Format_UYVY:    return "UYVY";
+            case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
+            case QVideoFrameFormat::Format_BGRX8888:return "BGRX8888";
+            case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
+            case QVideoFrameFormat::Format_RGBX8888:return "RGBX8888";
+            case QVideoFrameFormat::Format_Invalid: return "Invalid";
+            default: return QString("Unknown(%1)").arg(static_cast<int>(pix));
         }
+    };
+
+    // Log all formats advertised by this camera device
+    const auto formats = selected.videoFormats();
+    emit infoReceived(QString("Camera device: %1 (%2 formats advertised)")
+                      .arg(selected.description()).arg(formats.size()));
+    for (int i = 0; i < formats.size(); ++i) {
+        const auto& f = formats[i];
+        const QSize r = f.resolution();
+        emit infoReceived(QString("  [%1] %2x%3  %4-%5 fps  fmt=%6")
+                          .arg(i).arg(r.width()).arg(r.height())
+                          .arg(f.minFrameRate(), 0, 'f', 1)
+                          .arg(f.maxFrameRate(), 0, 'f', 1)
+                          .arg(pixFmtName(f.pixelFormat())));
     }
-    if (hasBest)
-        m_camera->setCameraFormat(bestFormat);
+
+    // If no preference given (width==0), let the driver use its default format.
+    // Otherwise pick the best matching format from the camera's advertised list.
+    if (preferredWidth > 0) {
+        QCameraFormat bestFormat;
+        bool hasBest = false;
+        int bestScore = INT_MAX;
+        for (const auto& fmt : formats) {
+            const QSize res = fmt.resolution();
+            if (!res.isValid()) continue;
+
+            const int dw = qAbs(res.width()  - preferredWidth);
+            const int dh = qAbs(res.height() - preferredHeight);
+            const double maxFps = fmt.maxFrameRate();
+            const int fpsPenalty = static_cast<int>(qAbs(maxFps - preferredFps) * 12.0);
+
+            int pixPenalty = 0;
+            const auto pix = fmt.pixelFormat();
+            if (pix == QVideoFrameFormat::Format_Jpeg)
+                pixPenalty = 250;
+            else if (pix == QVideoFrameFormat::Format_Invalid)
+                pixPenalty = 400;
+
+            const int score = dw + dh + fpsPenalty + pixPenalty;
+            if (!hasBest || score < bestScore) {
+                bestScore = score;
+                bestFormat = fmt;
+                hasBest = true;
+            }
+        }
+        if (hasBest) {
+            m_camera->setCameraFormat(bestFormat);
+            const QSize chosenRes = bestFormat.resolution();
+            emit infoReceived(QString("Live profile applied: %1x%2 @ up to %3 FPS  fmt=%4")
+                              .arg(chosenRes.width()).arg(chosenRes.height())
+                              .arg(bestFormat.maxFrameRate(), 0, 'f', 2)
+                              .arg(pixFmtName(bestFormat.pixelFormat())));
+        }
+        emit infoReceived(QString("Live profile requested: %1x%2 @ %3 FPS")
+                          .arg(preferredWidth).arg(preferredHeight).arg(preferredFps, 0, 'f', 0));
+    } else {
+        emit infoReceived("Live profile: using camera default format (no preference set).");
+    }
 
     m_captureSession->setCamera(m_camera);
     m_captureSession->setVideoOutput(nullptr);
@@ -446,20 +691,11 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     mediaFormat.setVideoCodec(QMediaFormat::VideoCodec::H264);
     m_mediaRecorder->setMediaFormat(mediaFormat);
     m_mediaRecorder->setOutputLocation(QUrl::fromLocalFile(m_liveRecordingPath));
-    m_mediaRecorder->setVideoResolution(preferredWidth, preferredHeight);
-    m_mediaRecorder->setVideoFrameRate(preferredFps);
-    m_captureSession->setRecorder(m_mediaRecorder);
-
-    if (hasBest) {
-        const QSize chosenRes = bestFormat.resolution();
-        emit infoReceived(QString("Live profile requested: %1x%2 @ %3 FPS")
-                          .arg(preferredWidth).arg(preferredHeight).arg(preferredFps, 0, 'f', 0));
-        emit infoReceived(QString("Live profile applied: %1x%2 @ up to %3 FPS")
-                          .arg(chosenRes.width()).arg(chosenRes.height())
-                          .arg(bestFormat.maxFrameRate(), 0, 'f', 2));
-    } else {
-        emit infoReceived("Live profile: using camera default format/FPS.");
+    if (preferredWidth > 0) {
+        m_mediaRecorder->setVideoResolution(preferredWidth, preferredHeight);
+        m_mediaRecorder->setVideoFrameRate(preferredFps);
     }
+    m_captureSession->setRecorder(m_mediaRecorder);
     emit infoReceived("Live recording file: " + m_liveRecordingPath);
 
     m_camera->start();
@@ -504,6 +740,32 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
 {
     // Guard: drop frames until model is loaded
     if (!m_modelReady || !m_isAnalyzing) return;
+
+    // Log real pixel format on the very first live frame — shows what the camera actually delivers
+    if (m_isLiveMode && m_videoW == 0 && m_videoH == 0) {
+        const int fw = frame.width();
+        const int fh = frame.height();
+        const QVideoFrameFormat::PixelFormat pix = frame.surfaceFormat().pixelFormat();
+        auto pixStr = [](QVideoFrameFormat::PixelFormat p) -> QString {
+            switch (p) {
+                case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
+                case QVideoFrameFormat::Format_NV12:    return "NV12";
+                case QVideoFrameFormat::Format_NV21:    return "NV21";
+                case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
+                case QVideoFrameFormat::Format_YUYV:    return "YUYV";
+                case QVideoFrameFormat::Format_UYVY:    return "UYVY";
+                case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
+                case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
+                case QVideoFrameFormat::Format_Invalid: return "Invalid";
+                default: return QString("Unknown(%1)").arg(static_cast<int>(p));
+            }
+        };
+        const QString msg = QString("First frame actual: %1x%2  fmt=%3")
+                            .arg(fw).arg(fh).arg(pixStr(pix));
+        QMetaObject::invokeMethod(this, [this, msg]() {
+            emit infoReceived(msg);
+        }, Qt::QueuedConnection);
+    }
 
     // Qt 6: QVideoFrame::toImage() handles mapping/unmapping internally
     QImage img = frame.toImage();

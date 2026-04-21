@@ -20,8 +20,10 @@ Item {
 
     Connections {
         target: tableModel
-        function onColumnCountChanged() { root.aparato = root.detectAparato() }
         function onModelReset() { root.aparato = root.detectAparato() }
+        function onColumnsInserted(parent, first, last) { root.aparato = root.detectAparato() }
+        function onColumnsRemoved(parent, first, last) { root.aparato = root.detectAparato() }
+        function onHeaderDataChanged(orientation, first, last) { root.aparato = root.detectAparato() }
     }
 
     onTableModelChanged: { root.aparato = root.detectAparato() }

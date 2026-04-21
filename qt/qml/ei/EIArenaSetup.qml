@@ -101,7 +101,13 @@ Item {
     signal zonasEditadas()
     signal analysisModeChangedExternally(string mode)
 
-    MediaDevices { id: mediaDevices }
+    Loader {
+        id: mediaDevicesLoader
+        active: true
+        sourceComponent: Component { MediaDevices {} }
+        onLoaded: eiCameraSelectPopup._populateFromDevices(item.videoInputs)
+    }
+    property alias mediaDevices: mediaDevicesLoader.item
 
     // Função pública: abre o popup de modo
     function openVideoLoader() { analysisModePrompt.open() }
@@ -354,7 +360,9 @@ Item {
     // Popup: offline ou ao vivo?
     Popup {
         id: analysisModePrompt
-        width: 400; height: 260
+        width: Math.min(root.width - 24, 560)
+        implicitHeight: modePromptCol.implicitHeight + 48
+        height: implicitHeight
         anchors.centerIn: parent
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape
@@ -366,6 +374,7 @@ Item {
         }
 
         ColumnLayout {
+            id: modePromptCol
             anchors { fill: parent; margins: 24 }
             spacing: 14
 
@@ -388,25 +397,32 @@ Item {
 
                 // Offline
                 Rectangle {
-                    Layout.fillWidth: true; height: 80; radius: 8
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; radius: 8
+                    implicitHeight: offlineChoiceCol.implicitHeight + 20
                     color: offMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
                     border.color: root.primaryColor; border.width: 2
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     ColumnLayout {
-                        anchors.centerIn: parent; spacing: 4
+                        id: offlineChoiceCol
+                        anchors { left: parent.left; right: parent.right; margins: 10; verticalCenter: parent.verticalCenter }
+                        spacing: 4
                         Text {
+                            Layout.fillWidth: true
                             text: "🎬  " + LanguageManager.tr3("Analise Offline", "Offline Analysis", "Analisis Offline")
                             color: ThemeManager.textPrimary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                         }
                         Text {
+                            Layout.fillWidth: true
                             text: LanguageManager.tr3("Video pre-gravado", "Pre-recorded video", "Video pregrabado")
                             color: ThemeManager.textSecondary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                         }
                     }
                     MouseArea {
@@ -423,25 +439,32 @@ Item {
 
                 // Ao vivo
                 Rectangle {
-                    Layout.fillWidth: true; height: 80; radius: 8
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; radius: 8
+                    implicitHeight: liveChoiceCol.implicitHeight + 20
                     color: liveMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.background
                     border.color: ThemeManager.success; border.width: 2
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     ColumnLayout {
-                        anchors.centerIn: parent; spacing: 4
+                        id: liveChoiceCol
+                        anchors { left: parent.left; right: parent.right; margins: 10; verticalCenter: parent.verticalCenter }
+                        spacing: 4
                         Text {
+                            Layout.fillWidth: true
                             text: "📹  " + LanguageManager.tr3("Analise Ao Vivo", "Live Analysis", "Analisis En Vivo")
                             color: ThemeManager.textPrimary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 13; font.weight: Font.Bold
                             horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                         }
                         Text {
+                            Layout.fillWidth: true
                             text: LanguageManager.tr3("Camera ao vivo (grava video em arquivo)", "Live camera (records video to file)", "Camara en vivo (graba video en archivo)")
                             color: ThemeManager.textSecondary
                             Behavior on color { ColorAnimation { duration: 150 } }
                             font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                         }
                     }
                     MouseArea {
@@ -575,14 +598,53 @@ Item {
         id: eiCameraSelectPopup
         anchors.centerIn: parent
         width: 400; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
-        height: Math.min(80 + Math.max(1, mediaDevices.videoInputs.length) * 52 + 130, 460)
+        height: Math.min(80 + Math.max(1, eiCameraSelectPopup._cameras.length) * 52 + 130, 460)
         background: Rectangle {
             radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
             border.color: ThemeManager.success; border.width: 1
         }
 
         property int selectedIndex: 0
-        onOpened: selectedIndex = 0
+        property var _cameras: []
+        property string _statusMsg: ""
+
+        function _populateFromDevices(devices) {
+            var list = []
+            for (var i = 0; i < devices.length; i++)
+                list.push({ name: devices[i].description })
+            _cameras = list
+            selectedIndex = 0
+            _statusMsg = list.length > 0
+                ? LanguageManager.tr3(list.length + " camera(s) encontrada(s).", list.length + " camera(s) found.", list.length + " camara(s) encontrada(s).")
+                : LanguageManager.tr3("Nenhuma camera detectada pelo sistema.", "No camera detected by the system.", "Ninguna camara detectada por el sistema.")
+        }
+
+        function _refreshCameraList() {
+            _statusMsg = LanguageManager.tr3("Buscando cameras...", "Searching cameras...", "Buscando camaras...")
+            mediaDevicesLoader.active = false
+            eiRefreshTimer.start()
+        }
+
+        Timer {
+            id: eiRefreshTimer
+            interval: 300
+            repeat: false
+            onTriggered: mediaDevicesLoader.active = true
+        }
+
+        onOpened: {
+            if (mediaDevices)
+                _populateFromDevices(mediaDevices.videoInputs)
+            else
+                _statusMsg = LanguageManager.tr3("Buscando cameras...", "Searching cameras...", "Buscando camaras...")
+        }
+
+        Connections {
+            target: mediaDevices
+            function onVideoInputsChanged() {
+                eiCameraSelectPopup._populateFromDevices(mediaDevices.videoInputs)
+            }
+        }
 
         ColumnLayout {
             anchors { fill: parent; margins: 20 }
@@ -603,9 +665,9 @@ Item {
 
             ListView {
                 Layout.fillWidth: true
-                height: Math.min(mediaDevices.videoInputs.length * 52, 220)
+                height: Math.min(eiCameraSelectPopup._cameras.length * 52, 220)
                 clip: true
-                model: mediaDevices.videoInputs
+                model: eiCameraSelectPopup._cameras
                 delegate: Rectangle {
                     width: ListView.view.width; height: 48; radius: 8
                     color: eiCameraSelectPopup.selectedIndex === index
@@ -615,21 +677,12 @@ Item {
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                    ColumnLayout {
+                    Text {
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 12 }
-                        spacing: 2
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.description
-                            color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
-                            font.pixelSize: 12; font.weight: Font.Medium
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            text: modelData.isDefault ? LanguageManager.tr3("Padrao", "Default", "Predeterminada") : ""
-                            color: ThemeManager.success; font.pixelSize: 10
-                            visible: modelData.isDefault
-                        }
+                        text: modelData.name
+                        color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                        font.pixelSize: 12; font.weight: Font.Medium
+                        elide: Text.ElideRight
                     }
                     MouseArea {
                         id: eiCamMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -639,24 +692,29 @@ Item {
             }
 
             Text {
-                visible: mediaDevices.videoInputs.length === 0
+                visible: eiCameraSelectPopup._statusMsg !== ""
                 Layout.fillWidth: true
-                text: LanguageManager.tr3("Nenhuma camera detectada.\nConecte uma camera USB e tente novamente.", "No camera detected.\nConnect a USB camera and try again.", "Ninguna camara detectada.\nConecte una camara USB e intente de nuevo.")
-                color: ThemeManager.textSecondary; font.pixelSize: 12
+                text: eiCameraSelectPopup._statusMsg
+                color: eiCameraSelectPopup._cameras.length > 0 ? ThemeManager.success : ThemeManager.textSecondary
+                font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
             }
 
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
+                GhostButton {
+                    text: "\u{1F504} " + LanguageManager.tr3("Atualizar", "Refresh", "Actualizar")
+                    onClicked: eiCameraSelectPopup._refreshCameraList()
+                }
                 Item { Layout.fillWidth: true }
                 GhostButton { text: "Cancelar"; onClicked: { root.analysisMode = ""; eiCameraSelectPopup.close() } }
                 Button {
                     text: LanguageManager.tr3("Iniciar ao Vivo", "Start Live", "Iniciar en Vivo")
-                    enabled: mediaDevices.videoInputs.length > 0
+                    enabled: eiCameraSelectPopup._cameras.length > 0
                     onClicked: {
                         var idx = eiCameraSelectPopup.selectedIndex
-                        if (idx >= 0 && idx < mediaDevices.videoInputs.length)
-                            root.cameraId = mediaDevices.videoInputs[idx].description
+                        if (idx >= 0 && idx < eiCameraSelectPopup._cameras.length)
+                            root.cameraId = eiCameraSelectPopup._cameras[idx].name
                         eiCameraSelectPopup.close()
                         root.analysisModeChangedExternally("ao_vivo")
                     }

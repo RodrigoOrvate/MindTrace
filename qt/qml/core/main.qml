@@ -176,7 +176,7 @@ ApplicationWindow {
         anchors { top: parent.top; right: parent.right; margins: 12 }
         width: 40
         height: 40
-        text: "⚙️"
+        text: "\u2699"
         font.pixelSize: 18
         flat: true
 

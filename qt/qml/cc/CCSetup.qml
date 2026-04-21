@@ -287,10 +287,11 @@ Item {
                                     color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                                     width: Math.max(48, contentWidth + 4)
                                     selectByMouse: true
-                                    onTextChanged: dayNamesModel.setProperty(index, "dayName", text)
+                                    onTextEdited: dayNamesModel.setProperty(index, "dayName", text)
                                     onEditingFinished: {
                                         var n = DayNameUtils.normalizeDayName(text)
                                         if (n !== text) text = n
+                                        dayNamesModel.setProperty(index, "dayName", text)
                                     }
                                 }
                                 Item { width: 2 }

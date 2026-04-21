@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QQmlApplicationEngine>
+#include <QQuickStyle>
 #include "inference_controller.h"
 #include "BehaviorTimeline.h"
 #include "BSoidAnalyzer.h"
@@ -36,7 +37,8 @@ static void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const 
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
     app.setApplicationName(QStringLiteral("MindTrace"));
     app.setOrganizationName(QStringLiteral("NeuroLab"));
 
