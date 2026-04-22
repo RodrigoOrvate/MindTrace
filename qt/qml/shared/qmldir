@@ -7,3 +7,4 @@ CADataView 1.0 CADataView.qml
 CCDataView 1.0 CCDataView.qml
 EIDataView 1.0 EIDataView.qml
 BoutEditorPanel 1.0 BoutEditorPanel.qml
+AnimalSearchField 1.0 AnimalSearchField.qml

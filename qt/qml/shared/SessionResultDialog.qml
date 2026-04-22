@@ -52,8 +52,17 @@ Popup {
         return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
     }
 
-    property var _animalTexts: ["", "", ""]
-    property var _drogaTexts:  ["", "", ""]
+    property var _animalTexts:  ["", "", ""]
+    property var _drogaTexts:   ["", "", ""]
+    property var _animalDbIds:  [-1, -1, -1]
+
+    function _postEvent(dbId, title, payload) {
+        if (dbId <= 0) return
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", "http://localhost:8000/animals/" + dbId + "/events")
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.send(JSON.stringify({ event_type: "experiment_session", title: title, payload: payload, source: "mindtrace" }))
+    }
 
     // ── Geometria ─────────────────────────────────────────────────────────
     anchors.centerIn: parent
@@ -67,6 +76,8 @@ Popup {
         dayCombo.currentIndex = 0
         root._animalTexts = ["", "", ""]
         root._drogaTexts  = ["", "", ""]
+        root._animalDbIds = [-1, -1, -1]
+        c1.picker.clear(); c2.picker.clear(); c3.picker.clear()
     }
 
     background: Rectangle {
@@ -137,6 +148,38 @@ Popup {
             .filter(function(a) { return a.length > 0 }).join("-")
         ExperimentManager.saveSessionMetadata(
             root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animaisStr)
+
+        // Post to animal lifecycle API (fire-and-forget)
+        for (var k = 0; k < root.numCampos; k++) {
+            var dbId = root._animalDbIds[k]
+            if (dbId <= 0 || !root._animalTexts[k]) continue
+            var zk0 = k * 2, zk1 = k * 2 + 1
+            var tkA = root.sessionExplorationTimes[zk0] || 0
+            var tkB = root.sessionExplorationTimes[zk1] || 0
+            var boutsA = (root.sessionExplorationBouts[zk0] || []).length
+            var boutsB = (root.sessionExplorationBouts[zk1] || []).length
+            var tot = tkA + tkB
+            var dist = parseFloat((root.sessionTotalDistance[k] || 0).toFixed(3))
+            var vel = parseFloat((root.sessionAvgVelocity[k] || 0).toFixed(3))
+            root._postEvent(dbId, "NOR — " + fase, {
+                apparatus: "nor", day: fase,
+                day_index: parseInt(dia, 10),
+                experiment_name: root.experimentName,
+                field: k + 1,
+                pair: pares[k],
+                treatment: root.includeDrug ? (root._drogaTexts[k] || "") : "",
+                exploration_a_s: parseFloat(tkA.toFixed(2)),
+                exploration_b_s: parseFloat(tkB.toFixed(2)),
+                exploration_total_s: parseFloat(tot.toFixed(2)),
+                bouts_a: boutsA,
+                bouts_b: boutsB,
+                di: tot > 0 ? parseFloat(((tkB - tkA) / tot).toFixed(3)) : 0,
+                distance_m: dist,
+                avg_speed_ms: vel,
+                video_path: v
+            })
+        }
+
         root.close()
     }
 
@@ -242,25 +285,31 @@ Popup {
 
         // ── Campos ────────────────────────────────────────────────────────
         CampoBlock {
+            id: c1
             Layout.fillWidth: true; visible: root.numCampos >= 1; campoIndex: 0
-            pairLabel: root.pair1
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[0] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[0] = txt; root._drogaTexts  = d }
+            pairLabel: root.pair1; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[0] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[0] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[0] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[0] = txt;  root._drogaTexts  = d }
         }
         CampoBlock {
+            id: c2
             Layout.fillWidth: true; visible: root.numCampos >= 2; campoIndex: 1
-            pairLabel: root.pair2
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[1] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[1] = txt; root._drogaTexts  = d }
+            pairLabel: root.pair2; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[1] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[1] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[1] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[1] = txt;  root._drogaTexts  = d }
         }
         CampoBlock {
+            id: c3
             Layout.fillWidth: true; visible: root.numCampos >= 3; campoIndex: 2
-            pairLabel: root.pair3
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[2] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[2] = txt; root._drogaTexts  = d }
+            pairLabel: root.pair3; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[2] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[2] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[2] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[2] = txt;  root._drogaTexts  = d }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -302,7 +351,11 @@ Popup {
         property string pairLabel:   ""
         property bool   includeDrug: true
 
+        // Exposes the AnimalSearchField so parent can call picker.clear() on reopen
+        readonly property alias picker: animalPicker
+
         signal animalChanged(string txt)
+        signal animalPicked(string txt, int dbId)
         signal drogaChanged(string txt)
 
         ColumnLayout {
@@ -334,7 +387,7 @@ Popup {
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     Text {
-                text: LanguageManager.tr3("Par de objetos", "Object pair", "Par de objetos")
+                        text: LanguageManager.tr3("Par de objetos", "Object pair", "Par de objetos")
                         color: ThemeManager.textSecondary; font.pixelSize: 10
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -350,21 +403,12 @@ Popup {
                         font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
-                    TextField {
-                        id: animalField
-                        width: 130; height: 30
-                        placeholderText: LanguageManager.tr3("ID ou nome", "ID or name", "ID o nombre")
-                        color: ThemeManager.textPrimary
-                        placeholderTextColor: ThemeManager.textTertiary
-                        font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 7; color: ThemeManager.surface
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: animalField.activeFocus ? "#ab3d4c" : ThemeManager.border; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                        onTextChanged: blk.animalChanged(text)
+                    AnimalSearchField {
+                        id: animalPicker
+                        width: 170; height: 30
+                        accentColor: "#ab3d4c"
+                        onPicked:     function(internalId, dbId) { blk.animalChanged(internalId); blk.animalPicked(internalId, dbId) }
+                        onTextEdited: function(text)              { blk.animalChanged(text) }
                     }
                 }
             }
@@ -403,4 +447,3 @@ Popup {
         }
     }
 }
-

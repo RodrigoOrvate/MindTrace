@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_PREFIX_PATH "C:/Qt/6.11.0/msvc2022_64")
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Widgets Quick QuickControls2 Multimedia)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Widgets Quick QuickControls2 Multimedia Network)
 
 # ONNX Runtime C++ SDK — extraia o pacote adequado e renomeie para onnxruntime_sdk/
 #   AMD / Intel  →  onnxruntime-win-x64-1.24.4.zip     extraído como onnxruntime_sdk/
@@ -70,6 +70,7 @@ target_link_libraries(MindTrace PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Network
     "${ONNX_DIR}/lib/onnxruntime.lib"
     dxgi
     # d3d12 — NÃO linkar: DX12/CUDA são internos ao onnxruntime.dll

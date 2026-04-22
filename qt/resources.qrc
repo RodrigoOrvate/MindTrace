@@ -19,6 +19,7 @@
     <file>qml/shared/LiveRecording.qml</file>
     <file>qml/shared/SessionResultDialog.qml</file>
     <file>qml/shared/BoutEditorPanel.qml</file>
+    <file>qml/shared/AnimalSearchField.qml</file>
 
     <file>qml/nor/NORCard.qml</file>
     <file>qml/nor/ArenaSelection.qml</file>

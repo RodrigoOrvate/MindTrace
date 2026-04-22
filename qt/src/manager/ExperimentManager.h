@@ -2,9 +2,11 @@
 
 #include <QAbstractListModel>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 
 // ---------------------------------------------------------------------------
 // ExperimentListModel
@@ -156,6 +158,13 @@ signals:
     void sessionDataInserted(const QString &experimentName);
 
 private:
+    bool    isSafeLocalSyncUrl(const QUrl &url) const;
+    QByteArray computeHmacSha256(const QByteArray &key, const QByteArray &data) const;
+    void    triggerAnimalLifecycleSync(const QString &experimentName, const QString &folderPath);
+    void    triggerAnimalLifecycleDeletionAudit(const QString &experimentName,
+                                                const QString &folderPath,
+                                                const QString &context);
+
     QString basePath() const;
     void    scanAndUpdateModel(const QString &aparatoFilter); 
     void    scanAndUpdateModel();
@@ -183,4 +192,5 @@ private:
     QString              m_activeContext;
     QString              m_aparatoFilter;
     bool                 m_inSearchMode;
+    QNetworkAccessManager *m_syncNetwork;
 };

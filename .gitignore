@@ -48,3 +48,28 @@ desktop.ini
 
 # ── Logs ─────────────────────────────────────────────────
 *.log
+.expo/
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# Animal Lifecycle local/runtime files
+animal-lifecycle-platform/backend/.venv/
+animal-lifecycle-platform/backend/.pytest_cache/
+animal-lifecycle-platform/backend/**/__pycache__/
+animal-lifecycle-platform/backend/*.db
+animal-lifecycle-platform/backend/*.sqlite
+animal-lifecycle-platform/backend/pytest-cache-files-*/
+animal-lifecycle-platform/backend/.mypy_cache/
+animal-lifecycle-platform/backend/.ruff_cache/
+
+# Mobile generated files
+animal-lifecycle-platform/mobile/node_modules/
+animal-lifecycle-platform/mobile/.expo/
+animal-lifecycle-platform/mobile/dist/
+animal-lifecycle-platform/mobile/web-build/
+
+# Local backup scratch
+_backup_test/
+animal-lifecycle-platform/backend/_backup_test/

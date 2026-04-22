@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Animal Lifecycle",
+    "slug": "animal-lifecycle-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}

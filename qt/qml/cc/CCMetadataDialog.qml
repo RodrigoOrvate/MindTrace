@@ -7,6 +7,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
 import "../core/Theme"
+import "../shared"
 import MindTrace.Backend 1.0
 
 Popup {
@@ -27,8 +28,17 @@ Popup {
     property int sessionMinutes: 5   // duração real da sessão em minutos
 
     // Textos dos campos (preenchidos pelos CampoBlock via onAnimalChanged / onDrogaChanged)
-    property var _animalTexts: ["", "", ""]
-    property var _drogaTexts:  ["", "", ""]
+    property var _animalTexts:  ["", "", ""]
+    property var _drogaTexts:   ["", "", ""]
+    property var _animalDbIds:  [-1, -1, -1]
+
+    function _postEvent(dbId, title, payload) {
+        if (dbId <= 0) return
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", "http://localhost:8000/animals/" + dbId + "/events")
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.send(JSON.stringify({ event_type: "experiment_session", title: title, payload: payload, source: "mindtrace" }))
+    }
 
     function localizedDayName(dayName, index) {
         var t = String(dayName || "").trim().toLowerCase()
@@ -61,8 +71,10 @@ Popup {
 
     onOpened: {
         dayCombo.currentIndex = 0
-        root._animalTexts     = ["", "", ""]
-        root._drogaTexts      = ["", "", ""]
+        root._animalTexts = ["", "", ""]
+        root._drogaTexts  = ["", "", ""]
+        root._animalDbIds = [-1, -1, -1]
+        cc1.picker.clear(); cc2.picker.clear(); cc3.picker.clear()
     }
 
     background: Rectangle {
@@ -141,6 +153,33 @@ Popup {
             .join("-")
         ExperimentManager.saveSessionMetadata(
             root.experimentName, JSON.stringify(sessionMeta), "Dia" + dia + "_" + animaisStr)
+
+        // Post to animal lifecycle API (fire-and-forget)
+        for (var ck = 0; ck < root.numCampos; ck++) {
+            var dbId = root._animalDbIds[ck]
+            if (dbId <= 0 || !root._animalTexts[ck]) continue
+            var bcK = root.behaviorCounts[ck] || {}
+            var dist = parseFloat((root.totalDistance[ck] || 0).toFixed(3))
+            var vel  = parseFloat((root.avgVelocity[ck]   || 0).toFixed(3))
+            root._postEvent(dbId, "CC — " + fase, {
+                apparatus: "comportamento_complexo", day: fase,
+                day_index: parseInt(dia, 10),
+                experiment_name: root.experimentName,
+                field: ck + 1,
+                treatment: root.includeDrug ? (root._drogaTexts[ck] || "") : "",
+                session_minutes: root.sessionMinutes,
+                distance_m:      dist,
+                avg_speed_ms:    vel,
+                velocity_ms:     vel,
+                behavior_walking:  bcK["Walking"] || 0,
+                behavior_sniffing: bcK["Sniffing"] || 0,
+                behavior_grooming: bcK["Grooming"] || 0,
+                behavior_resting:  bcK["Resting"] || 0,
+                behavior_rearing:  bcK["Rearing"] || 0,
+                behaviors:       bcK,
+                video_path:      v
+            })
+        }
 
         root.close()
     }
@@ -252,25 +291,31 @@ Popup {
 
         // ── Campos ────────────────────────────────────────────────────────
         CampoBlock {
+            id: cc1
             Layout.fillWidth: true; visible: root.numCampos >= 1; campoIndex: 0
-            dist: root.totalDistance[0] || 0;  vel: root.avgVelocity[0] || 0
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[0] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[0] = txt; root._drogaTexts  = d }
+            dist: root.totalDistance[0] || 0; vel: root.avgVelocity[0] || 0; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[0] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[0] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[0] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[0] = txt;  root._drogaTexts  = d }
         }
         CampoBlock {
+            id: cc2
             Layout.fillWidth: true; visible: root.numCampos >= 2; campoIndex: 1
-            dist: root.totalDistance[1] || 0;  vel: root.avgVelocity[1] || 0
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[1] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[1] = txt; root._drogaTexts  = d }
+            dist: root.totalDistance[1] || 0; vel: root.avgVelocity[1] || 0; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[1] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[1] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[1] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[1] = txt;  root._drogaTexts  = d }
         }
         CampoBlock {
+            id: cc3
             Layout.fillWidth: true; visible: root.numCampos >= 3; campoIndex: 2
-            dist: root.totalDistance[2] || 0;  vel: root.avgVelocity[2] || 0
-            includeDrug: root.includeDrug
-            onAnimalChanged: function(txt) { var a = root._animalTexts.slice(); a[2] = txt; root._animalTexts = a }
-            onDrogaChanged:  function(txt) { var d = root._drogaTexts.slice();  d[2] = txt; root._drogaTexts  = d }
+            dist: root.totalDistance[2] || 0; vel: root.avgVelocity[2] || 0; includeDrug: root.includeDrug
+            onAnimalChanged: function(txt)       { var a = root._animalTexts.slice(); a[2] = txt;  root._animalTexts = a }
+            onAnimalPicked:  function(txt, dbId) { var a = root._animalTexts.slice(); a[2] = txt;  root._animalTexts = a
+                                                   var d = root._animalDbIds.slice();  d[2] = dbId; root._animalDbIds  = d }
+            onDrogaChanged:  function(txt)       { var d = root._drogaTexts.slice();  d[2] = txt;  root._drogaTexts  = d }
         }
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -314,7 +359,10 @@ Popup {
         property real vel:         0.0
         property bool includeDrug: true
 
+        readonly property alias picker: ccPicker
+
         signal animalChanged(string txt)
+        signal animalPicked(string txt, int dbId)
         signal drogaChanged(string txt)
 
         ColumnLayout {
@@ -364,21 +412,12 @@ Popup {
                         font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
-                    TextField {
-                        id: animalField
-                        width: 130; height: 30
-                        placeholderText: LanguageManager.tr3("ID ou nome", "ID or name", "ID o nombre")
-                        color: ThemeManager.textPrimary
-                        placeholderTextColor: ThemeManager.textTertiary
-                        font.pixelSize: 12
-                        leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                        background: Rectangle {
-                            radius: 7; color: ThemeManager.surface
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            border.color: animalField.activeFocus ? "#7a3dab" : ThemeManager.border; border.width: 1
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
-                        }
-                        onTextChanged: blk.animalChanged(text)
+                    AnimalSearchField {
+                        id: ccPicker
+                        width: 170; height: 30
+                        accentColor: "#7a3dab"
+                        onPicked:     function(internalId, dbId) { blk.animalChanged(internalId); blk.animalPicked(internalId, dbId) }
+                        onTextEdited: function(text)              { blk.animalChanged(text) }
                     }
                 }
             }

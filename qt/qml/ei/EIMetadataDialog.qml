@@ -6,6 +6,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import "../core"
 import "../core/Theme"
+import "../shared"
 import MindTrace.Backend 1.0
 
 Popup {
@@ -32,8 +33,17 @@ Popup {
     property real   totalDistance: 0
     property real   avgVelocity: 0
 
-    property var _animalText: ""
-    property var _drogaText:  ""
+    property var _animalText:  ""
+    property var _drogaText:   ""
+    property int _animalDbId:  -1
+
+    function _postEvent(dbId, title, payload) {
+        if (dbId <= 0) return
+        var xhr = new XMLHttpRequest()
+        xhr.open("POST", "http://localhost:8000/animals/" + dbId + "/events")
+        xhr.setRequestHeader("Content-Type", "application/json")
+        xhr.send(JSON.stringify({ event_type: "experiment_session", title: title, payload: payload, source: "mindtrace" }))
+    }
 
     function localizedDayName(dayName, index) {
         var t = String(dayName || "").trim().toLowerCase()
@@ -56,8 +66,10 @@ Popup {
 
     onOpened: {
         dayCombo.currentIndex = 0
-        _animalText = ""
-        _drogaText  = ""
+        _animalText  = ""
+        _drogaText   = ""
+        _animalDbId  = -1
+        eiPicker.clear()
     }
 
     function doInsert() {
@@ -93,6 +105,24 @@ Popup {
             }
             ExperimentManager.saveSessionMetadata(
                 root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animalText)
+
+            // Post to animal lifecycle API (fire-and-forget)
+            root._postEvent(root._animalDbId, "EI — " + fase, {
+                apparatus: "esquiva_inibitoria", day: fase,
+                day_index: parseInt(dia, 10),
+                experiment_name: root.experimentName,
+                field: 1,
+                treatment: root.includeDrug ? root._drogaText.trim() : "",
+                latencia_s:         parseFloat(latencia.toFixed(2)),
+                tempo_plataforma_s: parseFloat(tempoPlataf.toFixed(2)),
+                tempo_grade_s:      parseFloat(tempoGrade.toFixed(2)),
+                bouts_plataforma:   boutsPlataf,
+                bouts_grade:        boutsGrade,
+                distance_m:         parseFloat(totalDistance.toFixed(2)),
+                avg_speed_ms:       parseFloat(vMediaReal.toFixed(2)),
+                velocity_ms:        parseFloat(vMediaReal.toFixed(2)),
+                video_path:         videoPath.replace("file:///", "")
+            })
         } catch (e) {
             console.log("Erro ao salvar sessão EI:", e)
         } finally {
@@ -256,21 +286,12 @@ Popup {
                             font.pixelSize: 9; font.weight: Font.Bold; font.letterSpacing: 1.2
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
-                        TextField {
-                            id: animalField
-                            width: 130; height: 30
-                            placeholderText: LanguageManager.tr3("ID ou nome", "ID or name", "ID o nombre")
-                            color: ThemeManager.textPrimary
-                            placeholderTextColor: ThemeManager.textTertiary
-                            font.pixelSize: 12
-                            leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
-                            background: Rectangle {
-                                radius: 7; color: ThemeManager.surface
-                                Behavior on color { ColorAnimation { duration: 200 } }
-                                border.color: animalField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
-                            }
-                            onTextChanged: root._animalText = text
+                        AnimalSearchField {
+                            id: eiPicker
+                            width: 170; height: 30
+                            accentColor: "#c8a000"
+                            onPicked:     function(internalId, dbId) { root._animalText = internalId; root._animalDbId = dbId }
+                            onTextEdited: function(text)              { root._animalText = text; root._animalDbId = -1 }
                         }
                     }
                 }
@@ -337,4 +358,3 @@ Popup {
         Item { height: 4 }
     }
 }
-
