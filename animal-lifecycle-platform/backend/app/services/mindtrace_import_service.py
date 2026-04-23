@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..id_model import format_animal_id, next_rr_for_day
-from ..models import Animal, AnimalEvent, EventType, Experiment, ExperimentEnrollment, Lab, LifeStatus
+from ..models import Animal, AnimalEvent, AppUser, EventType, Experiment, ExperimentEnrollment, Lab, LifeStatus
 from ..schemas import MindTraceDeleteInput, MindTraceDeleteResult, MindTraceImportInput, MindTraceImportResult
 
 
@@ -22,6 +22,43 @@ def _find_animal(db: Session, raw_name: str) -> Animal | None:
     if by_internal:
         return by_internal
     return db.execute(select(Animal).where(Animal.external_id == raw_name)).scalar_one_or_none()
+
+
+def _to_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        txt = value.strip().replace(",", ".")
+        if not txt:
+            return None
+        try:
+            return float(txt)
+        except ValueError:
+            return None
+    return None
+
+
+def _to_int(value: object) -> int | None:
+    parsed = _to_float(value)
+    if parsed is None:
+        return None
+    try:
+        return int(round(parsed))
+    except Exception:
+        return None
+
+
+def _apparatus_sigla(raw: object) -> str:
+    key = str(raw or "").strip().lower()
+    mapping = {
+        "nor": "NOR",
+        "campo_aberto": "CA",
+        "comportamento_complexo": "CC",
+        "esquiva_inibitoria": "EI",
+    }
+    return mapping.get(key, key.upper() if key else "EXP")
 
 
 def _create_stub_animal(db: Session, lab_id: int, raw_name: str, id_cc_default: str) -> Animal:
@@ -44,7 +81,7 @@ def _create_stub_animal(db: Session, lab_id: int, raw_name: str, id_cc_default: 
         AnimalEvent(
             animal_id=animal.id,
             event_type=EventType.ENTRY,
-            title="Entrada automática (importação MindTrace)",
+            title="Entrada automatica (importacao MindTrace)",
             description=f"Stub criado para vincular '{raw_name}'.",
             payload={"external_name": raw_name},
             source="mindtrace",
@@ -62,7 +99,7 @@ def import_mindtrace_folder(db: Session, data: MindTraceImportInput) -> MindTrac
     missing_animals: list[str] = []
 
     if not meta_path.exists():
-        raise FileNotFoundError(f"metadata.json não encontrado em {exp_path}")
+        raise FileNotFoundError(f"metadata.json nao encontrado em {exp_path}")
     if not sessions_dir.exists():
         warnings.append("Pasta sessions/ ausente. Apenas metadados do experimento foram importados.")
 
@@ -76,6 +113,7 @@ def import_mindtrace_folder(db: Session, data: MindTraceImportInput) -> MindTrac
         source_path=str(exp_path),
         context=data.context or meta.get("context"),
         apparatus=meta.get("aparato"),
+        responsible_username=str(meta.get("responsible_username") or "").strip() or None,
         meta_payload=meta,
     )
     db.add(experiment)
@@ -104,33 +142,98 @@ def import_mindtrace_folder(db: Session, data: MindTraceImportInput) -> MindTrac
                     continue
 
             animals_linked += 1
-            enrollment = ExperimentEnrollment(
-                experiment_id=experiment.id,
-                animal_id=animal.id,
-                field_number=campo.get("campo"),
-                day_number=int(session_data.get("dia")) if str(session_data.get("dia", "")).isdigit() else None,
-                session_label=session_data.get("fase"),
-                payload={
-                    "session_file": session_file.name,
-                    "raw": session_data,
-                    "campo": campo,
-                },
-            )
-            db.add(enrollment)
-            enrollments_created += 1
+            field_number = campo.get("campo")
+            day_number = int(session_data.get("dia")) if str(session_data.get("dia", "")).isdigit() else None
+            session_label = session_data.get("fase")
+
+            existing_enrollment = db.execute(
+                select(ExperimentEnrollment).where(
+                    ExperimentEnrollment.experiment_id == experiment.id,
+                    ExperimentEnrollment.animal_id == animal.id,
+                    ExperimentEnrollment.field_number == field_number,
+                    ExperimentEnrollment.day_number == day_number,
+                )
+            ).scalar_one_or_none()
+
+            if not existing_enrollment:
+                enrollment = ExperimentEnrollment(
+                    experiment_id=experiment.id,
+                    animal_id=animal.id,
+                    field_number=field_number,
+                    day_number=day_number,
+                    session_label=session_label,
+                    payload={
+                        "session_file": session_file.name,
+                        "raw": session_data,
+                        "campo": campo,
+                    },
+                )
+                db.add(enrollment)
+                enrollments_created += 1
+            else:
+                warnings.append(
+                    f"Matricula duplicada ignorada: animal={animal.internal_id}, campo={field_number}, dia={day_number}."
+                )
+
+            apparatus = str(meta.get("aparato") or "experimento")
+            apparatus_sigla = _apparatus_sigla(apparatus)
+            pair = campo.get("par")
+            treatment = campo.get("droga")
+            exploration = campo.get("exploracao") or campo.get("exploração") or {}
+            movement = campo.get("movimento") or {}
+            responsible_username = str(experiment.responsible_username or "").strip()
+            responsible_name = responsible_username
+            if responsible_username:
+                responsible_user = db.execute(
+                    select(AppUser).where(AppUser.username == responsible_username)
+                ).scalar_one_or_none()
+                if responsible_user and responsible_user.full_name:
+                    responsible_name = responsible_user.full_name
+
+            obj1_s = _to_float(exploration.get("objA_total_s"))
+            obj2_s = _to_float(exploration.get("objB_total_s"))
+            obj1_bouts = _to_int(exploration.get("objA_n_bouts"))
+            obj2_bouts = _to_int(exploration.get("objB_n_bouts"))
+            di_value = _to_float(exploration.get("DI"))
+            distance_m = _to_float(movement.get("distancia_total_m"))
+            avg_speed_ms = _to_float(movement.get("velocidade_media_ms"))
 
             db.add(
                 AnimalEvent(
                     animal_id=animal.id,
                     event_type=EventType.EXPERIMENT_SESSION,
                     event_at=datetime.utcnow(),
-                    title=f"Sessão MindTrace ({meta.get('aparato', 'experimento')})",
-                    description=f"{session_data.get('fase', 'Sessão')} - dia {session_data.get('dia', '?')}",
+                    title=f"{apparatus_sigla} - {session_label or 'Sessao'}",
+                    description=f"Sessao {session_label or '?'} - dia {day_number if day_number is not None else '?'}",
                     payload={
                         "experiment_id": experiment.id,
                         "experiment_name": meta.get("name"),
+                        "apparatus": apparatus,
+                        "context": meta.get("context"),
+                        "responsible_username": responsible_username or None,
+                        "responsible_full_name": responsible_name or None,
+                        "actor_name": responsible_name or None,
+                        "actor_username": responsible_username or None,
+                        "animal_internal_id": animal.internal_id,
                         "session_file": session_file.name,
-                        "campo": campo.get("campo"),
+                        "campo": field_number,
+                        "field": field_number,
+                        "day": session_label,
+                        "day_index": day_number,
+                        "pair": pair,
+                        "treatment": treatment,
+                        "exploration_obj1_s": obj1_s,
+                        "exploration_obj2_s": obj2_s,
+                        "exploration_a_s": obj1_s,
+                        "exploration_b_s": obj2_s,
+                        "bouts_obj1": obj1_bouts,
+                        "bouts_obj2": obj2_bouts,
+                        "bouts_a": obj1_bouts,
+                        "bouts_b": obj2_bouts,
+                        "di": di_value,
+                        "distance_m": distance_m,
+                        "avg_speed_ms": avg_speed_ms,
+                        "velocity_ms": avg_speed_ms,
                     },
                     source="mindtrace",
                 )
@@ -144,7 +247,7 @@ def import_mindtrace_folder(db: Session, data: MindTraceImportInput) -> MindTrac
             enrollments_created=enrollments_created,
             animals_linked=animals_linked,
             missing_animals=sorted(set(missing_animals)),
-            warnings=warnings + ["Execução em dry_run. Nenhum dado foi salvo."],
+            warnings=warnings + ["Execucao em dry_run. Nenhum dado foi salvo."],
         )
 
     return MindTraceImportResult(
@@ -209,9 +312,9 @@ def mark_experiment_deleted(db: Session, data: MindTraceDeleteInput) -> MindTrac
             animal_id=animal_id,
             event_type=EventType.NOTE,
             event_at=now,
-            title="Experimento excluído",
+            title="Experimento excluido",
             description=(
-                f'Excluído no MindTrace: experimento "{exp_name}"'
+                f'Excluido no MindTrace: experimento "{exp_name}"'
                 + (f" (contexto: {data.context.strip()})" if data.context and data.context.strip() else "")
                 + "."
             ),

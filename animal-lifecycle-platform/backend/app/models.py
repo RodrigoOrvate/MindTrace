@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 
 from sqlalchemy import JSON, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -38,7 +38,7 @@ class Lab(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     code: Mapped[str] = mapped_column(String(12), unique=True, index=True)
     country: Mapped[str] = mapped_column(String(3), default="BR")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class AppUser(Base):
@@ -51,10 +51,23 @@ class AppUser(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_admin: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
+    preferred_theme: Mapped[str] = mapped_column(String(16), default="light")
+    preferred_language: Mapped[str] = mapped_column(String(8), default="pt")
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    value: Mapped[str] = mapped_column(String(120))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
+    )
 
 
 class Species(Base):
@@ -97,8 +110,8 @@ class Animal(Base):
     euthanasia_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     euthanasia_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     lab: Mapped["Lab"] = relationship()
     species: Mapped["Species"] = relationship()
@@ -115,6 +128,7 @@ class Experiment(Base):
     source_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     context: Mapped[str | None] = mapped_column(String(120), nullable=True)
     apparatus: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    responsible_username: Mapped[str | None] = mapped_column(String(80), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     meta_payload: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
@@ -132,7 +146,7 @@ class ExperimentEnrollment(Base):
     day_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     session_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     experiment: Mapped["Experiment"] = relationship(back_populates="enrollments")
     animal: Mapped["Animal"] = relationship()
@@ -145,11 +159,11 @@ class AnimalEvent(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     animal_id: Mapped[int] = mapped_column(ForeignKey("animals.id"), index=True)
     event_type: Mapped[EventType] = mapped_column(Enum(EventType), index=True)
-    event_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    event_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), index=True)
     title: Mapped[str] = mapped_column(String(180))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source: Mapped[str] = mapped_column(String(40), default="manual")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     animal: Mapped["Animal"] = relationship(back_populates="events")

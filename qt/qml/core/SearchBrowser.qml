@@ -141,7 +141,9 @@ Item {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: model.context
+                                    text: model.responsible && model.responsible.length > 0
+                                          ? (model.context + " • " + LanguageManager.tr3("Resp: ", "Resp: ", "Resp: ") + ExperimentManager.researcherFullName(model.responsible))
+                                          : model.context
                                     color: ThemeManager.textTertiary; font.pixelSize: 10; elide: Text.ElideRight
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -195,6 +197,8 @@ Item {
                                     var appType = meta.aparato || "nor"
                                     previewName.text    = model.name
                                     previewContext.text = model.context
+                                    var respUser = (model.responsible || meta.responsible_username || "")
+                                    previewResponsible.text = ExperimentManager.researcherFullName(respUser)
                                     previewAparato.text = appType === "comportamento_complexo" ? "🧩 " + LanguageManager.tr3("Comp. Complexo", "Complex Behavior", "Comp. Complejo") : appType === "campo_aberto" ? "🐁 " + LanguageManager.tr3("Campo Aberto", "Open Field", "Campo Abierto") : appType === "esquiva_inibitoria" ? "⚡ " + LanguageManager.tr3("Esquiva Inibitoria", "Inhibitory Avoidance", "Evitacion Inhibitoria") : "🧠 " + LanguageManager.tr3("Rec. de Objetos", "Object Recognition", "Rec. de Objetos")
                                     previewCampos.text  = (meta.numCampos || 3) + " " + LanguageManager.tr3("campo(s)", "field(s)", "campo(s)")
                                     previewContainer.previewAparatoVal   = appType
@@ -286,6 +290,19 @@ Item {
                                 spacing: 2
                                 Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Campos", "Fields", "Campos"); color: ThemeManager.textTertiary; font.pixelSize: 11 }
                                 Text { id: previewCampos; Layout.alignment: Qt.AlignHCenter; text: ""; color: ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                            }
+
+                            ColumnLayout {
+                                spacing: 2
+                                Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Responsavel", "Responsible", "Responsable"); color: ThemeManager.textTertiary; font.pixelSize: 11 }
+                                Text {
+                                    id: previewResponsible
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: ""
+                                    color: ThemeManager.textSecondary
+                                    font.pixelSize: 13
+                                    font.weight: Font.Bold
+                                }
                             }
                         }
 

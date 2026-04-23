@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -48,7 +48,7 @@ def create_animal(
         AnimalEvent(
             animal_id=animal.id,
             event_type=EventType.ENTRY,
-            event_at=datetime.combine(payload.entry_date, time(hour=12)),
+            event_at=datetime.now(UTC).replace(tzinfo=None),
             title="Entrada no laboratório",
             description=f"Cadastro inicial do animal {animal.internal_id}.",
             payload={
@@ -77,7 +77,7 @@ def add_event(
     event = AnimalEvent(
         animal_id=animal.id,
         event_type=payload.event_type,
-        event_at=payload.event_at or datetime.utcnow(),
+        event_at=payload.event_at or datetime.now(UTC).replace(tzinfo=None),
         title=payload.title,
         description=payload.description,
         payload=merged_payload,
@@ -103,7 +103,7 @@ def euthanize_animal(
     event = AnimalEvent(
         animal_id=animal.id,
         event_type=EventType.EUTHANASIA,
-        event_at=datetime.combine(payload.date, time(hour=12)),
+        event_at=datetime.now(UTC).replace(tzinfo=None),
         title="Eutanasia",
         description=payload.notes or payload.reason,
         payload={"method": payload.method, "reason": payload.reason, **_actor_meta(actor_name, actor_username, actor_email)},

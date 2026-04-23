@@ -17,20 +17,11 @@ def list_experiments(db: Session = Depends(get_db)) -> list[Experiment]:
 
 
 @router.post("", response_model=ExperimentOut)
-def create_experiment(payload: ExperimentCreate, db: Session = Depends(get_db)) -> Experiment:
-    data = payload.model_dump()
-    exp = Experiment(
-        source=data["source"],
-        source_experiment_name=data["source_experiment_name"],
-        source_path=data["source_path"],
-        context=data["context"],
-        apparatus=data["apparatus"],
-        meta_payload=data["metadata"],
+def create_experiment(_payload: ExperimentCreate) -> Experiment:
+    raise HTTPException(
+        status_code=403,
+        detail="Criacao manual de experimento desativada. Use o fluxo de criacao no MindTrace.",
     )
-    db.add(exp)
-    db.commit()
-    db.refresh(exp)
-    return exp
 
 
 @router.post("/{experiment_id}/enrollments", response_model=EnrollmentOut)

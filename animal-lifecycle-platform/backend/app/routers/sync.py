@@ -1,18 +1,62 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..models import Animal, AppUser, LifeStatus
 from ..schemas import (
+    AnimalOut,
     MindTraceDeleteInput,
     MindTraceDeleteResult,
     MindTraceImportInput,
     MindTraceImportResult,
+    ResearcherOut,
 )
 from ..security_sync import ensure_safe_experiment_path, verify_loopback_client, verify_sync_signature
 from ..services.mindtrace_import_service import import_mindtrace_folder, mark_experiment_deleted
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
+
+
+@router.get("/mindtrace/researchers", response_model=list[ResearcherOut])
+async def sync_mindtrace_researchers(request: Request, db: Session = Depends(get_db)) -> list[AppUser]:
+    verify_loopback_client(request.client.host if request.client else None)
+    verify_sync_signature(
+        body=b"",
+        timestamp_header=request.headers.get("X-MindTrace-Timestamp"),
+        signature_header=request.headers.get("X-MindTrace-Signature"),
+    )
+    return list(
+        db.execute(
+            select(AppUser)
+            .where(AppUser.is_admin == False)  # noqa: E712
+            .where(or_(AppUser.is_active == True, AppUser.is_active.is_(None)))  # noqa: E712
+            .order_by(AppUser.full_name.asc())
+        ).scalars().all()
+    )
+
+
+@router.get("/mindtrace/animals", response_model=list[AnimalOut])
+async def sync_mindtrace_animals(
+    request: Request,
+    q: str | None = Query(default=None),
+    status: LifeStatus = Query(default=LifeStatus.ACTIVE),
+    db: Session = Depends(get_db),
+) -> list[Animal]:
+    verify_loopback_client(request.client.host if request.client else None)
+    verify_sync_signature(
+        body=b"",
+        timestamp_header=request.headers.get("X-MindTrace-Timestamp"),
+        signature_header=request.headers.get("X-MindTrace-Signature"),
+    )
+
+    stmt = select(Animal).order_by(Animal.created_at.desc())
+    if q:
+        stmt = stmt.where(or_(Animal.internal_id.ilike(f"%{q}%"), Animal.external_id.ilike(f"%{q}%")))
+    if status:
+        stmt = stmt.where(Animal.status == status)
+    return list(db.execute(stmt).scalars().all())
 
 
 @router.post("/mindtrace/import-folder", response_model=MindTraceImportResult)

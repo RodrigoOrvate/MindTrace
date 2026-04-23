@@ -15,9 +15,10 @@ Item {
 
     property string selectedPath: ""
 
-    // name, cols, includeDrug, dayNames, savePath
-    signal experimentReady(string name, var cols, bool includeDrug, var dayNames, string savePath)
+    // name, cols, includeDrug, responsavel, dayNames, savePath
+    signal experimentReady(string name, var cols, bool includeDrug, string responsibleUsername, var dayNames, string savePath)
     signal backRequested()
+    property string responsibleUsername: ""
 
     function isDefaultDayNames() {
         if (dayNamesModel.count !== 7) return false
@@ -44,6 +45,9 @@ Item {
     }
 
     Component.onCompleted: {
+        ExperimentManager.refreshResearchers()
+        if (ExperimentManager.researcherUsers.length > 0 && responsibleUsername === "")
+            responsibleUsername = ExperimentManager.researcherUsers[0]
         if (dayNamesModel.count === 0 || isDefaultDayNames())
             resetDefaultDayNames()
     }
@@ -53,6 +57,14 @@ Item {
         function onCurrentLanguageChanged() {
             if (root.isDefaultDayNames())
                 root.resetDefaultDayNames()
+        }
+    }
+
+    Connections {
+        target: ExperimentManager
+        function onResearcherUsersChanged() {
+            if (ExperimentManager.researcherUsers.length > 0 && root.responsibleUsername === "")
+                root.responsibleUsername = ExperimentManager.researcherUsers[0]
         }
     }
 
@@ -71,7 +83,7 @@ Item {
         if (drugCheck.checked) cols.push(LanguageManager.tr3("Tratamento", "Treatment", "Tratamiento"))
         var names = []
         for (var i = 0; i < dayNamesModel.count; i++) names.push(dayNamesModel.get(i).dayName)
-        root.experimentReady(nameField.text.trim(), cols, drugCheck.checked, names, root.selectedPath)
+        root.experimentReady(nameField.text.trim(), cols, drugCheck.checked, responsibleUsername, names, root.selectedPath)
     }
 
     FolderDialog {
@@ -170,6 +182,98 @@ Item {
                         }
                         GhostButton { text: LanguageManager.tr3("Procurar...", "Browse...", "Buscar..."); onClicked: folderDialog.open() }
                     }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true; spacing: 8
+                Text {
+                    text: "RESPONSAVEL"
+                    color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold; font.letterSpacing: 1.5
+                }
+                ComboBox {
+                    id: responsibleBox
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: 520
+                    Layout.maximumWidth: 520
+                    model: ExperimentManager.researcherUsers
+                    currentIndex: ExperimentManager.researcherUsers.indexOf(root.responsibleUsername)
+                    onActivated: root.responsibleUsername = currentText
+                    onCurrentTextChanged: {
+                        if (currentIndex >= 0)
+                            root.responsibleUsername = currentText
+                    }
+                    enabled: model.length > 0
+                    font.pixelSize: 14
+                    implicitHeight: 44
+                    contentItem: Text {
+                        leftPadding: 14
+                        rightPadding: 30
+                        text: ExperimentManager.researcherFullName(responsibleBox.currentText)
+                        color: ThemeManager.textPrimary
+                        font: responsibleBox.font
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: ThemeManager.surfaceDim
+                        border.color: responsibleBox.activeFocus ? "#c8a000" : ThemeManager.border
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
+                    indicator: Text {
+                        text: "▾"
+                        color: ThemeManager.textSecondary
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 14
+                    }
+                    delegate: ItemDelegate {
+                        width: responsibleBox.width - 12
+                        height: 40
+                        highlighted: responsibleBox.highlightedIndex === index
+                        contentItem: Text {
+                            text: ExperimentManager.researcherFullName(modelData)
+                            color: ThemeManager.textPrimary
+                            font.pixelSize: 14
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 12
+                            elide: Text.ElideRight
+                        }
+                        background: Rectangle {
+                            radius: 8
+                            color: parent.highlighted ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim
+                            border.color: ThemeManager.border
+                            border.width: 1
+                        }
+                    }
+                    popup: Popup {
+                        y: responsibleBox.height + 6
+                        width: responsibleBox.width
+                        padding: 6
+                        background: Rectangle {
+                            radius: 10
+                            color: ThemeManager.surface
+                            border.color: ThemeManager.border
+                            border.width: 1
+                        }
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: Math.min(contentHeight, 220)
+                            model: responsibleBox.popup.visible ? responsibleBox.delegateModel : null
+                            currentIndex: responsibleBox.highlightedIndex
+                            ScrollIndicator.vertical: ScrollIndicator { }
+                        }
+                    }
+                }
+                Text {
+                    text: ExperimentManager.researcherUsers.length === 0
+                          ? "Nenhum pesquisador disponivel. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuarios nao-admin ativos."
+                          : "Responsavel registrado no metadata e sincronizado no historico."
+                    color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
             }
 
@@ -329,7 +433,7 @@ Item {
 
             Button {
                 text: LanguageManager.tr3("Criar Experimento ->", "Create Experiment ->", "Crear Experimento ->")
-                enabled: nameField.text.trim().length > 0
+                enabled: nameField.text.trim().length > 0 && root.responsibleUsername.length > 0
 
                 onClicked: {
                     if (ExperimentManager.experimentExists("Padrão", nameField.text.trim())) {

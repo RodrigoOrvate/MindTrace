@@ -1,6 +1,7 @@
-#include "ExperimentManager.h"
+﻿#include "ExperimentManager.h"
 
 #include <QDateTime>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -9,6 +10,8 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QUrl>
@@ -38,6 +41,7 @@ QVariant ExperimentListModel::data(const QModelIndex &index, int role) const
     case PathRole:    return m_paths.at(index.row());
     case ContextRole: return m_contexts.at(index.row());
     case AparatoRole: return m_aparatos.at(index.row());
+    case ResponsibleRole: return m_responsibles.at(index.row());
     default:          return QVariant();
     }
 }
@@ -49,23 +53,27 @@ QHash<int, QByteArray> ExperimentListModel::roleNames() const
     roles[PathRole]    = "path";
     roles[ContextRole] = "context";
     roles[AparatoRole] = "aparato";
+    roles[ResponsibleRole] = "responsible";
     return roles;
 }
 
 void ExperimentListModel::setSourceData(const QStringList &names,
                                         const QStringList &paths,
                                         const QStringList &contexts,
-                                        const QStringList &aparatos)
+                                        const QStringList &aparatos,
+                                        const QStringList &responsibles)
 {
     beginResetModel();
     m_allNames    = names;
     m_allPaths    = paths;
     m_allContexts = contexts;
     m_allAparatos = aparatos;
+    m_allResponsibles = responsibles;
     m_names       = names;
     m_paths       = paths;
     m_contexts    = contexts;
     m_aparatos    = aparatos;
+    m_responsibles = responsibles;
     endResetModel();
     emit countChanged();
 }
@@ -77,6 +85,7 @@ void ExperimentListModel::applyFilter(const QString &query)
     m_paths.clear();
     m_contexts.clear();
     m_aparatos.clear();
+    m_responsibles.clear();
 
     for (int i = 0; i < m_allNames.size(); ++i) {
         if (m_allNames.at(i).contains(query, Qt::CaseInsensitive)) {
@@ -84,6 +93,7 @@ void ExperimentListModel::applyFilter(const QString &query)
             m_paths.append(m_allPaths.at(i));
             m_contexts.append(m_allContexts.at(i));
             m_aparatos.append(m_allAparatos.at(i));
+            m_responsibles.append(m_allResponsibles.at(i));
         }
     }
     endResetModel();
@@ -97,24 +107,26 @@ void ExperimentListModel::applyFilter(const QString &query)
 ExperimentManager::ExperimentManager(QObject *parent)
     : QObject(parent), m_model(new ExperimentListModel(this)), m_inSearchMode(false), m_syncNetwork(new QNetworkAccessManager(this))
 {
+    refreshResearchers();
 }
 
 ExperimentListModel *ExperimentManager::model()        const { return m_model; }
 QString              ExperimentManager::activeContext() const { return m_activeContext; }
+QStringList          ExperimentManager::researcherUsers() const { return m_researcherUsers; }
 
 QString ExperimentManager::basePath() const
 {
-    // Localiza a pasta "Meus Documentos" do usuÃ¡rio
+    // Localiza a pasta "Meus Documentos" do usuÃƒÂ¡rio
     QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     
     // Define o novo caminho unificado
     return docsPath + QStringLiteral("/MindTrace_Data/Experimentos");
 }
 
-// Varre o diretÃ³rio do contexto ativo e atualiza o modelo â€” sempre executa.
+// Varre o diretÃƒÂ³rio do contexto ativo e atualiza o modelo Ã¢â‚¬â€ sempre executa.
 void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
 {
-    QStringList names, paths, contexts, aparatos;
+    QStringList names, paths, contexts, aparatos, responsibles;
 
     auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
         if (paths.contains(path, Qt::CaseInsensitive)) return;
@@ -127,10 +139,11 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
             paths << path;
             contexts << ctx;
             aparatos << apa;
+            responsibles << meta["responsible_username"].toString();
         }
     };
 
-    // 1. Pastas do diretÃ³rio padrÃ£o
+    // 1. Pastas do diretÃƒÂ³rio padrÃƒÂ£o
     const QString contextPath = basePath() + QLatin1Char('/') + m_activeContext;
     QDir dir(contextPath);
     if (dir.exists()) {
@@ -140,7 +153,7 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
         }
     }
 
-    // 2. Experimentos em diretÃ³rios livres (registry)
+    // 2. Experimentos em diretÃƒÂ³rios livres (registry)
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
     if (regFile.open(QIODevice::ReadOnly)) {
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
@@ -152,7 +165,7 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
         }
     }
 
-    m_model->setSourceData(names, paths, contexts, aparatos);
+    m_model->setSourceData(names, paths, contexts, aparatos, responsibles);
 }
 
 void ExperimentManager::scanAndUpdateModel()
@@ -170,12 +183,12 @@ void ExperimentManager::loadContext(const QString &context, const QString &apara
 
 bool ExperimentManager::createExperiment(const QString &name)
 {
-    // Delega para o mÃ©todo completo com colunas padrÃ£o
+    // Delega para o mÃƒÂ©todo completo com colunas padrÃƒÂ£o
     QStringList defaultCols;
     defaultCols << QStringLiteral("Animal ID")
                 << QStringLiteral("Grupo")
-                << QStringLiteral("SessÃ£o")
-                << QStringLiteral("VÃ­deo");
+                << QStringLiteral("SessÃƒÂ£o")
+                << QStringLiteral("VÃƒÂ­deo");
     return createExperimentWithConfig(name, 1, defaultCols);
 }
 
@@ -184,7 +197,7 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
                                                     const QStringList &columns)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
-        emit errorOccurred(QStringLiteral("Contexto ou nome invÃ¡lido."));
+        emit errorOccurred(QStringLiteral("Contexto ou nome invÃƒÂ¡lido."));
         return false;
     }
     if (columns.isEmpty()) {
@@ -198,7 +211,7 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
 
     QDir dir;
     if (!dir.mkpath(folderPath)) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel criar a pasta: ") + folderPath);
+        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel criar a pasta: ") + folderPath);
         return false;
     }
 
@@ -245,14 +258,14 @@ bool ExperimentManager::deleteExperiment(const QString &name, const QString &con
     QString effectiveContext = context.isEmpty() ? m_activeContext : context;
 
     if (trimmed.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Nome inválido."));
+        emit errorOccurred(QStringLiteral("Nome invÃ¡lido."));
         return false;
     }
 
-    // Usa experimentPath() para encontrar o caminho real (padrão ou registry)
+    // Usa experimentPath() para encontrar o caminho real (padrÃ£o ou registry)
     const QString folderPath = experimentPath(trimmed, effectiveContext);
     if (folderPath.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Experimento não encontrado: ") + trimmed);
+        emit errorOccurred(QStringLiteral("Experimento nÃ£o encontrado: ") + trimmed);
         return false;
     }
 
@@ -267,7 +280,7 @@ bool ExperimentManager::deleteExperiment(const QString &name, const QString &con
 
     triggerAnimalLifecycleDeletionAudit(trimmed, folderPath, effectiveContext);
     if (!dir.removeRecursively()) {
-        emit errorOccurred(QStringLiteral("Não foi possível excluir (pode estar em uso): ") + trimmed);
+        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel excluir (pode estar em uso): ") + trimmed);
         return false;
     }
 
@@ -291,12 +304,12 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
     const QString csvPath = experimentPath(trimmed)
                             + QStringLiteral("/tracking_data.csv");
 
-    {   // Escopo garante que QFile Ã© *fechado* (nÃ£o apenas flushed) ANTES do sinal.
+    {   // Escopo garante que QFile ÃƒÂ© *fechado* (nÃƒÂ£o apenas flushed) ANTES do sinal.
         // ~QTextStream() faz flush para o buffer do QFile; ~QFile() faz flush + close
-        // para o OS. SÃ³ entÃ£o loadCsv() enxerga as linhas novas em disco.
+        // para o OS. SÃƒÂ³ entÃƒÂ£o loadCsv() enxerga as linhas novas em disco.
         QFile file(csvPath);
         if (!file.open(QIODevice::Append | QIODevice::Text)) {
-            emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel abrir o CSV: ") + csvPath);
+            emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir o CSV: ") + csvPath);
             return false;
         }
         QTextStream out(&file);
@@ -306,7 +319,7 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
             if (!cols.isEmpty())
                 out << cols.join(QLatin1Char(',')) << QLatin1Char('\n');
         }
-    }   // out destruÃ­do â†’ flush ao QFile; file destruÃ­do â†’ close + flush ao OS
+    }   // out destruÃƒÂ­do Ã¢â€ â€™ flush ao QFile; file destruÃƒÂ­do Ã¢â€ â€™ close + flush ao OS
 
     emit sessionDataInserted(trimmed);
     return true;
@@ -331,7 +344,7 @@ bool ExperimentManager::insertBehaviorResult(const QString &experimentName,
     {
         QFile file(csvPath);
         if (!file.open(QIODevice::Append | QIODevice::Text)) {
-            emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel abrir o CSV: ") + csvPath);
+            emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir o CSV: ") + csvPath);
             return false;
         }
         
@@ -358,6 +371,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
                                                const QString     &pair2,
                                                const QString     &pair3,
                                                bool               includeDrug,
+                                               const QString     &responsibleUsername,
                                                bool               hasReactivation,
                                                const QString     &savePath,
                                                const QString     &aparato,
@@ -368,7 +382,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
                                                int                sessionDays)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
-        emit errorOccurred(QStringLiteral("Contexto ou nome invÃ¡lido."));
+        emit errorOccurred(QStringLiteral("Contexto ou nome invÃƒÂ¡lido."));
         return false;
     }
     if (columns.isEmpty()) {
@@ -404,11 +418,11 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
 
     QDir dir;
     if (!dir.mkpath(folderPath)) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel criar a pasta: ") + folderPath);
+        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel criar a pasta: ") + folderPath);
         return false;
     }
 
-    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, hasReactivation, aparato, numCampos, centroRatio, hasObjectZones, sessionMinutes, sessionDays);
+    writeMetadata(folderPath, trimmedName, 0, columns, pair1, pair2, pair3, includeDrug, responsibleUsername.trimmed(), hasReactivation, aparato, numCampos, centroRatio, hasObjectZones, sessionMinutes, sessionDays);
     writeCsv(folderPath, columns, 0);
 
     scanAndUpdateModel();
@@ -424,7 +438,7 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
     base.mkpath(rootPath);
 
     QStringList ctxFolders = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    QStringList names, paths, contexts, aparatos;
+    QStringList names, paths, contexts, aparatos, responsibles;
 
     auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
         if (paths.contains(path, Qt::CaseInsensitive)) return;
@@ -437,6 +451,7 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
             paths << path;
             contexts << ctx;
             aparatos << apa;
+            responsibles << meta["responsible_username"].toString();
         }
     };
 
@@ -460,7 +475,7 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
 
     m_inSearchMode = true;
     m_aparatoFilter = aparatoFilter;
-    m_model->setSourceData(names, paths, contexts, aparatos);
+    m_model->setSourceData(names, paths, contexts, aparatos, responsibles);
 }
 
 void ExperimentManager::clearFilter()
@@ -479,7 +494,7 @@ void ExperimentManager::setActiveContext(const QString &context)
         m_activeContext = context;
         emit activeContextChanged();
         
-        // Se NÃƒO estivermos em modo de pesquisa, trocamos a sidebar para mostrar apenas esse contexto.
+        // Se NÃƒÆ’O estivermos em modo de pesquisa, trocamos a sidebar para mostrar apenas esse contexto.
         // Se ESTIVERMOS em modo pesquisa, mantemos a lista global (resultados da busca).
         if (!m_inSearchMode && !m_activeContext.isEmpty()) {
             scanAndUpdateModel();
@@ -506,6 +521,7 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("hasReactivation")] = false;
     result[QStringLiteral("context")]         = QString();
     result[QStringLiteral("aparato")]         = QStringLiteral("nor");
+    result[QStringLiteral("responsible_username")] = QString();
     result[QStringLiteral("numCampos")]       = 3;
     result[QStringLiteral("centroRatio")]     = 0.5;
 
@@ -524,6 +540,7 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("includeDrug")]     = obj[QStringLiteral("includeDrug")].toBool(true);
     result[QStringLiteral("hasReactivation")] = obj[QStringLiteral("hasReactivation")].toBool(false);
     result[QStringLiteral("context")]         = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("responsible_username")] = obj[QStringLiteral("responsible_username")].toString();
     result[QStringLiteral("aparato")]         = obj.contains(QStringLiteral("aparato"))
                                                 ? obj[QStringLiteral("aparato")].toString()
                                                 : QStringLiteral("nor");
@@ -561,6 +578,7 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("hasReactivation")] = false;
     result[QStringLiteral("context")]         = QString();
     result[QStringLiteral("aparato")]         = QStringLiteral("nor");
+    result[QStringLiteral("responsible_username")] = QString();
     result[QStringLiteral("numCampos")]       = 3;
     result[QStringLiteral("centroRatio")]     = 0.5;
 
@@ -581,6 +599,7 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("includeDrug")]     = obj[QStringLiteral("includeDrug")].toBool(true);
     result[QStringLiteral("hasReactivation")] = obj[QStringLiteral("hasReactivation")].toBool(false);
     result[QStringLiteral("context")]         = obj[QStringLiteral("context")].toString();
+    result[QStringLiteral("responsible_username")] = obj[QStringLiteral("responsible_username")].toString();
     result[QStringLiteral("aparato")]         = obj.contains(QStringLiteral("aparato"))
                                                  ? obj[QStringLiteral("aparato")].toString()
                                                  : QStringLiteral("nor");
@@ -616,13 +635,13 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
     const QString metaPath = folderPath + QStringLiteral("/metadata.json");
     QFile file(metaPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel abrir metadata.json: ") + metaPath);
+        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir metadata.json: ") + metaPath);
         return false;
     }
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
     if (!doc.isObject()) {
-        emit errorOccurred(QStringLiteral("metadata.json invÃ¡lido: ") + metaPath);
+        emit errorOccurred(QStringLiteral("metadata.json invÃƒÂ¡lido: ") + metaPath);
         return false;
     }
 
@@ -632,7 +651,7 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
     obj[QStringLiteral("pair3")] = pair3;
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel salvar metadata.json: ") + metaPath);
+        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel salvar metadata.json: ") + metaPath);
         return false;
     }
     file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
@@ -662,7 +681,7 @@ bool ExperimentManager::saveSessionMetadata(const QString &experimentName,
 {
     const QString folderPath = experimentPath(experimentName.trimmed());
     if (folderPath.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Experimento nÃ£o encontrado: ") + experimentName);
+        emit errorOccurred(QStringLiteral("Experimento nÃƒÂ£o encontrado: ") + experimentName);
         return false;
     }
 
@@ -677,12 +696,179 @@ bool ExperimentManager::saveSessionMetadata(const QString &experimentName,
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel salvar metadados da sessÃ£o: ") + filePath);
+        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel salvar metadados da sessÃƒÂ£o: ") + filePath);
         return false;
     }
     file.write(jsonData.toUtf8());
     triggerAnimalLifecycleSync(experimentName.trimmed(), folderPath);
     return true;
+}
+
+QString ExperimentManager::readDotEnvValue(const QString &key) const
+{
+    QStringList candidates;
+
+    const QString explicitEnvPath = qEnvironmentVariable("MINDTRACE_BACKEND_ENV_PATH").trimmed();
+    if (!explicitEnvPath.isEmpty()) {
+        candidates.append(explicitEnvPath);
+    }
+
+    auto appendCandidates = [&](const QString &startPath) {
+        QString probe = startPath;
+        for (int i = 0; i < 6; ++i) {
+            candidates.append(QDir(probe).filePath("animal-lifecycle-platform/backend/.env"));
+            QDir d(probe);
+            if (!d.cdUp()) break;
+            probe = d.absolutePath();
+        }
+    };
+
+    appendCandidates(QDir::currentPath());
+    appendCandidates(QCoreApplication::applicationDirPath());
+    candidates.removeDuplicates();
+
+    for (const QString &candidate : candidates) {
+        QFile file(candidate);
+        if (!file.exists()) continue;
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+
+        while (!file.atEnd()) {
+            QString line = QString::fromUtf8(file.readLine()).trimmed();
+            if (line.isEmpty() || line.startsWith('#')) continue;
+            if (line.startsWith("export ")) line = line.mid(7).trimmed();
+            const int eq = line.indexOf('=');
+            if (eq <= 0) continue;
+            const QString parsedKey = line.left(eq).trimmed();
+            if (parsedKey != key) continue;
+            QString value = line.mid(eq + 1).trimmed();
+            if ((value.startsWith('"') && value.endsWith('"'))
+                || (value.startsWith('\'') && value.endsWith('\''))) {
+                value = value.mid(1, value.size() - 2);
+            }
+            return value.trimmed();
+        }
+    }
+    return QString();
+}
+
+QString ExperimentManager::resolveSyncSecret() const
+{
+    QString secret = qEnvironmentVariable("MINDTRACE_SYNC_SECRET").trimmed();
+    if (!secret.isEmpty()) return secret;
+
+    secret = qEnvironmentVariable("SYNC_SECRET").trimmed();
+    if (!secret.isEmpty()) return secret;
+
+    secret = readDotEnvValue(QStringLiteral("MINDTRACE_SYNC_SECRET"));
+    if (!secret.isEmpty()) return secret;
+
+    return readDotEnvValue(QStringLiteral("SYNC_SECRET"));
+}
+
+void ExperimentManager::refreshResearchers()
+{
+    const QString syncUrl = qEnvironmentVariable("MINDTRACE_SYNC_URL", "http://127.0.0.1:8000").trimmed();
+    const QUrl base(syncUrl);
+    if (!isSafeLocalSyncUrl(base)) {
+        qWarning() << "[SYNC] URL bloqueada por seguranca (somente loopback local):" << syncUrl;
+        return;
+    }
+
+    const QString syncSecret = resolveSyncSecret();
+    if (syncSecret.isEmpty()) {
+        qWarning() << "[SYNC] Segredo de sync ausente (MINDTRACE_SYNC_SECRET/SYNC_SECRET/.env). Consulta de pesquisadores abortada.";
+        return;
+    }
+
+    const QByteArray body;
+    const QByteArray ts = QByteArray::number(QDateTime::currentSecsSinceEpoch());
+    const QByteArray signature = computeHmacSha256(syncSecret.toUtf8(), ts + '\n' + body).toHex();
+
+    QUrl endpoint(base);
+    QString endpointPath = endpoint.path();
+    if (endpointPath.endsWith('/')) endpointPath.chop(1);
+    endpoint.setPath(endpointPath + QStringLiteral("/sync/mindtrace/researchers"));
+
+    QNetworkRequest req(endpoint);
+    req.setRawHeader("X-MindTrace-Timestamp", ts);
+    req.setRawHeader("X-MindTrace-Signature", signature);
+    req.setRawHeader("X-MindTrace-Client", QByteArray("mindtrace-qt"));
+
+    QNetworkReply *reply = m_syncNetwork->get(req);
+    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray response = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300) {
+            qWarning() << "[SYNC] Falha ao buscar pesquisadores:"
+                       << "status=" << httpStatus
+                       << "erro=" << reply->errorString()
+                       << "resp=" << QString::fromUtf8(response.left(300));
+            reply->deleteLater();
+            return;
+        }
+
+        QStringList next;
+        QHash<QString, QString> nextFullNames;
+        const QJsonDocument doc = QJsonDocument::fromJson(response);
+        if (doc.isArray()) {
+            const QJsonArray arr = doc.array();
+            for (const QJsonValue &value : arr) {
+                const QJsonObject obj = value.toObject();
+                const QString username = obj.value(QStringLiteral("username")).toString().trimmed();
+                const QString fullName = obj.value(QStringLiteral("full_name")).toString().trimmed();
+                if (!username.isEmpty()) {
+                    next.append(username);
+                    nextFullNames.insert(username, fullName.isEmpty() ? username : fullName);
+                }
+            }
+        }
+        next.removeDuplicates();
+        next.sort(Qt::CaseInsensitive);
+
+        if (next != m_researcherUsers || nextFullNames != m_researcherFullNames) {
+            m_researcherUsers = next;
+            m_researcherFullNames = nextFullNames;
+            emit researcherUsersChanged();
+        }
+        reply->deleteLater();
+    });
+}
+
+QString ExperimentManager::syncTimestamp() const
+{
+    return QString::number(QDateTime::currentSecsSinceEpoch());
+}
+
+QString ExperimentManager::researcherFullName(const QString &username) const
+{
+    const QString key = username.trimmed();
+    if (key.isEmpty()) return QString();
+    const QString fullName = m_researcherFullNames.value(key).trimmed();
+    const QString source = fullName.isEmpty() ? key : fullName;
+    const QStringList parts = source.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    if (parts.size() <= 1) return source;
+    QString second = parts.last();
+    if (parts.size() >= 3) {
+        const QString penultimate = parts.at(parts.size() - 2).toLower();
+        static const QSet<QString> particles = {
+            QStringLiteral("da"), QStringLiteral("de"), QStringLiteral("do"),
+            QStringLiteral("das"), QStringLiteral("dos"), QStringLiteral("del"),
+            QStringLiteral("della"), QStringLiteral("van"), QStringLiteral("von")
+        };
+        if (particles.contains(penultimate)) {
+            second = parts.at(parts.size() - 2) + QStringLiteral(" ") + parts.last();
+        }
+    }
+    return parts.first() + QStringLiteral(" ") + second;
+}
+
+QString ExperimentManager::syncSignature(const QString &timestamp, const QString &body) const
+{
+    const QString syncSecret = resolveSyncSecret();
+    if (syncSecret.isEmpty() || timestamp.trimmed().isEmpty()) return QString();
+    const QByteArray ts = timestamp.trimmed().toUtf8();
+    const QByteArray payload = body.toUtf8();
+    return QString::fromUtf8(computeHmacSha256(syncSecret.toUtf8(), ts + '\n' + payload).toHex());
 }
 
 bool ExperimentManager::isSafeLocalSyncUrl(const QUrl &url) const
@@ -727,19 +913,19 @@ void ExperimentManager::triggerAnimalLifecycleSync(const QString &experimentName
     const QString syncUrl = qEnvironmentVariable("MINDTRACE_SYNC_URL", "http://127.0.0.1:8000").trimmed();
     const QUrl base(syncUrl);
     if (!isSafeLocalSyncUrl(base)) {
-        qWarning() << "[SYNC] URL bloqueada por seguranÃ§a (somente loopback local):" << syncUrl;
+        qWarning() << "[SYNC] URL bloqueada por seguranÃƒÂ§a (somente loopback local):" << syncUrl;
         return;
     }
 
-    const QString syncSecret = qEnvironmentVariable("MINDTRACE_SYNC_SECRET").trimmed();
+    const QString syncSecret = resolveSyncSecret();
     if (syncSecret.isEmpty()) {
-        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET ausente. SincronizaÃ§Ã£o abortada.";
+        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET ausente. SincronizaÃƒÂ§ÃƒÂ£o abortada.";
         return;
     }
 
     const QFileInfo expFolder(folderPath);
     if (!expFolder.exists() || !expFolder.isDir()) {
-        qWarning() << "[SYNC] Pasta de experimento invÃ¡lida:" << folderPath;
+        qWarning() << "[SYNC] Pasta de experimento invÃƒÂ¡lida:" << folderPath;
         return;
     }
 
@@ -775,7 +961,7 @@ void ExperimentManager::triggerAnimalLifecycleSync(const QString &experimentName
                        << "erro=" << reply->errorString()
                        << "resp=" << QString::fromUtf8(response.left(300));
         } else {
-            qDebug() << "[SYNC] SincronizaÃ§Ã£o concluÃ­da para experimento" << experimentName;
+            qDebug() << "[SYNC] SincronizaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da para experimento" << experimentName;
         }
         reply->deleteLater();
     });
@@ -797,7 +983,7 @@ void ExperimentManager::triggerAnimalLifecycleDeletionAudit(const QString &exper
         return;
     }
 
-    const QString syncSecret = qEnvironmentVariable("MINDTRACE_SYNC_SECRET").trimmed();
+    const QString syncSecret = resolveSyncSecret();
     if (syncSecret.isEmpty()) {
         qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET ausente. Auditoria de exclusao abortada.";
         return;
@@ -884,7 +1070,7 @@ void ExperimentManager::removeFromRegistry(const QString &name, const QString &c
     }
 
     if (arr.size() == updated.size())
-        return; // nada removido â€” nÃ£o reescreve
+        return; // nada removido Ã¢â‚¬â€ nÃƒÂ£o reescreve
 
     if (regFile.open(QIODevice::WriteOnly))
         regFile.write(QJsonDocument(updated).toJson());
@@ -907,7 +1093,7 @@ bool ExperimentManager::updateDayNames(const QString &folderPath, const QStringL
     return true;
 }
 
-// â”€â”€ Helpers de escrita â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Helpers de escrita Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        const QString    &name,
@@ -917,6 +1103,7 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        const QString     &pair2,
                                        const QString     &pair3,
                                        bool               includeDrug,
+                                       const QString     &responsibleUsername,
                                        bool               hasReactivation,
                                        const QString     &aparato,
                                        int                numCampos,
@@ -938,6 +1125,7 @@ void ExperimentManager::writeMetadata(const QString    &folderPath,
     meta[QStringLiteral("pair2")]       = pair2;
     meta[QStringLiteral("pair3")]       = pair3;
     meta[QStringLiteral("includeDrug")] = includeDrug;
+    meta[QStringLiteral("responsible_username")] = responsibleUsername;
     meta[QStringLiteral("hasReactivation")] = hasReactivation;
     meta[QStringLiteral("aparato")]     = aparato;
     meta[QStringLiteral("numCampos")]   = numCampos;
@@ -962,12 +1150,12 @@ void ExperimentManager::writeCsv(const QString    &folderPath,
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
 
-    // Adiciona assinatura BOM para o Excel nÃ£o corromper acentuaÃ§Ãµes ("Ã­", "Ã³")
+    // Adiciona assinatura BOM para o Excel nÃƒÂ£o corromper acentuaÃƒÂ§ÃƒÂµes ("ÃƒÂ­", "ÃƒÂ³")
     file.write("\xEF\xBB\xBF");
 
     QTextStream out(&file);
 
-    // CabeÃ§alhos
+    // CabeÃƒÂ§alhos
     out << columns.join(QLatin1Char(',')) << QLatin1Char('\n');
 
     // Uma linha vazia por animal
@@ -975,4 +1163,5 @@ void ExperimentManager::writeCsv(const QString    &folderPath,
     for (int i = 0; i < animalCount; ++i)
         out << emptyRow << QLatin1Char('\n');
 }
+
 

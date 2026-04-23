@@ -22,6 +22,9 @@ def ensure_safe_experiment_path(path_str: str) -> Path:
         raise HTTPException(status_code=400, detail="experiment_path deve ser absoluto.")
 
     resolved = candidate.resolve(strict=False)
+    if settings.mindtrace_allow_any_path:
+        return resolved
+
     roots = allowed_mindtrace_roots()
     for root in roots:
         try:

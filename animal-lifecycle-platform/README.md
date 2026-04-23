@@ -1,31 +1,21 @@
 ﻿# Animal Lifecycle Platform
 
-Projeto separado do MindTrace para gestão do ciclo de vida dos animais, com foco em segurança.
+Aplicativo para gestao do ciclo de vida de animais, com autenticacao, auditoria e sincronizacao com o MindTrace.
 
-## Instalação para quem recebeu a pasta do MindTrace
+## Arquitetura
 
-Se você recebeu a pasta completa do MindTrace e quer habilitar também o aplicativo Animal Lifecycle, siga nesta ordem:
+- `backend/`: FastAPI + SQLAlchemy (PostgreSQL ou SQLite)
+- `mobile/`: Expo (web/mobile)
+- `qt/` (MindTrace, fora desta pasta): cria experimentos e sincroniza sessoes
 
-1. Abra terminal em `animal-lifecycle-platform/backend`.
-2. Crie e ative o ambiente Python (`.venv`).
-3. Instale dependências com `pip install -r requirements.txt`.
-4. Crie `backend/.env` com segredos e regras de rede (não subir para GitHub).
-5. Crie o primeiro usuário via `python scripts/create_user.py` com `USER_BOOTSTRAP_ENABLED=1`.
-6. Inicie o backend com `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`.
-7. Abra `animal-lifecycle-platform/mobile`, instale dependências (`npm install`) e rode (`npx expo start --web`).
-8. No terminal do MindTrace, configure as variáveis `MINDTRACE_SYNC_*` para sincronização.
+Regra atual:
+- Experimentos sao criados no MindTrace.
+- O app nao possui fluxo de criacao manual de experimento.
+- O campo `responsavel` e escolhido no MindTrace a partir dos usuarios pesquisadores (nao-admin) cadastrados no backend.
 
-Resumo rápido:
-- `.venv` = ambiente Python local.
-- `.env` = segredos/configuração local.
-- Não compartilhe `.env`, banco `.db` ou backups em repositório público.
+## 1) Preparacao no PC principal
 
-## `.venv` x `.env` (não são a mesma coisa)
-
-- `.venv`: ambiente virtual do Python (pacotes).  
-- `.env`: arquivo de configuração/segredos (variáveis de ambiente).
-
-## 1) PC principal (backend)
+### 1.1 Backend (venv)
 
 ```powershell
 cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend"
@@ -34,42 +24,55 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 1.1 Descobrir IP do PC principal
+Observacao:
+- `.venv` e o ambiente virtual Python.
+- `.env` e o arquivo de variaveis de ambiente. Sao coisas diferentes.
+
+### 1.2 Descobrir IP do PC principal
+
+Use um destes comandos e anote o IPv4 da interface em uso:
 
 ```powershell
 ipconfig
+# ou
+Get-NetIPAddress -AddressFamily IPv4
 ```
 
-Use o valor de `Endereço IPv4` da interface conectada ao Wi-Fi.
+### 1.3 Criar `backend/.env`
 
-### 1.2 Criar `.env` do backend (apenas local)
-
-Crie `animal-lifecycle-platform/backend/.env` com valores de exemplo (substitua):
+Crie `animal-lifecycle-platform/backend/.env` com valores reais do seu ambiente (somente exemplo abaixo):
 
 ```env
-DATABASE_URL=sqlite:///./animal_lifecycle.db
+DATABASE_URL=postgresql://<USER>:<PASSWORD>@localhost:5432/<DB_NAME>
 
-SYNC_SECRET=<SEGREDO_FORTE_1>
-MINDTRACE_ALLOWED_ROOTS=<PASTA_MINDTRACE_DATA_EXPERIMENTOS>
-SYNC_MAX_SKEW_SECONDS=120
-
-AUTH_SECRET=<SEGREDO_FORTE_2>
+AUTH_SECRET=<GERAR_TOKEN_FORTE>
 AUTH_TOKEN_TTL_SECONDS=43200
-AUTH_ALLOWED_CIDRS=127.0.0.1/32;::1/128;<SUBREDE_WIFI>/24
-AUTH_LOGIN_ALLOWED_CIDRS=127.0.0.1/32;::1/128;<IP_PC_PRINCIPAL>/32
+
+SYNC_SECRET=<GERAR_TOKEN_FORTE_DIFERENTE>
+SYNC_MAX_SKEW_SECONDS=120
+# Opcional (modo restrito por raiz):
+# MINDTRACE_ALLOWED_ROOTS=<PASTA_BASE_DOS_EXPERIMENTOS_MINDTRACE>
+# Opcional: permitir sync de qualquer pasta absoluta escolhida no MindTrace
+# (use 1 somente quando voces realmente usam diretorios livres por pesquisador)
+MINDTRACE_ALLOW_ANY_PATH=1
+
+AUTH_ALLOWED_CIDRS=127.0.0.1/32;::1/128;<SUA_REDE_LOCAL>
+AUTH_LOGIN_ALLOWED_CIDRS=127.0.0.1/32;::1/128;<SUA_REDE_LOCAL>
 AUTH_ADMIN_ALLOWED_CIDRS=127.0.0.1/32;::1/128;<IP_PC_PRINCIPAL>/32
+AUTH_ADMIN_ALLOWED_MACS=<MAC_DO_PC_PRINCIPAL>
+
+CORS_ALLOWED_ORIGINS=http://localhost:8081;http://localhost:19006;http://<IP_PC_PRINCIPAL>:8081
 ```
 
-## 2) Contas de usuário (com rastreabilidade)
+Gerar segredo forte (rode 2x):
 
-Cada conta possui:
-- nome completo
-- email
-- usuário
-- senha
-- perfil admin apenas para a primeira conta bootstrap
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
-Criar primeiro usuário (recomendado admin):
+## 2) Criar usuario admin inicial
+
+Somente no PC principal:
 
 ```powershell
 cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend"
@@ -79,35 +82,11 @@ python scripts\create_user.py
 $env:USER_BOOTSTRAP_ENABLED="0"
 ```
 
-Importante:
-- `create_user.py` fica bloqueado por padrão.
-- só executa quando `USER_BOOTSTRAP_ENABLED=1` for definido temporariamente.
-- a opção de admin só aparece quando ainda não existe nenhum admin no banco.
-- após existir um admin, novas contas criadas pelo script serão sempre usuário comum.
+Politica:
+- Depois que ja existe admin, nao e permitido criar novo admin via app.
+- Contas comuns (pesquisadores) sao criadas pelo admin autenticado no PC principal.
 
-### Gestão de contas via API (somente admin)
-
-- `POST /auth/users` cria conta
-- `GET /auth/users` lista contas
-- além de admin, o acesso só é liberado se o IP de origem estiver em `AUTH_ADMIN_ALLOWED_CIDRS`
-- recomendação: usar apenas `localhost` e o `/32` do computador principal
-- `POST /auth/users` não permite criar novo admin (bloqueio de política no servidor)
-
-### Login
-
-- `POST /auth/login`
-- `GET /auth/me`
-
-## 3) Auditoria por responsável
-
-As alterações que entram no histórico do animal agora guardam o responsável:
-- nome da pessoa
-- username
-- email
-
-Isso é anexado no `payload` dos eventos (ex.: criação de animal, edição de cadastro, eventos manuais, exclusão de registro, eutanásia).
-
-## 4) Subir backend
+## 3) Rodar backend
 
 ```powershell
 cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend"
@@ -115,73 +94,97 @@ cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend"
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## 5) App web/mobile
+## 4) Rodar app (web ou celular)
 
-Crie `animal-lifecycle-platform/mobile/.env` (local):
+```powershell
+cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\mobile"
+npm install
+npx expo start
+```
+
+Web:
+- `npm run web` ou tecla `w` no Expo.
+
+Celular:
+- Mesmo Wi-Fi do PC principal.
+- Em `mobile/.env`, configure:
 
 ```env
 EXPO_PUBLIC_API_BASE_URL=http://<IP_PC_PRINCIPAL>:8000
 ```
 
-Rodar:
+## 5) Integracao com MindTrace (qt)
 
-```powershell
-cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\mobile"
-npm install
-npx expo start --web
-```
-
-## 6) Integração MindTrace
-
-No terminal do MindTrace:
+Antes de iniciar o MindTrace no PC principal, configure no terminal/sessao:
 
 ```powershell
 $env:MINDTRACE_SYNC_ENABLED="1"
 $env:MINDTRACE_SYNC_URL="http://127.0.0.1:8000"
-$env:MINDTRACE_SYNC_SECRET="<MESMO_SYNC_SECRET_DO_BACKEND_ENV>"
-$env:MINDTRACE_SYNC_ID_CC_DEFAULT="<ID_CC_PADRAO>"
+$env:MINDTRACE_SYNC_SECRET="<MESMO_SYNC_SECRET_DO_BACKEND>"
 ```
 
-## 7) Backup local -> Drive
+Comportamento:
+- No setup de criacao de experimento (NOR/CA/CC/EI), o MindTrace consulta pesquisadores ativos (nao-admin) via endpoint seguro de sync local.
+- O responsavel selecionado e salvo no `metadata.json` do experimento.
+- Ao salvar sessoes, a sincronizacao gera eventos no Animal Lifecycle e inclui `responsible_username` no payload historico.
+- Se o experimento puder ser salvo em qualquer pasta (Desktop, pasta pessoal etc.), habilite `MINDTRACE_ALLOW_ANY_PATH=1` no backend.
+- Com `MINDTRACE_ALLOW_ANY_PATH=1`, `MINDTRACE_ALLOWED_ROOTS` pode ser omitido.
+
+## 6) Seguranca aplicada
+
+- Segredos em `.env` (nao no codigo).
+- Endpoints de sync aceitam apenas loopback local + assinatura HMAC (`SYNC_SECRET`).
+- Login admin restrito a IP/MAC permitidos.
+- Mensagem de erro de login padronizada (nao revela se usuario existe).
+- Fluxo de criacao de usuarios administrativos bloqueado no app.
+
+## 7) Git e arquivos sensiveis
+
+Ja ignorados no `.gitignore`:
+- `.env`, `.env.*` (exceto exemplos)
+- `.venv/`
+- bancos locais e dumps
+- `mobile/node_modules/`, `mobile/.expo/`
+- chaves/certificados
+
+Antes de commit/push:
 
 ```powershell
-$env:ANIMAL_DB_PATH="<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend\animal_lifecycle.db"
-$env:ANIMAL_BACKUP_DIR="<PASTA_DO_DRIVE_PARA_BACKUPS>"
-$env:ANIMAL_BACKUP_RETENTION_DAYS="30"
-powershell -ExecutionPolicy Bypass -File "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\ops\run_backup.ps1"
+git status
+git diff -- . ':!*.md'
 ```
 
-Agendar backup automático:
+Revise sempre para garantir que nenhum segredo foi incluido.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\ops\register_backup_task.ps1"
-```
+## 8) Configuracoes no aplicativo (Engrenagem)
 
-## 8) Segurança de rede
+Foi adicionada uma tela de configuracoes acessivel pelo icone `⚙` no topo.
 
-Para múltiplos celulares, o correto é restringir por **sub-rede**, não por “mesmo IP”.
+Permissoes por perfil:
+- Usuario comum: altera apenas as proprias preferencias (`tema` e `idioma`).
+- Admin local: alem disso, pode alterar o formato global de data para todos.
 
-Use `AUTH_ALLOWED_CIDRS` para permitir apenas localhost + sub-rede autorizada.
-Use `AUTH_LOGIN_ALLOWED_CIDRS` para definir de onde o login pode ser aceito.
-Use `AUTH_ADMIN_ALLOWED_CIDRS` para restringir funções administrativas ao computador principal.
+Opcoes atuais:
+- Tema: `light` ou `dark`
+- Idioma: `pt`, `en`, `es`
+- Formato global de data (admin):
+  - `DD/MM/YYYY`
+  - `MM/DD/YYYY`
+  - `YYYY-MM-DD`
 
-Obs.: quando login vem de IP não autorizado, a API responde `401 Login invalido` (mensagem genérica), sem revelar se usuário/senha estavam corretos.
+## 9) Busca por data na lista de animais
 
-## 9) Git hygiene
+A busca principal agora aceita:
+- ID interno (ex.: `22042026-A101`)
+- Data de entrada em `YYYY-MM-DD`
+- Data de entrada em `DD/MM/YYYY`
 
-O `.gitignore` foi reforçado para não subir:
-- `.env` e variações locais
-- `.venv`, `node_modules`, `__pycache__`, caches
-- bancos locais (`*.db`, `*.sqlite`)
-- pastas temporárias de backup/teste
+Exemplos:
+- `2026-04-22`
+- `22/04/2026`
 
-## Testes de segurança
+## 10) Observacoes de seguranca (sem vazamento)
 
-```powershell
-cd "<CAMINHO_DO_PROJETO>\animal-lifecycle-platform\backend"
-.venv\Scripts\Activate.ps1
-pytest -q tests\test_auth_security.py tests\test_sync_security.py -p no:cacheprovider
-```
-
-
-
+- Nunca colocar tokens, segredos, IP real, usuario real ou senha real em README.
+- Usar somente placeholders em exemplos (`<IP_PC_PRINCIPAL>`, `<SYNC_SECRET>`, etc.).
+- Toda configuracao sensivel continua fora do codigo, em `.env` local.

@@ -33,11 +33,7 @@ Popup {
     property var _animalDbIds:  [-1, -1, -1]
 
     function _postEvent(dbId, title, payload) {
-        if (dbId <= 0) return
-        var xhr = new XMLHttpRequest()
-        xhr.open("POST", "http://localhost:8000/animals/" + dbId + "/events")
-        xhr.setRequestHeader("Content-Type", "application/json")
-        xhr.send(JSON.stringify({ event_type: "experiment_session", title: title, payload: payload, source: "mindtrace" }))
+        return
     }
 
     function localizedDayName(dayName, index) {

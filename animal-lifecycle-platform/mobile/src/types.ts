@@ -1,4 +1,4 @@
-export type Species = {
+﻿export type Species = {
   id: number;
   common_name: string;
   scientific_name: string | null;
@@ -44,6 +44,8 @@ export type AuthMe = {
   is_admin: boolean;
   authenticated: boolean;
   client: string;
+  theme?: "light" | "dark";
+  language?: "pt" | "en" | "es";
 };
 
 export type UserAccount = {
@@ -54,4 +56,11 @@ export type UserAccount = {
   is_admin: boolean;
   is_active: boolean;
   created_at: string;
+};
+
+export type AppSettings = {
+  theme: "light" | "dark";
+  language: "pt" | "en" | "es";
+  date_format: "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD";
+  is_admin: boolean;
 };

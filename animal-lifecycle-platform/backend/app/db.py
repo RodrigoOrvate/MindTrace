@@ -6,7 +6,15 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from .config import settings
 
 
-engine = create_engine(settings.database_url, future=True)
+def _build_engine():
+    url = settings.database_url
+    if url.startswith("postgresql"):
+        return create_engine(url, future=True, pool_pre_ping=True)
+    # SQLite: passthrough (sem pool_pre_ping, sem connect_args extras)
+    return create_engine(url, future=True)
+
+
+engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 Base = declarative_base()
 

@@ -1,23 +1,34 @@
-﻿import React from "react";
+import React from "react";
 import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 
-import { login, me, setAuthToken } from "./api/client";
-import { AuthMe } from "./types";
-import AnimalTimelineScreen from "./screens/AnimalTimelineScreen";
+import { getSettings, login, me, setAuthToken, updateGlobalDateFormat, updateMyPreferences } from "./api/client";
+import { AppSettings, AuthMe } from "./types";
 import AnimalsListScreen from "./screens/AnimalsListScreen";
+import AnimalTimelineScreen from "./screens/AnimalTimelineScreen";
 import LoginScreen from "./screens/LoginScreen";
 import NewAnimalScreen from "./screens/NewAnimalScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 import UsersAdminScreen from "./screens/UsersAdminScreen";
+import { DateFormat } from "./utils/dateFormat";
+import { LanguageCode, t } from "./utils/i18n";
 
 const Stack = createNativeStackNavigator();
 const INACTIVITY_MS = 30 * 60 * 1000;
 
+const DEFAULT_SETTINGS: AppSettings = {
+  theme: "light",
+  language: "pt",
+  date_format: "DD/MM/YYYY",
+  is_admin: false,
+};
+
 export default function App() {
   const [token, setToken] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState<AuthMe | null>(null);
+  const [settings, setSettings] = React.useState<AppSettings>(DEFAULT_SETTINGS);
   const [authError, setAuthError] = React.useState<string | null>(null);
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const backgroundAtRef = React.useRef<number | null>(null);
@@ -29,6 +40,7 @@ export default function App() {
   const handleLogout = React.useCallback(() => {
     setToken(null);
     setCurrentUser(null);
+    setSettings(DEFAULT_SETTINGS);
     setAuthToken(null);
   }, []);
 
@@ -80,6 +92,11 @@ export default function App() {
     };
   }, [handleLogout, resetInactivityTimer, token]);
 
+  async function refreshSettings() {
+    const loaded = await getSettings();
+    setSettings(loaded);
+  }
+
   async function handleLogin(username: string, password: string) {
     try {
       setAuthError(null);
@@ -88,28 +105,47 @@ export default function App() {
       setAuthToken(result.access_token);
       const profile = await me();
       setCurrentUser(profile);
+      await refreshSettings();
       resetInactivityTimer();
     } catch (err) {
       setToken(null);
       setCurrentUser(null);
+      setSettings(DEFAULT_SETTINGS);
       setAuthToken(null);
       setAuthError((err as Error).message || "Falha de autenticacao.");
       throw err;
     }
   }
 
+  async function savePreferences(payload: { theme?: "light" | "dark"; language?: LanguageCode }) {
+    const updated = await updateMyPreferences(payload);
+    setSettings(updated);
+  }
+
+  async function saveGlobalDateFormat(value: DateFormat) {
+    const updated = await updateGlobalDateFormat(value);
+    setSettings(updated);
+  }
+
   const loggedIn = !!token;
   const isAdmin = !!currentUser?.is_admin;
+  const language = settings.language || "pt";
+  const isDark = settings.theme === "dark";
 
-  const headerRight = () => (
-    <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-      <Text style={styles.logoutText}>{"-> Sair"}</Text>
-    </TouchableOpacity>
+  const headerActions = (navigation: any) => (
+    <View style={styles.headerRightWrap}>
+      <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate("Settings")}>
+        <Text style={styles.headerIcon}>⚙</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Text style={styles.logoutText}>{t(language, "logout")}</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <View
-      style={styles.root}
+      style={[styles.root, { backgroundColor: isDark ? "#0f172a" : "#f8f9fb" }]}
       onStartShouldSetResponderCapture={() => {
         resetInactivityTimer();
         return false;
@@ -124,7 +160,7 @@ export default function App() {
           resetInactivityTimer();
         }}
       >
-        <StatusBar style="dark" />
+        <StatusBar style={isDark ? "light" : "dark"} />
         <Stack.Navigator screenOptions={{ headerShown: loggedIn }}>
           {!loggedIn ? (
             <Stack.Screen name="Login" options={{ headerShown: false }}>
@@ -134,27 +170,79 @@ export default function App() {
             <>
               <Stack.Screen
                 name="Animals"
-                options={{ title: "Animais", headerRight }}
+                options={({ navigation }) => ({
+                  title: t(language, "animals"),
+                  headerRight: () => headerActions(navigation),
+                })}
               >
-                {(props) => <AnimalsListScreen {...props} isAdmin={isAdmin} />}
+                {(props) => (
+                  <AnimalsListScreen
+                    {...props}
+                    isAdmin={isAdmin}
+                    isDark={isDark}
+                    language={language}
+                    dateFormat={settings.date_format}
+                  />
+                )}
               </Stack.Screen>
               <Stack.Screen
                 name="NewAnimal"
-                component={NewAnimalScreen}
-                options={{ title: "Novo Animal", headerRight }}
-              />
+                options={({ navigation }) => ({
+                  title: t(language, "new_animal"),
+                  headerRight: () => headerActions(navigation),
+                })}
+              >
+                {(props) => (
+                  <NewAnimalScreen
+                    {...props}
+                    isDark={isDark}
+                    language={language}
+                    dateFormat={settings.date_format}
+                  />
+                )}
+              </Stack.Screen>
               <Stack.Screen
                 name="Timeline"
-                component={AnimalTimelineScreen}
-                options={{ title: "Timeline", headerRight }}
-              />
+                options={({ navigation }) => ({
+                  title: t(language, "timeline"),
+                  headerRight: () => headerActions(navigation),
+                })}
+              >
+                {(props) => <AnimalTimelineScreen {...props} isDark={isDark} dateFormat={settings.date_format} />}
+              </Stack.Screen>
               {isAdmin ? (
                 <Stack.Screen
                   name="UsersAdmin"
-                  component={UsersAdminScreen}
-                  options={{ title: "Usuarios", headerRight }}
-                />
+                  options={({ navigation }) => ({
+                    title: t(language, "users"),
+                    headerRight: () => headerActions(navigation),
+                  })}
+                >
+                  {(props) => (
+                    <UsersAdminScreen {...props} isDark={isDark} language={language} />
+                  )}
+                </Stack.Screen>
               ) : null}
+              <Stack.Screen
+                name="Settings"
+                options={({ navigation }) => ({
+                  title: t(language, "settings"),
+                  headerRight: () => (
+                    <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                      <Text style={styles.logoutText}>{t(language, "logout")}</Text>
+                    </TouchableOpacity>
+                  ),
+                })}
+              >
+                {(props) => (
+                  <SettingsScreen
+                    {...props}
+                    settings={{ ...settings, is_admin: isAdmin }}
+                    onUpdatePreferences={savePreferences}
+                    onUpdateDateFormat={saveGlobalDateFormat}
+                  />
+                )}
+              </Stack.Screen>
             </>
           )}
         </Stack.Navigator>
@@ -165,6 +253,19 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  headerRightWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerIconBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerIcon: {
+    fontSize: 18,
+    color: "#334155",
+  },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",

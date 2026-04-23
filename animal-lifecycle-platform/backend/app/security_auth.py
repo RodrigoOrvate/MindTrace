@@ -11,14 +11,18 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db
 from .models import AppUser
-from .security_network import ensure_admin_ip_allowed, ensure_client_ip_allowed
+from .security_network import ensure_admin_ip_allowed, ensure_admin_mac_allowed, ensure_client_ip_allowed
 
-
-_DEFAULT_AUTH_SECRET = "dev-local-auth-secret-change-me"
+# Segredo de fallback — usado SOMENTE em dev quando AUTH_SECRET não está no .env.
+# Em produção (app_env != "dev"), _check_startup_secrets() em main.py já interrompeu
+# o servidor antes de chegar aqui.
+_DEV_FALLBACK_SECRET = "dev-local-fallback-nao-usar-em-producao"
 
 
 def _auth_secret_bytes() -> bytes:
-    raw = settings.auth_secret.strip() or _DEFAULT_AUTH_SECRET
+    raw = settings.auth_secret.strip()
+    if not raw:
+        return _DEV_FALLBACK_SECRET.encode("utf-8")
     return raw.encode("utf-8")
 
 
@@ -97,5 +101,7 @@ def require_admin(user: AppUser = Depends(require_auth)) -> AppUser:
 
 
 def require_admin_local(request: Request, user: AppUser = Depends(require_admin)) -> AppUser:
-    ensure_admin_ip_allowed(request.client.host if request.client else None)
+    client_ip = request.client.host if request.client else None
+    ensure_admin_ip_allowed(client_ip)
+    ensure_admin_mac_allowed(client_ip)
     return user

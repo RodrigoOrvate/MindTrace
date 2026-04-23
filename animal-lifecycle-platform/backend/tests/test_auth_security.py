@@ -11,7 +11,12 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import AppUser
 from app.security_auth import create_access_token, hash_password
-from app.security_network import ensure_admin_ip_allowed, ensure_client_ip_allowed, is_client_ip_allowed_for_login
+from app.security_network import (
+    ensure_admin_ip_allowed,
+    ensure_admin_mac_allowed,
+    ensure_client_ip_allowed,
+    is_client_ip_allowed_for_login,
+)
 from app.config import settings
 
 
@@ -205,3 +210,147 @@ def test_login_from_disallowed_ip_returns_generic_invalid(monkeypatch) -> None:
     res = client.post("/auth/login", json={"username": "labadmin", "password": "SenhaForte123"})
     assert res.status_code == 401
     assert res.json()["detail"] == "Login invalido."
+
+
+def test_admin_login_blocked_from_non_admin_ip(monkeypatch) -> None:
+    """Admin não consegue token de IP fora do AUTH_ADMIN_ALLOWED_CIDRS."""
+    import app.routers.auth as auth_router
+
+    client, _ = _make_client()
+    monkeypatch.setattr(auth_router, "is_admin_ip_allowed_for_login", lambda _ip: False)
+    res = client.post("/auth/login", json={"username": "labadmin", "password": "SenhaForte123"})
+    assert res.status_code == 401
+    assert res.json()["detail"] == "Login invalido."
+
+
+def test_regular_user_login_allowed_from_non_admin_ip(monkeypatch) -> None:
+    """Usuário comum consegue token mesmo quando IP não é o do admin."""
+    import app.routers.auth as auth_router
+
+    client, _ = _make_client()
+    monkeypatch.setattr(auth_router, "is_admin_ip_allowed_for_login", lambda _ip: False)
+    res = client.post("/auth/login", json={"username": "user1", "password": "SenhaForte123"})
+    assert res.status_code == 200
+    assert "access_token" in res.json()
+
+
+# ---------------------------------------------------------------------------
+# Testes de validação de MAC (hardware físico)
+# ---------------------------------------------------------------------------
+
+
+def test_mac_check_skipped_when_not_configured(monkeypatch) -> None:
+    """Sem AUTH_ADMIN_ALLOWED_MACS configurado, a verificação de MAC é ignorada."""
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "")
+    ensure_admin_mac_allowed("192.168.1.65")  # não deve lançar exceção
+
+
+def test_mac_check_skipped_for_loopback(monkeypatch) -> None:
+    """Loopback não tem MAC físico e deve ser sempre aceito após passar pelo IP check."""
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74:56:3C:99:FD:71")
+    ensure_admin_mac_allowed("127.0.0.1")  # não deve lançar exceção
+
+
+def test_mac_check_blocks_unknown_mac(monkeypatch) -> None:
+    """Se MAC não resolve via ARP, bloqueia (fail-closed)."""
+    import pytest
+    from fastapi import HTTPException
+    import app.security_network as sn
+
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74:56:3C:99:FD:71")
+    monkeypatch.setattr(sn, "_lookup_client_mac", lambda _ip: None)
+
+    with pytest.raises(HTTPException) as err:
+        ensure_admin_mac_allowed("192.168.1.65")
+    assert err.value.status_code == 403
+    assert "MAC nao identificado" in err.value.detail
+
+
+def test_mac_check_blocks_wrong_mac(monkeypatch) -> None:
+    """MAC diferente do autorizado é bloqueado."""
+    import pytest
+    from fastapi import HTTPException
+    import app.security_network as sn
+
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74:56:3C:99:FD:71")
+    monkeypatch.setattr(sn, "_lookup_client_mac", lambda _ip: "AA:BB:CC:DD:EE:FF")
+
+    with pytest.raises(HTTPException) as err:
+        ensure_admin_mac_allowed("192.168.1.65")
+    assert err.value.status_code == 403
+    assert "hardware nao autorizado" in err.value.detail
+
+
+def test_mac_check_accepts_authorized_mac(monkeypatch) -> None:
+    """MAC autorizado (normalizado) passa sem exceção."""
+    import app.security_network as sn
+
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74:56:3C:99:FD:71")
+    monkeypatch.setattr(sn, "_lookup_client_mac", lambda _ip: "74:56:3C:99:FD:71")
+
+    ensure_admin_mac_allowed("192.168.1.65")  # não deve lançar exceção
+
+
+def test_mac_normalization_accepts_dash_format(monkeypatch) -> None:
+    """MAC com hífens no .env é normalizado e compara corretamente."""
+    import app.security_network as sn
+
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74-56-3C-99-FD-71")
+    monkeypatch.setattr(sn, "_lookup_client_mac", lambda _ip: "74:56:3C:99:FD:71")
+
+    ensure_admin_mac_allowed("192.168.1.65")  # não deve lançar exceção
+
+
+def test_mac_check_bypassed_for_testclient(monkeypatch) -> None:
+    """Host 'testclient' (FastAPI TestClient) ignora verificação de MAC."""
+    monkeypatch.setattr(settings, "auth_admin_allowed_macs", "74:56:3C:99:FD:71")
+    ensure_admin_mac_allowed("testclient")  # não deve lançar exceção
+
+
+# ---------------------------------------------------------------------------
+# Testes de CORS e startup
+# ---------------------------------------------------------------------------
+
+
+def test_cors_blocks_unlisted_origin(monkeypatch) -> None:
+    """Origem não listada em CORS_ALLOWED_ORIGINS não deve receber cabeçalho Allow-Origin."""
+    monkeypatch.setattr(settings, "cors_allowed_origins", "http://localhost:8081")
+    client, _ = _make_client()
+    res = client.get("/health", headers={"Origin": "http://evil.example.com"})
+    assert "access-control-allow-origin" not in res.headers
+
+
+def test_cors_allows_listed_origin(monkeypatch) -> None:
+    """Origem listada recebe o cabeçalho Allow-Origin correto."""
+    monkeypatch.setattr(settings, "cors_allowed_origins", "http://localhost:8081")
+    client, _ = _make_client()
+    res = client.get("/health", headers={"Origin": "http://localhost:8081"})
+    assert res.headers.get("access-control-allow-origin") == "http://localhost:8081"
+
+
+def test_health_does_not_leak_app_env() -> None:
+    """Endpoint /health não deve expor o campo app_env."""
+    client, _ = _make_client()
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert "env" not in res.json()
+
+
+def test_startup_fails_if_auth_secret_missing_in_prod(monkeypatch) -> None:
+    """Servidor não deve subir em produção sem AUTH_SECRET configurado."""
+    import pytest
+    import app.main as main_mod
+
+    monkeypatch.setattr(settings, "app_env", "prod")
+    monkeypatch.setattr(settings, "auth_secret", "")
+    with pytest.raises(RuntimeError, match="AUTH_SECRET"):
+        main_mod._check_startup_secrets()
+
+
+def test_startup_allows_missing_secret_in_dev(monkeypatch) -> None:
+    """Em dev, AUTH_SECRET vazio emite aviso mas não interrompe o servidor."""
+    import app.main as main_mod
+
+    monkeypatch.setattr(settings, "app_env", "dev")
+    monkeypatch.setattr(settings, "auth_secret", "")
+    main_mod._check_startup_secrets()  # não deve lançar exceção

@@ -236,7 +236,7 @@ ApplicationWindow {
     Component {
         id: norSetupComponent
         NORSetupScreen {
-            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, dayNames, savePath) {
+            onExperimentReady: function(name, cols, pair1, pair2, pair3, includeDrug, responsibleUsername, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingContext)
                 root.pendingPair1       = pair1
                 root.pendingPair2       = pair2
@@ -245,7 +245,7 @@ ApplicationWindow {
                 root.pendingDayNames    = dayNames
                 root.awaitingCreation   = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, pair1, pair2, pair3, includeDrug, false, savePath,
+                    name, cols, pair1, pair2, pair3, includeDrug, responsibleUsername, false, savePath,
                     "nor", root.pendingNorNumCampos, 0.5, true, 5, dayNames.length)
             }
             onBackRequested: stack.pop()
@@ -284,13 +284,13 @@ ApplicationWindow {
     Component {
         id: caSetupComponent
         CASetup {
-            onExperimentReady: function(name, cols, includeDrug, dayNames, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, responsibleUsername, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingCaContext)
                 root.pendingDayNames  = dayNames
                 root.awaitingCreation = true
                 root.pendingCaFlow    = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, "", "", "", includeDrug, false, savePath,
+                    name, cols, "", "", "", includeDrug, responsibleUsername, false, savePath,
                     "campo_aberto", root.pendingCaNumCampos, 0.5, false, 5, dayNames.length)
             }
             onBackRequested: stack.pop()
@@ -329,7 +329,7 @@ ApplicationWindow {
     Component {
         id: ccSetupComponent
         CCSetup {
-            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, dayNames, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, sessionMinutes, hasObjectZones, responsibleUsername, dayNames, savePath) {
                 ExperimentManager.loadContext(root.pendingCcContext)
                 root.pendingCcSessionMin     = sessionMinutes
                 root.pendingCcHasObjectZones = hasObjectZones
@@ -337,7 +337,7 @@ ApplicationWindow {
                 root.awaitingCreation        = true
                 root.pendingCcFlow           = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, "", "", "", includeDrug, false, savePath,
+                    name, cols, "", "", "", includeDrug, responsibleUsername, false, savePath,
                     "comportamento_complexo", root.pendingCcNumCampos, 0.5, hasObjectZones,
                     sessionMinutes, dayNames.length)
             }
@@ -360,13 +360,13 @@ ApplicationWindow {
     Component {
         id: eiSetupComponent
         EISetup {
-            onExperimentReady: function(name, cols, includeDrug, dayNames, savePath) {
+            onExperimentReady: function(name, cols, includeDrug, responsibleUsername, dayNames, savePath) {
                 root.pendingDayNames  = dayNames
                 ExperimentManager.loadContext("Padrão")
                 root.awaitingCreation = true
                 root.pendingEiFlow    = true
                 ExperimentManager.createExperimentFull(
-                    name, cols, "", "", "", includeDrug, false, savePath,
+                    name, cols, "", "", "", includeDrug, responsibleUsername, false, savePath,
                     "esquiva_inibitoria", 1, 0.5, true, 5, dayNames.length)
             }
             onBackRequested: {

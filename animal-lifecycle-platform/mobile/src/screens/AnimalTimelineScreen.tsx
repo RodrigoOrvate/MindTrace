@@ -17,13 +17,15 @@ import {
   animalTimeline,
   deleteAnimal,
   deleteAnimalEvent,
+  euthanizeAnimal,
   fetchSpecies,
   fetchStrains,
   getAnimal,
 } from "../api/client";
 import { Animal, AnimalEvent, Species, Strain } from "../types";
+import { DateFormat, formatDateOnly as formatDateOnlyBySetting, formatDateTime } from "../utils/dateFormat";
 
-type Props = { route: any; navigation: any };
+type Props = { route: any; navigation: any; isDark?: boolean; dateFormat?: DateFormat };
 type Tab = "history" | "profile";
 
 const PLACEHOLDER_COLOR = "#b8c4d0";
@@ -39,19 +41,11 @@ const EVENT_CONFIG: Record<string, { icon: string; color: string; label: string 
   transfer:              { icon: "<>", color: "#ea580c", label: "Transferencia" },
 };
 
-const APPARATUS_OPTIONS = [
-  { value: "nor",                   label: "NOR" },
-  { value: "campo_aberto",          label: "CA" },
-  { value: "comportamento_complexo",label: "CC" },
-  { value: "esquiva_inibitoria",    label: "EI" },
-] as const;
-type ApparatusValue = typeof APPARATUS_OPTIONS[number]["value"];
-
 const ADD_EVENT_TYPES = [
   { value: "note",        label: "Nota" },
   { value: "weight",      label: "Pesagem" },
   { value: "health",      label: "Saude" },
-  { value: "experiment",  label: "Experimento" },
+  { value: "euthanasia",  label: "Eutanasia" },
 ] as const;
 type AddEventType = typeof ADD_EVENT_TYPES[number]["value"];
 
@@ -102,6 +96,23 @@ function asText(value: unknown): string {
   return String(value).trim();
 }
 
+function shortPersonName(value: unknown): string {
+  const raw = asText(value);
+  if (!raw) return "";
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return raw;
+  const particles = new Set(["da", "de", "do", "das", "dos", "del", "della", "van", "von"]);
+  const last = parts[parts.length - 1];
+  let second = last;
+  if (parts.length >= 3) {
+    const penultimate = parts[parts.length - 2];
+    if (particles.has(penultimate.toLowerCase())) {
+      second = `${penultimate} ${last}`;
+    }
+  }
+  return `${parts[0]} ${second}`;
+}
+
 function metricRowsForExperiment(payload: Record<string, unknown> | null | undefined, apLabel: string): string[][] {
   if (!payload || !apLabel) return [];
 
@@ -114,17 +125,22 @@ function metricRowsForExperiment(payload: Record<string, unknown> | null | undef
 
   if (apLabel === "NOR") {
     const pair = asText(payload.pair);
-    const a = asNumber(payload.exploration_a_s);
-    const b = asNumber(payload.exploration_b_s);
+    const animalId = asText(payload.animal_internal_id);
+    const a = asNumber(payload.exploration_obj1_s ?? payload.exploration_a_s);
+    const b = asNumber(payload.exploration_obj2_s ?? payload.exploration_b_s);
+    const b1 = asNumber(payload.bouts_obj1 ?? payload.bouts_a);
+    const b2 = asNumber(payload.bouts_obj2 ?? payload.bouts_b);
     const di = asNumber(payload.di);
     rows.push([
+      animalId ? `ID: ${animalId}` : "",
       field != null ? `Campo C${field}` : "",
       pair ? `Par ${pair}` : "",
-      day ? `Dia ${day}` : "",
     ].filter(Boolean));
     rows.push([
-      a != null ? `Obj A: ${a.toFixed(2)}s` : "",
-      b != null ? `Obj B: ${b.toFixed(2)}s` : "",
+      a != null ? `Obj 1: ${a.toFixed(2)}s` : "",
+      b != null ? `Obj 2: ${b.toFixed(2)}s` : "",
+      b1 != null ? `Bouts 1: ${b1}` : "",
+      b2 != null ? `Bouts 2: ${b2}` : "",
       di != null ? `DI: ${di.toFixed(3)}` : "",
     ].filter(Boolean));
     rows.push([
@@ -211,20 +227,12 @@ function metricRowsForExperiment(payload: Record<string, unknown> | null | undef
   return [];
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString("pt-BR", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-  } catch { return iso; }
-}
-
-function formatDateOnly(iso: string): string {
-  try {
-    const [year, month, day] = iso.split("-");
-    return `${day}/${month}/${year}`;
-  } catch { return iso; }
+function todayLocal(): string {
+  const now = new Date();
+  const yyyy = String(now.getFullYear());
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // Delete Animal Modal
@@ -273,9 +281,10 @@ function DeleteAnimalModal({
 
 // Add Event Modal
 function AddEventModal({
-  visible, onCancel, onSave,
+  visible, hasEuthanasia, onCancel, onSave,
 }: {
   visible: boolean;
+  hasEuthanasia: boolean;
   onCancel: () => void;
   onSave: (type: string, title: string, description: string, extra?: Record<string, unknown>) => Promise<void>;
 }) {
@@ -283,45 +292,34 @@ function AddEventModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [weight, setWeight] = useState("");
-  const [apparatus, setApparatus] = useState<ApparatusValue>("nor");
-  const [fase, setFase] = useState("");
   const [saving, setSaving] = useState(false);
 
   function reset() {
     setEventType("note"); setTitle(""); setDescription("");
-    setWeight(""); setApparatus("nor"); setFase("");
-  }
-
-  function autoTitle(): string {
-    if (eventType !== "experiment") return title;
-    const ap = APPARATUS_OPTIONS.find((o) => o.value === apparatus)?.label ?? apparatus.toUpperCase();
-    return fase.trim() ? `${ap} - ${fase.trim()}` : ap;
+    setWeight("");
   }
 
   async function handleSave() {
-    const finalTitle = eventType === "experiment" ? autoTitle() : title.trim();
+    const finalTitle = eventType === "euthanasia" ? (title.trim() || "Eutanasia") : title.trim();
     if (!finalTitle) return;
     setSaving(true);
     try {
       let extra: Record<string, unknown> | undefined;
       if (eventType === "weight" && weight) extra = { weight_g: Number(weight) };
-      if (eventType === "experiment") extra = { apparatus, day: fase.trim() || undefined };
-      await onSave(
-        eventType === "experiment" ? "experiment_session" : eventType,
-        finalTitle,
-        description.trim(),
-        extra,
-      );
+      await onSave(eventType, finalTitle, description.trim(), extra);
       reset();
     } finally { setSaving(false); }
   }
 
-  const isExperiment = eventType === "experiment";
   const titlePlaceholder =
+    eventType === "euthanasia" ? "Ex: Eutanasia humanitaria" :
     eventType === "weight" ? "Ex: Pesagem semanal" :
     eventType === "health" ? "Ex: Observacao clinica" :
-    "Ex: Inicio do protocolo";
-  const canSave = isExperiment ? true : !!title.trim();
+    "Ex: Observacao de rotina";
+  const canSave = eventType === "euthanasia" ? true : !!title.trim();
+  const eventOptions = hasEuthanasia
+    ? ADD_EVENT_TYPES.filter((opt) => opt.value !== "euthanasia")
+    : ADD_EVENT_TYPES;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
@@ -331,7 +329,7 @@ function AddEventModal({
 
           <Text style={modal.label}>Tipo</Text>
           <View style={styles.chipRow}>
-            {ADD_EVENT_TYPES.map((opt) => {
+            {eventOptions.map((opt) => {
               const active = eventType === opt.value;
               return (
                 <TouchableOpacity
@@ -344,59 +342,31 @@ function AddEventModal({
               );
             })}
           </View>
+          {hasEuthanasia && (
+            <Text style={[modal.label, { marginTop: 4, fontSize: 11, color: "#94a3b8" }]}>
+              Eutanasia ja registrada para este animal.
+            </Text>
+          )}
 
-          {isExperiment ? (
+          <Text style={modal.label}>Titulo</Text>
+          <TextInput
+            style={modal.input}
+            placeholder={titlePlaceholder}
+            placeholderTextColor={PLACEHOLDER_COLOR}
+            value={title}
+            onChangeText={setTitle}
+          />
+          {eventType === "weight" && (
             <>
-              <Text style={modal.label}>Aparato</Text>
-              <View style={styles.chipRow}>
-                {APPARATUS_OPTIONS.map((opt) => {
-                  const active = apparatus === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.chip, active && styles.chipExperiment]}
-                      onPress={() => setApparatus(opt.value)}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={modal.label}>Fase / Dia <Text style={styles.optional}>(opcional)</Text></Text>
+              <Text style={modal.label}>Peso (g)</Text>
               <TextInput
                 style={modal.input}
-                placeholder="Ex: Treino, Teste, E1..."
+                placeholder="Ex: 280"
                 placeholderTextColor={PLACEHOLDER_COLOR}
-                value={fase}
-                onChangeText={setFase}
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="numeric"
               />
-              <Text style={[modal.label, { fontSize: 11, color: "#94a3b8", marginTop: 2 }]}>
-                Titulo gerado: {autoTitle()}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={modal.label}>Titulo</Text>
-              <TextInput
-                style={modal.input}
-                placeholder={titlePlaceholder}
-                placeholderTextColor={PLACEHOLDER_COLOR}
-                value={title}
-                onChangeText={setTitle}
-              />
-              {eventType === "weight" && (
-                <>
-                  <Text style={modal.label}>Peso (g)</Text>
-                  <TextInput
-                    style={modal.input}
-                    placeholder="Ex: 280"
-                    placeholderTextColor={PLACEHOLDER_COLOR}
-                    value={weight}
-                    onChangeText={setWeight}
-                    keyboardType="numeric"
-                  />
-                </>
-              )}
             </>
           )}
 
@@ -430,14 +400,20 @@ function AddEventModal({
 
 // Event Card
 function EventCard({
-  item, onDelete,
-}: { item: AnimalEvent; onDelete: (event: AnimalEvent) => void }) {
+  item, onDelete, dateFormat,
+}: { item: AnimalEvent; onDelete: (event: AnimalEvent) => void; dateFormat: DateFormat }) {
   const audit = isAudit(item);
   const cfg = audit
     ? { icon: "A", color: "#94a3b8", label: "Auditoria" }
     : (EVENT_CONFIG[item.event_type] ?? { icon: "*", color: "#64748b", label: item.event_type });
-  const actorName = typeof item.payload?.actor_name === "string" ? item.payload.actor_name : "";
   const apLabel = apparatusLabel(item.payload);
+  const iconText = item.event_type === "experiment_session" && apLabel ? apLabel : cfg.icon;
+  const actorName = shortPersonName(
+    asText(item.payload?.actor_name) ||
+    asText(item.payload?.responsible_full_name) ||
+    asText(item.payload?.responsible_username) ||
+    asText(item.payload?.actor_username)
+  );
   const experimentRows =
     item.event_type === "experiment_session"
       ? metricRowsForExperiment(item.payload ?? null, apLabel)
@@ -457,7 +433,7 @@ function EventCard({
           <Text style={styles.auditTitle}>{item.title}</Text>
           {!!item.description && <Text style={styles.auditDesc}>{item.description}</Text>}
           {!!actorName && <Text style={styles.actorLine}>Responsavel: {actorName}</Text>}
-          <Text style={styles.date}>{formatDate(item.event_at)}</Text>
+          <Text style={styles.date}>{formatDateTime(item.event_at, dateFormat)}</Text>
         </View>
       </View>
     );
@@ -467,7 +443,7 @@ function EventCard({
     <View style={styles.row}>
       <View style={styles.lineCol}>
         <View style={[styles.dot, { backgroundColor: cfg.color }]}>
-          <Text style={styles.dotIcon}>{cfg.icon}</Text>
+          <Text style={[styles.dotIcon, iconText.length > 2 && { fontSize: 10 }]}>{iconText}</Text>
         </View>
         <View style={styles.line} />
       </View>
@@ -508,7 +484,7 @@ function EventCard({
             ))}
           </View>
         )}
-        <Text style={styles.date}>{formatDate(item.event_at)}</Text>
+        <Text style={styles.date}>{formatDateTime(item.event_at, dateFormat)}</Text>
       </View>
     </View>
   );
@@ -543,8 +519,66 @@ function ConfirmEventDeleteModal({
   );
 }
 
+function EuthanasiaConfirmModal({
+  visible,
+  animalCode,
+  reason,
+  notes,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  animalCode: string;
+  reason: string;
+  notes: string;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [typed, setTyped] = useState("");
+  const match = typed.trim().toUpperCase() === animalCode.trim().toUpperCase();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={modal.overlay}>
+        <View style={modal.box}>
+          <Text style={modal.title}>Confirmar Eutanasia</Text>
+          <Text style={modal.warn}>
+            Esta acao e irreversivel e encerra o historico do animal.
+          </Text>
+          <Text style={modal.label}>Animal: {animalCode}</Text>
+          <Text style={modal.label}>Motivo: {reason || "Eutanasia"}</Text>
+          {!!notes && <Text style={modal.warn}>{notes}</Text>}
+          <Text style={modal.label}>Digite o ID para confirmar:</Text>
+          <Text style={modal.codeHint}>{animalCode}</Text>
+          <TextInput
+            style={[modal.input, match && modal.inputMatch]}
+            placeholder="Digite o ID exato"
+            placeholderTextColor={PLACEHOLDER_COLOR}
+            value={typed}
+            onChangeText={setTyped}
+            autoCapitalize="characters"
+          />
+          <View style={modal.btnRow}>
+            <TouchableOpacity style={modal.cancelBtn} onPress={onCancel}>
+              <Text style={modal.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modal.deleteBtn, !match && modal.btnDisabled]}
+              onPress={() => {
+                if (match) onConfirm();
+              }}
+              disabled={!match}
+            >
+              <Text style={modal.deleteBtnText}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // Profile Tab
-function ProfileTab({ animalId }: { animalId: number }) {
+function ProfileTab({ animalId, dateFormat }: { animalId: number; dateFormat: DateFormat }) {
   const [animal, setAnimal] = useState<Animal | null>(null);
   const [species, setSpecies] = useState<Species | null>(null);
   const [strain, setStrain] = useState<Strain | null>(null);
@@ -608,9 +642,9 @@ function ProfileTab({ animalId }: { animalId: number }) {
 
         <View style={styles.divider} />
 
-        <ProfileRow label="Data de entrada" value={formatDateOnly(animal.entry_date)} />
+        <ProfileRow label="Data de entrada" value={formatDateOnlyBySetting(animal.entry_date, dateFormat)} />
         {animal.marking_date && (
-          <ProfileRow label="Data de marcacao" value={formatDateOnly(animal.marking_date)} />
+          <ProfileRow label="Data de marcacao" value={formatDateOnlyBySetting(animal.marking_date, dateFormat)} />
         )}
         {animal.initial_weight_g != null && (
           <ProfileRow label="Peso inicial" value={`${animal.initial_weight_g} g`} />
@@ -620,7 +654,7 @@ function ProfileTab({ animalId }: { animalId: number }) {
           <>
             <View style={styles.divider} />
             {animal.euthanasia_date && (
-              <ProfileRow label="Data de eutanásia" value={formatDateOnly(animal.euthanasia_date)} />
+              <ProfileRow label="Data de eutanásia" value={formatDateOnlyBySetting(animal.euthanasia_date, dateFormat)} />
             )}
             {animal.euthanasia_reason && (
               <ProfileRow label="Motivo" value={animal.euthanasia_reason} />
@@ -652,7 +686,10 @@ function ProfileRow({ label, value, italic }: { label: string; value: string; it
 }
 
 // Main Screen
-export default function AnimalTimelineScreen({ route, navigation }: Props) {
+export default function AnimalTimelineScreen({ route, navigation, isDark = false, dateFormat = "DD/MM/YYYY" }: Props) {
+  const colors = isDark
+    ? { bg: "#0f172a", card: "#1e293b", border: "#334155", text: "#e2e8f0", textMuted: "#94a3b8", tabBg: "#1e293b" }
+    : { bg: "#f7f8fa", card: "#ffffff", border: "#e2e8f0", text: "#1e293b", textMuted: "#64748b", tabBg: "#ffffff" };
   const { animalId, animalCode } = route.params;
   const [activeTab, setActiveTab] = useState<Tab>("history");
   const [events, setEvents] = useState<AnimalEvent[]>([]);
@@ -661,6 +698,10 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
   const [showDeleteAnimal, setShowDeleteAnimal] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<AnimalEvent | null>(null);
+  const [showEuthConfirm, setShowEuthConfirm] = useState(false);
+  const [pendingEuthReason, setPendingEuthReason] = useState("");
+  const [pendingEuthNotes, setPendingEuthNotes] = useState("");
+  const hasEuthanasia = events.some((event) => event.event_type === "euthanasia");
 
   function loadEvents() {
     setLoading(true);
@@ -688,6 +729,10 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
     if (!eventToDelete) return;
     const target = eventToDelete;
     setEventToDelete(null);
+    if (target.event_type === "euthanasia") {
+      setError("Evento de eutanasia nao pode ser removido.");
+      return;
+    }
     try {
       await deleteAnimalEvent(animalId, target.id);
       loadEvents();
@@ -702,26 +747,50 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
     description: string,
     extra?: Record<string, unknown>
   ) {
-    await addAnimalEvent(animalId, {
-      event_type: type,
-      title,
-      description: description || undefined,
-      payload: extra,
-    });
+    if (hasEuthanasia) {
+      setShowAddEvent(false);
+      setError("Animal inativo por eutanasia. Historico encerrado.");
+      return;
+    }
+    if (type === "euthanasia") {
+      setPendingEuthReason(title || "Eutanasia");
+      setPendingEuthNotes(description || "");
+      setShowAddEvent(false);
+      setShowEuthConfirm(true);
+      return;
+    }
+    await addAnimalEvent(animalId, { event_type: type, title, description: description || undefined, payload: extra });
     setShowAddEvent(false);
     loadEvents();
   }
 
+  async function confirmEuthanasia() {
+    try {
+      await euthanizeAnimal(animalId, {
+        date: todayLocal(),
+        reason: pendingEuthReason || "Eutanasia",
+        notes: pendingEuthNotes || undefined,
+      });
+      setShowEuthConfirm(false);
+      setPendingEuthReason("");
+      setPendingEuthNotes("");
+      loadEvents();
+    } catch (err) {
+      setShowEuthConfirm(false);
+      setError((err as Error).message);
+    }
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.bg }]}>
         <View>
           <Text style={styles.headerLabel}>Animal</Text>
           <Text style={styles.code}>{animalCode}</Text>
         </View>
         <View style={styles.headerBtns}>
-          {activeTab === "history" && (
+          {activeTab === "history" && !hasEuthanasia && (
             <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddEvent(true)}>
               <Text style={styles.addBtnText}>+ Evento</Text>
             </TouchableOpacity>
@@ -733,7 +802,7 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
       </View>
 
       {/* Tab Bar */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: colors.tabBg, borderColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.tabItem, activeTab === "history" && styles.tabItemActive]}
           onPress={() => setActiveTab("history")}
@@ -778,12 +847,12 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
               !loading ? <Text style={styles.empty}>Nenhum evento registrado.</Text> : null
             }
             renderItem={({ item }) => (
-              <EventCard item={item} onDelete={setEventToDelete} />
+              <EventCard item={item} onDelete={setEventToDelete} dateFormat={dateFormat} />
             )}
           />
         </>
       ) : (
-        <ProfileTab animalId={animalId} />
+        <ProfileTab animalId={animalId} dateFormat={dateFormat} />
       )}
 
       {/* Modals */}
@@ -795,6 +864,7 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
       />
       <AddEventModal
         visible={showAddEvent}
+        hasEuthanasia={hasEuthanasia}
         onCancel={() => setShowAddEvent(false)}
         onSave={handleAddEvent}
       />
@@ -802,6 +872,18 @@ export default function AnimalTimelineScreen({ route, navigation }: Props) {
         event={eventToDelete}
         onCancel={() => setEventToDelete(null)}
         onConfirm={confirmDeleteEvent}
+      />
+      <EuthanasiaConfirmModal
+        visible={showEuthConfirm}
+        animalCode={animalCode}
+        reason={pendingEuthReason}
+        notes={pendingEuthNotes}
+        onCancel={() => {
+          setShowEuthConfirm(false);
+          setPendingEuthReason("");
+          setPendingEuthNotes("");
+        }}
+        onConfirm={confirmEuthanasia}
       />
     </SafeAreaView>
   );
@@ -886,7 +968,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "#cbd5e1", backgroundColor: "white",
   },
   chipActive: { backgroundColor: "#1f4f7c", borderColor: "#1f4f7c" },
-  chipExperiment: { backgroundColor: "#7c3aed", borderColor: "#7c3aed" },
   chipText: { fontSize: 14, color: "#334155" },
   chipTextActive: { color: "white", fontWeight: "600" },
   optional: { fontSize: 12, fontWeight: "400", color: "#94a3b8" },

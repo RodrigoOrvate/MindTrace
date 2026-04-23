@@ -1,6 +1,18 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from typing import Annotated
 
 from pydantic import BaseModel, Field
+from pydantic.functional_serializers import PlainSerializer
+
+# Serializa datetime naive (UTC sem tzinfo) como ISO 8601 com sufixo Z.
+# Sem isso, o JavaScript interpreta a string sem fuso como horário local do dispositivo.
+UTCDatetime = Annotated[
+    datetime,
+    PlainSerializer(
+        lambda v: (v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v).isoformat().replace("+00:00", "Z"),
+        return_type=str,
+    ),
+]
 
 from .models import EventType, LifeStatus, SexType
 
@@ -62,7 +74,7 @@ class AnimalOut(BaseModel):
     euthanasia_date: date | None
     euthanasia_reason: str | None
     notes: str | None
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = {"from_attributes": True}
 
@@ -80,7 +92,7 @@ class AnimalEventOut(BaseModel):
     id: int
     animal_id: int
     event_type: EventType
-    event_at: datetime
+    event_at: UTCDatetime
     title: str
     description: str | None
     payload: dict | None
@@ -96,12 +108,36 @@ class EuthanasiaInput(BaseModel):
     notes: str | None = None
 
 
+class BulkEuthanasiaInput(BaseModel):
+    entry_date: date
+    euthanasia_date: date
+    animal_ids: list[int] = Field(min_length=1)
+    reason: str
+    method: str | None = None
+    notes: str | None = None
+
+
+class BulkEuthanasiaResult(BaseModel):
+    requested: int
+    euthanized: int
+    skipped: int
+    details: list[str]
+
+
+class ResearcherOut(BaseModel):
+    username: str
+    full_name: str
+
+    model_config = {"from_attributes": True}
+
+
 class ExperimentCreate(BaseModel):
     source: str = "manual"
     source_experiment_name: str | None = None
     source_path: str | None = None
     context: str | None = None
     apparatus: str | None = None
+    responsible_username: str | None = None
     metadata: dict | None = None
 
 
@@ -120,6 +156,7 @@ class ExperimentOut(BaseModel):
     source_path: str | None
     context: str | None
     apparatus: str | None
+    responsible_username: str | None
     metadata: dict | None = Field(alias="meta_payload")
 
     model_config = {"from_attributes": True, "populate_by_name": True}
@@ -197,6 +234,22 @@ class UserOut(BaseModel):
     username: str
     is_admin: bool
     is_active: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = {"from_attributes": True}
+
+
+class UserPreferencesInput(BaseModel):
+    theme: str | None = Field(default=None, pattern="^(light|dark)$")
+    language: str | None = Field(default=None, pattern="^(pt|en|es)$")
+
+
+class DateFormatInput(BaseModel):
+    date_format: str = Field(pattern="^(DD/MM/YYYY|MM/DD/YYYY|YYYY-MM-DD)$")
+
+
+class AuthSettingsOut(BaseModel):
+    theme: str
+    language: str
+    date_format: str
+    is_admin: bool

@@ -1,4 +1,4 @@
-﻿import { Animal, AnimalEvent, AuthMe, Species, Strain, UserAccount } from "../types";
+﻿import { Animal, AnimalEvent, AppSettings, AuthMe, Species, Strain, UserAccount } from "../types";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
 
@@ -13,10 +13,35 @@ function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${authToken}` };
 }
 
+function stringifyDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") {
+    const trimmed = detail.trim();
+    return trimmed || fallback;
+  }
+  if (Array.isArray(detail)) {
+    const joined = detail
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        if (entry && typeof entry === "object" && "msg" in entry) return String((entry as { msg?: unknown }).msg ?? "");
+        return "";
+      })
+      .filter(Boolean)
+      .join("; ");
+    return joined || fallback;
+  }
+  if (detail && typeof detail === "object") {
+    const maybeDetail = (detail as { detail?: unknown }).detail;
+    if (maybeDetail !== undefined) return stringifyDetail(maybeDetail, fallback);
+    const maybeMessage = (detail as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) return maybeMessage.trim();
+  }
+  return fallback;
+}
+
 async function readError(res: Response, fallback: string): Promise<never> {
   const body = await res.json().catch(() => ({}));
-  const detail = body?.detail || fallback;
-  const err = new Error(detail) as Error & { status?: number };
+  const message = stringifyDetail(body?.detail, fallback);
+  const err = new Error(message) as Error & { status?: number };
   err.status = res.status;
   throw err;
 }
@@ -52,6 +77,8 @@ export async function me(): Promise<AuthMe> {
     is_admin: asBool(raw.is_admin),
     authenticated: asBool(raw.authenticated),
     client: String(raw.client ?? ""),
+    theme: String(raw.theme ?? "light") as "light" | "dark",
+    language: String(raw.language ?? "pt") as "pt" | "en" | "es",
   };
 }
 
@@ -109,6 +136,36 @@ export async function addAnimalEvent(
   return res.json();
 }
 
+export async function euthanizeAnimal(
+  animalId: number,
+  payload: { date: string; reason: string; method?: string; notes?: string }
+): Promise<AnimalEvent> {
+  const res = await fetch(`${API_BASE}/animals/${animalId}/euthanasia`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return readError(res, "Falha ao registrar eutanasia.");
+  return res.json();
+}
+
+export async function bulkEuthanasia(payload: {
+  entry_date: string;
+  euthanasia_date: string;
+  animal_ids: number[];
+  reason: string;
+  method?: string;
+  notes?: string;
+}): Promise<{ requested: number; euthanized: number; skipped: number; details: string[] }> {
+  const res = await fetch(`${API_BASE}/animals/euthanasia/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return readError(res, "Falha na eutanasia em grupo.");
+  return res.json();
+}
+
 export async function getAnimal(animalId: number): Promise<Animal> {
   return getJson<Animal>(`${API_BASE}/animals/${animalId}`);
 }
@@ -142,5 +199,32 @@ export async function createUser(payload: {
     body: JSON.stringify(payload),
   });
   if (!res.ok) return readError(res, "Falha ao criar usuario.");
+  return res.json();
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return getJson<AppSettings>(`${API_BASE}/auth/settings`);
+}
+
+export async function updateMyPreferences(payload: {
+  theme?: "light" | "dark";
+  language?: "pt" | "en" | "es";
+}): Promise<AppSettings> {
+  const res = await fetch(`${API_BASE}/auth/settings/preferences`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return readError(res, "Falha ao atualizar preferencias.");
+  return res.json();
+}
+
+export async function updateGlobalDateFormat(dateFormat: AppSettings["date_format"]): Promise<AppSettings> {
+  const res = await fetch(`${API_BASE}/auth/settings/date-format`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ date_format: dateFormat }),
+  });
+  if (!res.ok) return readError(res, "Falha ao atualizar formato global de data.");
   return res.json();
 }

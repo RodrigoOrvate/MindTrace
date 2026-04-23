@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls
 import QtCore
 import "../core/Theme"
+import MindTrace.Backend 1.0
 
 Item {
     id: root
@@ -96,8 +97,14 @@ Item {
 
     function _search(q) {
         if (!q) { _showRecents(); return }
+        var ts = ExperimentManager.syncTimestamp()
+        var sig = ExperimentManager.syncSignature(ts, "")
+        if (!ts || !sig) { dropdown.close(); return }
         var xhr = new XMLHttpRequest()
-        xhr.open("GET", root.apiBase + "/animals?q=" + encodeURIComponent(q))
+        xhr.open("GET", root.apiBase + "/sync/mindtrace/animals?status=active&q=" + encodeURIComponent(q))
+        xhr.setRequestHeader("X-MindTrace-Timestamp", ts)
+        xhr.setRequestHeader("X-MindTrace-Signature", sig)
+        xhr.setRequestHeader("X-MindTrace-Client", "mindtrace-qt")
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
             if (xhr.status === 200) {

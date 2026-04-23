@@ -14,12 +14,16 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { createUser, listUsers } from "../api/client";
 import { UserAccount } from "../types";
+import { LanguageCode, t } from "../utils/i18n";
 
 const PLACEHOLDER_COLOR = "#b8c4d0";
 
-type Props = { navigation: any };
+type Props = { navigation: any; isDark?: boolean; language?: LanguageCode };
 
-export default function UsersAdminScreen({ navigation }: Props) {
+export default function UsersAdminScreen({ navigation, isDark = false, language = "pt" }: Props) {
+  const colors = isDark
+    ? { bg: "#0f172a", card: "#1e293b", border: "#334155", text: "#e2e8f0", textMuted: "#94a3b8", label: "#94a3b8", inputBg: "#1e293b", inputText: "#f1f5f9", inputBorder: "#475569" }
+    : { bg: "#f8f9fb", card: "#ffffff", border: "#e2e8f0", text: "#0f172a", textMuted: "#64748b", label: "#475569", inputBg: "#ffffff", inputText: "#0f172a", inputBorder: "#cbd5e1" };
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,27 +89,27 @@ export default function UsersAdminScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <FlatList
         data={users}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Novo Usuario</Text>
+          <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.formTitle, { color: colors.text }]}>{t(language, "new_user")}</Text>
 
-            <Text style={styles.label}>Nome completo</Text>
+            <Text style={[styles.label, { color: colors.label }]}>{t(language, "full_name")}</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.inputBorder }]}
               value={fullName}
               onChangeText={setFullName}
               placeholder="Ex: Maria Souza"
               placeholderTextColor={PLACEHOLDER_COLOR}
             />
 
-            <Text style={styles.label}>Email (opcional)</Text>
+            <Text style={[styles.label, { color: colors.label }]}>{t(language, "email_optional")}</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.inputBorder }]}
               value={email}
               onChangeText={setEmail}
               placeholder="maria@lab.local"
@@ -114,9 +118,9 @@ export default function UsersAdminScreen({ navigation }: Props) {
               keyboardType="email-address"
             />
 
-            <Text style={styles.label}>Usuario</Text>
+            <Text style={[styles.label, { color: colors.label }]}>{t(language, "username_label")}</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.inputBorder }]}
               value={username}
               onChangeText={setUsername}
               placeholder="maria.souza"
@@ -124,9 +128,9 @@ export default function UsersAdminScreen({ navigation }: Props) {
               autoCapitalize="none"
             />
 
-            <Text style={styles.label}>Senha</Text>
+            <Text style={[styles.label, { color: colors.label }]}>{t(language, "password_label")}</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.inputBorder }]}
               value={password}
               onChangeText={setPassword}
               placeholder="Minimo 8 caracteres"
@@ -139,11 +143,11 @@ export default function UsersAdminScreen({ navigation }: Props) {
               onPress={handleCreateUser}
               disabled={saving}
             >
-              <Text style={styles.saveBtnText}>{saving ? "Salvando..." : "Criar Usuario"}</Text>
+              <Text style={styles.saveBtnText}>{saving ? t(language, "saving") : t(language, "create_user")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <Text style={styles.backBtnText}>Voltar</Text>
+              <Text style={[styles.backBtnText, { color: isDark ? "#94a3b8" : "#334155" }]}>{t(language, "back")}</Text>
             </TouchableOpacity>
           </View>
         }
@@ -153,20 +157,20 @@ export default function UsersAdminScreen({ navigation }: Props) {
               <ActivityIndicator color="#1f4f7c" />
             </View>
           ) : (
-            <Text style={styles.empty}>Nenhum usuario encontrado.</Text>
+            <Text style={[styles.empty, { color: colors.textMuted }]}>{t(language, "no_users")}</Text>
           )
         }
         renderItem={({ item }) => (
-          <View style={styles.userCard}>
+          <View style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.userTopRow}>
-              <Text style={styles.userName}>{item.full_name}</Text>
+              <Text style={[styles.userName, { color: colors.text }]}>{item.full_name}</Text>
               <View style={[styles.roleBadge, item.is_admin ? styles.adminBadge : styles.userBadge]}>
                 <Text style={styles.roleBadgeText}>{item.is_admin ? "ADMIN" : "USER"}</Text>
               </View>
             </View>
-            <Text style={styles.userMeta}>@{item.username}</Text>
-            {item.email ? <Text style={styles.userMeta}>{item.email}</Text> : null}
-            <Text style={styles.userMetaSmall}>Criado em: {new Date(item.created_at).toLocaleString("pt-BR")}</Text>
+            <Text style={[styles.userMeta, { color: colors.textMuted }]}>@{item.username}</Text>
+            {item.email ? <Text style={[styles.userMeta, { color: colors.textMuted }]}>{item.email}</Text> : null}
+            <Text style={[styles.userMetaSmall, { color: colors.textMuted }]}>Criado em: {new Date(item.created_at).toLocaleString("pt-BR")}</Text>
           </View>
         )}
       />

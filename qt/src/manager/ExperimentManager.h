@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -25,6 +26,7 @@ public:
         PathRole,
         ContextRole,
         AparatoRole,
+        ResponsibleRole,
     };
 
     explicit ExperimentListModel(QObject *parent = nullptr);
@@ -33,7 +35,11 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void setSourceData(const QStringList &names, const QStringList &paths, const QStringList &contexts, const QStringList &aparatos);
+    void setSourceData(const QStringList &names,
+                       const QStringList &paths,
+                       const QStringList &contexts,
+                       const QStringList &aparatos,
+                       const QStringList &responsibles);
     void applyFilter(const QString &query);
 
 signals:
@@ -44,10 +50,12 @@ private:
     QStringList m_allPaths;
     QStringList m_allContexts;
     QStringList m_allAparatos;
+    QStringList m_allResponsibles;
     QStringList m_names;   // lista filtrada — exposta ao QML
     QStringList m_paths;
     QStringList m_contexts;
     QStringList m_aparatos;
+    QStringList m_responsibles;
 };
 
 // ---------------------------------------------------------------------------
@@ -59,12 +67,14 @@ class ExperimentManager : public QObject
     Q_OBJECT
     Q_PROPERTY(ExperimentListModel* model        READ model        CONSTANT)
     Q_PROPERTY(QString activeContext             READ activeContext NOTIFY activeContextChanged)
+    Q_PROPERTY(QStringList researcherUsers READ researcherUsers NOTIFY researcherUsersChanged)
 
 public:
     explicit ExperimentManager(QObject *parent = nullptr);
 
     ExperimentListModel *model() const;
     QString              activeContext() const;
+    QStringList          researcherUsers() const;
 
     // ── API invocável pelo QML ──────────────────────────────────────────────
     Q_INVOKABLE void    loadContext(const QString &context, const QString &aparatoFilter = QString());
@@ -98,6 +108,7 @@ public:
                                               const QString &pair2,
                                               const QString &pair3,
                                               bool includeDrug,
+                                              const QString &responsibleUsername,
                                               bool hasReactivation,
                                               const QString &savePath,
                                               const QString &aparato = QStringLiteral("nor"),
@@ -148,9 +159,14 @@ public:
 
     // Persiste dayNames no metadata.json existente do experimento.
     Q_INVOKABLE bool updateDayNames(const QString &folderPath, const QStringList &dayNames);
+    Q_INVOKABLE void refreshResearchers();
+    Q_INVOKABLE QString researcherFullName(const QString &username) const;
+    Q_INVOKABLE QString syncTimestamp() const;
+    Q_INVOKABLE QString syncSignature(const QString &timestamp, const QString &body = QString()) const;
 
 signals:
     void activeContextChanged();
+    void researcherUsersChanged();
     void experimentCreated(const QString &name, const QString &path);
     void experimentDeleted(const QString &name);
     void errorOccurred(const QString &message);
@@ -160,6 +176,8 @@ signals:
 private:
     bool    isSafeLocalSyncUrl(const QUrl &url) const;
     QByteArray computeHmacSha256(const QByteArray &key, const QByteArray &data) const;
+    QString resolveSyncSecret() const;
+    QString readDotEnvValue(const QString &key) const;
     void    triggerAnimalLifecycleSync(const QString &experimentName, const QString &folderPath);
     void    triggerAnimalLifecycleDeletionAudit(const QString &experimentName,
                                                 const QString &folderPath,
@@ -177,6 +195,7 @@ private:
                           const QString &pair2 = QString(),
                           const QString &pair3 = QString(),
                           bool           includeDrug = true,
+                          const QString &responsibleUsername = QString(),
                           bool           hasReactivation = false,
                           const QString &aparato = QStringLiteral("nor"),
                           int            numCampos = 3,
@@ -192,5 +211,7 @@ private:
     QString              m_activeContext;
     QString              m_aparatoFilter;
     bool                 m_inSearchMode;
+    QStringList          m_researcherUsers;
+    QHash<QString, QString> m_researcherFullNames;
     QNetworkAccessManager *m_syncNetwork;
 };
