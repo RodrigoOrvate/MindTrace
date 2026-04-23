@@ -28,11 +28,51 @@ Sistema de tracking comportamental de ratos para paradigmas **NOR (Novel Object 
 | Componente | Versão mínima | Observação |
 |---|---|---|
 | Windows | 10 / 11 (64-bit) | DirectX 12 nativo — Win 7/8 não suportados |
-| Visual Studio | 2022 ou superior | Instalar workload "Desenvolvimento para desktop com C++" |
+| Visual Studio | 2022 ou superior | Ver seção abaixo — workload "Desenvolvimento para desktop com C++" + componentes específicos |
 | CMake | 3.25+ | Adicionar ao PATH durante instalação |
 | Qt | 6.11.0 | Ver seção abaixo — instalar via Qt Online Installer |
 | ONNX Runtime | 1.24.4 | Configurado automaticamente pelo `build.bat` (ver Seção 2) |
 | Python | 3.12+ (opcional) | Apenas para debug/validação do modelo |
+
+### Instalação do Visual Studio 2022 (Community ou superior)
+
+Baixe o instalador em [visualstudio.microsoft.com](https://visualstudio.microsoft.com/pt-br/downloads/).
+
+Na tela de workloads, marque **"Desenvolvimento para desktop com C++"**.
+
+Dentro desse workload, os itens marcados por padrão já cobrem o básico, mas confirme que os seguintes estão selecionados na coluna de detalhes à direita:
+
+**Obrigatórios para o MindTrace:**
+
+| Componente | Por que é necessário |
+|---|---|
+| Ferramentas de build do MSVC v143 – VS 2022 C++ x64/x86 (versão mais recente) | Compilador C++ (cl.exe) — obrigatório |
+| Windows 11 SDK (10.0.26100 ou mais recente) | Headers e libs do sistema — obrigatório |
+| CMake C++ para Windows | Gerador de projeto — obrigatório |
+| Suporte a C++ para Windows XP (NÃO marcar) | Desnecessário — deixar desmarcado |
+
+**Opcionais recomendados (marcar manualmente):**
+
+| Componente | Localização no instalador | Por que marcar |
+|---|---|---|
+| Suporte de depuração Just-In-Time | Detalhes do workload | Útil para depurar crashes do MindTrace.exe |
+| Ferramentas do Analisador de Gráficos e DirectX | Detalhes do workload | Diagnóstico de problemas com DirectML/DirectX 12 |
+| Adaptadores de teste do C++ para Boost.Test / Google Test | Detalhes do workload | Opcional — só se quiser rodar testes unitários C++ |
+| IntelliCode | Detalhes do workload | Sugestões de código inteligentes no editor |
+
+**Opcionais que podem ser deixados desmarcados** (economizam espaço, não afetam o build):
+
+- Suporte a C++ para Linux e Mac
+- Ferramentas do Clang/LLVM
+- Suporte a C++/CLI (não usamos .NET)
+- Desenvolvimento de Jogos com C++ (workload separado)
+- Módulos ATL / MFC / C++/WinRT
+
+> **Dica de espaço:** o workload completo com as seleções acima ocupa ~8–10 GB. Se o disco for limitado, desmarque os SDKs de versões antigas do Windows (ex: SDK 10.0.19041) — deixe apenas o SDK mais recente.
+
+Após instalar, o `build.bat` detecta automaticamente o Visual Studio via `vswhere.exe` (incluído no instalador) — não é necessário configurar nada manualmente.
+
+---
 
 ### Instalação do Qt 6.11.0
 
