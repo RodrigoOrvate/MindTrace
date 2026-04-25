@@ -17,7 +17,10 @@
       "Bash(where opencv_world*)",
       "Bash(dir \"C:\\\\opencv\" /b)",
       "Bash(dir \"C:\\\\\" /b 2>nul | findstr -i opencv; dir \"C:\\\\Program Files\" /b 2>nul | findstr -i opencv)",
-      "Bash(python \"c:\\\\MindTrace - Copia\\\\convert_to_individual_onnx.py\" \"C:\\\\Users\\\\rodri\\\\OneDrive\\\\Área de Trabalho\\\\Projeto_Comportamento\\\\mindtrace\\\\models\\\\generated_models\" \"c:\\\\MindTrace - Copia\\\\qt\\\\build\\\\behavior_models\")"
+      "Bash(python \"c:\\\\MindTrace - Copia\\\\convert_to_individual_onnx.py\" \"C:\\\\Users\\\\rodri\\\\OneDrive\\\\Área de Trabalho\\\\Projeto_Comportamento\\\\mindtrace\\\\models\\\\generated_models\" \"c:\\\\MindTrace - Copia\\\\qt\\\\build\\\\behavior_models\")",
+      "Bash(python -c ' *)",
+      "Bash(git init *)",
+      "Bash(git remote *)"
     ]
   }
 }

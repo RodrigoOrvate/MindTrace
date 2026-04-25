@@ -399,6 +399,7 @@ Item {
             }
         }
         function onErrorOccurred(errorMsg) {
+            console.error("[LiveRecording] InferenceController error:", errorMsg)
             displayPlayer.stop()
             logModel.append({ msg: LanguageManager.tr3("Error: ", "Error: ", "Error: ") + errorMsg, isErr: true })
             logView.positionViewAtEnd()
@@ -481,6 +482,7 @@ Item {
 
     // ── Funções de controle ───────────────────────────────────────────────────
     function startSession() {
+        console.log("[LiveRecording] startSession called. mode=", analysisMode, "cameraId=", cameraId, "videoPath=", videoPath)
         if (isAnalyzing) return
         if (analysisMode !== "ao_vivo" && (videoPath === "" || videoPath === "file:///")) {
             logModel.append({ msg: LanguageManager.tr3("Selecione um video na aba Arena primeiro.", "Select a video in the Arena tab first.", "Seleccione primero un video en la pestana Arena."), isErr: true })
@@ -542,6 +544,7 @@ Item {
         // EI e 1-campo usam frame completo (720×480); demais usam quadrantes
         inference.setFullFrameMode(aparato === "esquiva_inibitoria" || numCampos === 1)
         if (recordingRoot.isOffline) {
+            console.log("[LiveRecording] Starting OFFLINE analysis. playbackRate=", recordingRoot.playbackRate)
             // Modo offline: MediaPlayer reproduz arquivo de vídeo
             var pr = recordingRoot.playbackRate
             displayPlayer.videoOutput = framePreviewMaster
@@ -552,14 +555,16 @@ Item {
             inference.startAnalysis(videoPath, "")
             if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
         } else {
+            console.log("[LiveRecording] Starting LIVE analysis via InferenceController. cameraId=", recordingRoot.cameraId)
             // Modo ao vivo: câmera USB — sem MediaPlayer
             // Sinaliza dashboards para parar preview da arena (libera câmera para inferência)
             liveAnalysisStarting()
             displayPlayer.videoOutput = null
             displayPlayer.source = ""
-            inference.startLiveAnalysis(recordingRoot.cameraId, "", recordingRoot.saveDirectory, recordingRoot.liveOutputName, 1920, 1080, 60.0)
+            inference.startLiveAnalysis(recordingRoot.cameraId, "", recordingRoot.saveDirectory, recordingRoot.liveOutputName, 0, 0, 0.0)
             // Conecta o CaptureSession C++ ao VideoOutput para exibir o feed ao vivo
             Qt.callLater(function() {
+                console.log("[LiveRecording] setLivePreviewOutput(framePreviewMaster)")
                 inference.setLivePreviewOutput(framePreviewMaster)
             })
         }

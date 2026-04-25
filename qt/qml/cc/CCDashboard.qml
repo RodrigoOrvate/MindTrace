@@ -3330,7 +3330,12 @@ Item {
                     border.color: deleteNameField.activeFocus ? ThemeManager.accent : ThemeManager.borderLight; border.width: 1
                 }
                 Keys.onReturnPressed: {
-                    if (text === root.pendingDeleteName) { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    if (text === root.pendingDeleteName) {
+                        deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                    }
                 }
             }
             RowLayout {
@@ -3339,7 +3344,12 @@ Item {
                 Button {
                     text: LanguageManager.tr3("Excluir Definitivamente", "Delete Permanently", "Eliminar Definitivamente")
                     enabled: deleteNameField.text === root.pendingDeleteName
-                    onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    onClicked: {
+                        deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                    }
                     background: Rectangle {
                         radius: 7; color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.surfaceDim
                         Behavior on color { ColorAnimation { duration: 150 } }

@@ -1,4 +1,4 @@
-# MindTrace — Contexto para IA
+﻿# MindTrace — Contexto para IA
 
 ## Visão Geral
 
@@ -51,175 +51,11 @@ QMediaPlayer (headless)
 | `qml/cc/` | Fluxo do Comportamento Complexo: `CCDashboard.qml`, `CCArenaSelection.qml`, `CCSetup.qml`, `CCMetadataDialog.qml` |
 | `qml/ei/` | Fluxo da Esquiva Inibitória: `EIDashboard.qml`, `EISetup.qml`, `EIMetadataDialog.qml` |
 
-## Modelo ONNX
+### Câmera padrão (modo ao vivo)
 
-- **Arquivo:** `Network-MemoryLab-v2.onnx`
-- **Input:** `[1, 240, 360, 3]` RGB float32 — sem mean subtraction (modelo já faz)
-- **Output 0:** `[1, 30, 46, 2]` scoremap (heatmaps nose/body)
-- **Output 1:** `[1, 30, 46, 4]` locref (sub-pixel offsets)
-- **Stride:** 8.0
-- **Locref stdev:** 7.2801
-- **Sem mean subtraction** — o grafo já normaliza internamente
-
-## Modelo de Comportamento ONNX
-
-- **Arquivo:** `Behavior.onnx` (Opcional, busca automática em `appDir/` ou `defaultModelDir/`)
-- **Geração:** SimBA `merge_to_onnx` — une N classificadores `.sav` (um por comportamento) em um único ONNX
-- **Input:** `[None, 21]` float32 (Features do `BehaviorScanner`)
-- **Output:** float tensor `[None, N_classes]` — cada valor é a probabilidade **independente** do comportamento (classificadores binários merged; NÃO somam 1)
-- **Sem zipmap** — o `merge_to_onnx` gera float tensor direto, sem label int64 nem ZipMap
-- **Threshold de confiança:** `MIN_CONFIDENCE = 0.25f` — adequado para probabilidades de binary merge (usar 0.40+ apenas para softmax multiclasse)
-
-### Features (21) — `BehaviorScanner.cpp`
-
-Mapeamento verificado contra `features_extracted/*.csv` do SimBA (colunas 7–27):
-
-| Índice | Coluna SimBA | Descrição |
-|---|---|---|
-| 0 | Movement_nose | Deslocamento do nariz (px/frame, **espaço de treino**) |
-| 1 | Movement_body | Deslocamento do corpo (px/frame) |
-| 2 | All_bp_movements_Animal_1_sum | movNose + movBody |
-| 3 | All_bp_movements_Animal_1_mean | movSum / 2 |
-| 4 | All_bp_movements_Animal_1_min | min(movNose, movBody) |
-| 5 | All_bp_movements_Animal_1_max | max(movNose, movBody) |
-| 6–7 | Mean/Sum_..._mean_2 | Rolling mean/sum de **movMean** — janela 2s |
-| 8–9 | Mean/Sum_..._mean_5 | Rolling mean/sum de movMean — janela 5s |
-| 10–11 | Mean/Sum_..._mean_6 | Rolling mean/sum de movMean — janela 6s |
-| 12–13 | Mean/Sum_..._mean_7.5 | Rolling mean/sum de movMean — janela 7.5s |
-| 14–15 | Mean/Sum_..._mean_15 | Rolling mean/sum de movMean — janela 15s |
-| 16 | Sum_probabilities | nose.p + body.p |
-| 17 | Mean_probabilities | (nose.p + body.p) / 2 |
-| 18–20 | Low_prob_detections_0.1/0.5/0.75 | **Contagem absoluta** de bodyparts com p abaixo do threshold na janela 1s (max = 2×fps; NÃO é fração) |
-
-> **Escala de coordenadas:** DLC retorna coordenadas no espaço do crop (360×240). SimBA extrai features no espaço do vídeo original. `BehaviorScanner` aplica o fator de escala `TRAINING_W / CROP_W` e `TRAINING_H / CROP_H` (constantes em `BehaviorScanner.h`) para converter antes de calcular os deslocamentos. Ajustar `TRAINING_W/H` conforme o valor em SimBA → "Configure Video Parameters".
->
-> **Rolling windows:** SimBA rola sobre `All_bp_movements_Animal_1_mean = (movNose + movBody) / 2`, não sobre a soma. O buffer interno `_movementsSumHist` guarda `movSum / 2.0f`.
-
-## GPU / ONNX Execution Providers
-
-O `InferenceEngine` detecta o fabricante da GPU via **DXGI** e tenta providers em cascata:
-
-- **DXGI** (`IDXGIFactory1`) enumera os adaptadores e lê o `VendorId` (`0x10DE`=NVIDIA, `0x1002`=AMD, `0x8086`=Intel) — chamada única na inicialização, sem overhead durante inferência
-- **NVIDIA → CUDA → DirectML → CPU**: tenta CUDA primeiro; se a sessão falhar (ex: CUDA Toolkit/cuDNN não instalados), cai para DirectML; se DirectML falhar, CPU
-- **AMD/Intel → DirectML → CPU**: tenta DirectML; se falhar, CPU
-- **GPU ativo** (CUDA ou DML): `SetIntraOpNumThreads(1)` — provider gerencia paralelismo
-- **CPU fallback**: `SetIntraOpNumThreads(4)` + `ORT_ENABLE_ALL` graph optimization
-- **`dxgi.lib` linkado** para detecção de vendor. **`d3d12.lib` NÃO é linkado** — DX12/CUDA são internos ao `onnxruntime.dll`
-
-> **Setup ONNX Runtime:** usar `build.bat` — ele detecta SDK ausente e oferece download automático.  
-> O `setup_onnx.ps1` **não deve ser executado diretamente** — o `build.bat` o chama com o ambiente MSVC correto.
-> - NVIDIA  → opção 2 (Baixa `onnxruntime-win-x64-gpu` do GitHub)
-> - AMD/Intel → opção 1 (Baixa `Microsoft.ML.OnnxRuntime.DirectML` do NuGet)
-
-> **CUDA requer dependências externas ao ORT:** CUDA Toolkit 12.x + cuDNN 9.x instalados separadamente. Sem eles, o provider CUDA falha na criação da sessão e o fallback para DirectML é automático.
-
-### Cascata de providers (`createSession`)
-
-A lógica usa `tryCreateSessions(opts)` — helper que cria as 3 sessões e retorna `false` se qualquer uma falhar, permitindo retry com o próximo provider:
-
-```
-NVIDIA detectado → try_add_cuda_provider → tryCreateSessions
-  ├── OK  → "Modo GPU: CUDA ativo (NVIDIA)"
-  └── FAIL → try_add_dml_provider → tryCreateSessions
-               ├── OK  → "Modo GPU: DirectML ativo (NVIDIA, DirectX 12)"
-               └── FAIL → CPU opts → tryCreateSessions → "Modo CPU: GPU não disponível"
-
-AMD/Intel detectado → try_add_dml_provider → tryCreateSessions
-  ├── OK  → "Modo GPU: DirectML ativo (AMD/Intel, DirectX 12)"
-  └── FAIL → CPU opts → "Modo CPU: GPU não disponível"
-```
-
-**Alternativa Python (`inference_processor.py`)**: script standalone que usa `onnxruntime` com `CPUExecutionProvider` apenas — serve como referência/gold standard, não integrado ao pipeline C++.
-
-## Velocidade de Reprodução
-
-Controle de velocidade funciona **apenas no modo offline** (vídeo pré-gravado):
-
-- **Opções**: 1x, 2x, 4x — x8/x16 removidos (ONNX CPU ~60-120ms/frame; a x8+ lag >600ms)
-- **Visível apenas quando** `isOffline === true` (i.e., `analysisMode === "offline"`)
-- **Modo ao vivo**: usa 1:1 (tempo real) — botões de velocidade ocultos
-
-### Timer de Sessão e Velocidade
-
-```qml
-var decrement = recordingRoot.isOffline ? Math.round(recordingRoot.playbackRate) : 1
-```
-
-- Cada campo tem timer independente de **300s** (5 min)
-- **Offline**: decremento escala com `playbackRate` (1s real = 4s vídeo a 4x)
-  - 1x → 300s reais para completar
-  - 4x → 75s reais para completar
-- **Ao vivo**: decremento = 1 (sempre 1:1 com tempo real)
-- **Auto-encerra** quando todos os 3 campos concluem
-
-### Sincronização Display ↔ Headless
-
-Dois players independentes acumulam drift ao longo do tempo. Solução em três camadas:
-
-1. **`InferenceController::setPlaybackRate(rate)`** — sincroniza headless ao mudar velocidade
-2. **Headless capped a 2x** — independente da velocidade de display, o headless nunca ultrapassa 2x, mantendo ONNX num ritmo gerenciável
-3. **`positionSyncTimer` (400ms)** — se drift entre `displayPlayer.position` e `inference.position()` ultrapassar 800ms, `inference.seekTo(displayPlayer.position)` ressincroniza o headless
-
-Mudança de velocidade usa **stop → setRate → seek → play** no `displayPlayer` para evitar frame preto do WMF durante transição.
-
-## Mosaico 2×2
-
-- **Resolução:** 720×480
-- **FPS:** ~29.97
-- **Campos ativos:** 3
-  - Campo 0: `(0, 0)` — Topo-Esquerda
-  - Campo 1: `(360, 0)` — Topo-Direita
-  - Campo 2: `(0, 240)` — Baixo-Esquerda
-- **Crop:** cada campo = 360×240 → resize para 360×240 do modelo
-
-## Gestão de Experimentos e Fluxo
-
-### Sistema de Registro e Caminhos Customizados
-O `ExperimentManager` utiliza um arquivo `registry.json` na raiz da pasta de dados para rastrear experimentos salvos em diretórios personalizados (fora da pasta padrão "Documentos").
-- `createExperimentFull`: Permite especificar um `savePath`.
-- `loadAllContexts`: Mescla a pasta padrão com os caminhos registrados no `registry.json`.
-
-### Sistema de Dias (dayNames)
-Todos os 4 tipos de experimento (NOR, CA, CC, EI) usam um array `dayNames: var` definido no setup via editor de chips editáveis (TextInput por dia, botão "+ Dia", botão "×" para remover). O array é salvo em `metadata.json` via `ExperimentManager.updateDayNames(path, dayNames)` logo após `createExperimentFull`. Nos dashboards, `loadExperiment()` lê `meta.dayNames` e popula um `ComboBox` no diálogo pós-sessão. Experimentos antigos sem `dayNames` recebem um fallback automático que reconstrói a sequência a partir de `hasReactivation`/`extincaoDays` (apenas leitura — nunca escrito em novos experimentos).
-
-Defaults por tipo:
-- **NOR / CA:** `["Treino", "Teste"]`
-- **CC:** `["Treino", "Teste"]`
-- **EI:** `["Treino", "E1", "E2", "E3", "E4", "E5", "Teste"]`
-
-### Fluxo Campo Aberto (CA)
-O módulo CA reutiliza o mesmo `ExperimentManager` do NOR. Diferenças:
-- `createExperimentFull` chamado com strings de pares vazias (`"", "", ""`)
-- `pendingCaFlow: bool` em `main.qml` diferencia NOR × CA no handler global `onExperimentCreated`
-- `context` pode ser `"Padrão"` ou `"Contextual"` (3 campos força "Sem Contexto" via `CAArenaSelection`)
-- `arenaId` segue padrão `"ca_Ncampos"` (ex: `"ca_3campos"`, `"ca_2campos"`, `"ca_1campo"`)
-- CSV: `["Diretório do Vídeo", "Animal", "Campo", "Dia", "Distância Total (m)", "Velocidade Média (m/s)"]` + opcional "Tratamento"
-- JSON de sessão: `aparato: "campo_aberto"`, sem bouts de exploração, inclui `porMinuto` com distância e velocidade por minuto
-
-### Fluxo Comportamento Complexo (CC)
-Semelhante ao CA, porém voltado para rastreamento genérico de locomoção sem requerer desenho do centro ou objetos.
-- Usa a arquitetura de pasta e módulo `cc/`
-- JSON de sessão: `aparato: "comportamento_complexo"`, métricas puras de tracker de corpo
-- Interface LiveRecording esconde painéis laterais de tempos de zonas automaticamente e muda o título para "EXPLORAÇÃO GERAL"
-- Filtro de distância na análise é mais brando (< 10 m/s) para captar toda flutuação e tem toggle `Rastro ON/OFF` para visualização na UI
-- **Zonas editáveis**: Em CC, as zonas são arrastáveis e redimensionáveis na ArenaSetup
-  - Shift+drag para mover zonas
-  - Scroll do mouse para redimensionar
-  - Labels "A"/"B" escondidos em CC (visíveis apenas em NOR)
-  - Tamanho e posição são salvos e restaurados ao carregar a configuração
-  - Zonas também visíveis na aba Gravação (LiveRecording.qml)
-
-### Compatibilidade Excel
-Todos os CSVs são gravados com **UTF-8 BOM** (`\xEF\xBB\xBF`) garantindo visualização perfeita de acentos ("í", "ó") no Microsoft Excel.
-
-## Modos de Análise
-
-| Modo | Input | Timer | Velocidade | Salva vídeo | Autofill Path |
-|------|-------|-------|-----------|-------------|---------------|
-| **Offline** | Vídeo pré-gravado | Escala com speed | 1x, 2x, 4x | Não | Sim (Automático) |
-| **Ao vivo** | Câmera | 1:1 real-time | Fixo 1x | Sim | N/A |
-
-Seleção via popup em `ArenaSetup.qml` ao clicar "Carregar Vídeo".
+- Definida em `SettingsScreen.qml` e persistida em `mindtrace_settings.json` como `defaultLiveCameraId`.
+- Ao confirmar "Carregar Vídeo" no modo ao vivo, `ArenaSetup.qml` e `EIArenaSetup.qml` tentam aplicar a câmera padrão automaticamente.
+- Se a câmera padrão não estiver disponível, o app abre o popup de seleção normalmente.
 
 ## Build
 
@@ -441,7 +277,7 @@ Cada métrica colorida em sua célula de dados, facilitando interpretação ráp
 | `saveDirectory` não existe em `workArea` do EIDashboard | Handler `onAnalysisModeChangedExternally` do EI tentava `workArea.saveDirectory = ...` mas `workArea` (Item local) não tem essa propriedade. Removida a linha — EI sempre usa 1 campo e não precisa de `saveDirectory`. |
 | Tela verde ao vivo ainda persiste + `stopCameraPreview` not a function | **PENDENTE.** Abordagem atual (dois `VideoOutput` por arena: `framePreviewOffline`/`framePreviewLive`) ainda resulta em tela verde. Adicionalmente, `stopCameraPreview` foi acidentalmente removida de `ArenaSetup.qml` pelo script de simplificação de `_updateCameraPreview` (o script calculou `idx_end` como o `}` de `stopCameraPreview` em vez do `}` de `_updateCameraPreview`, porque `stopCameraPreview` ficou entre as duas funções e antes do `FileDialog`). **Para resolver:** (1) Re-adicionar `function stopCameraPreview() { arenaCamera.active = false }` em `ArenaSetup.qml` após `_updateCameraPreview`; (2) Diagnosticar root cause real do verde — verificar se o problema é NV12→RGB no shader Qt 6 com DroidCam, ou se a abordagem de dois VideoOutputs com `ShaderEffectSource` tem outro conflito. |
 | Live em 1080p com FPS real baixo (~22 FPS) | Perfil solicitado/aplicado pode mostrar 1920x1080 @ up to 60 FPS, mas FPS real ainda fica em ~22 no runtime atual. **PENDENTE (passo 2):** investigar gargalo ponta a ponta (fonte DroidCam/driver, formato de pixel, custo `toImage()`/conversão, throughput de inferência) para buscar **request alvo de 60 FPS reais**. |
-| `startLiveAnalysis` ignora resolução/FPS da câmera | `LiveRecording.qml` linha 536 tem `1920, 1080, 60.0` hardcoded — qualquer câmera sempre solicita 1080p/60fps. **PENDENTE:** passar `0, 0, 0.0` para usar formato padrão da câmera, ou expor seletores de resolução/FPS no ArenaSetup. |
+| Seleção de câmera repetida no modo ao vivo | Adicionada opção em SettingsScreen.qml para definir câmera padrão (defaultLiveCameraId), persistida em mindtrace_settings.json via ThemeSettings.saveVariant/loadVariant. ArenaSetup.qml e EIArenaSetup.qml aplicam automaticamente; se indisponível, fazem fallback para o popup. |
 | `BoutEditorPanel is not a type` ao iniciar app | Novo componente QML em `qml/shared/` não estava registrado em `qml/shared/qmldir`. Adicionada linha `BoutEditorPanel 1.0 BoutEditorPanel.qml`. Regra: qualquer novo `.qml` em `shared/` exige entrada no `qmldir`. |
 
 ## ⚠️ Classificação de Comportamento — Rule-Based
@@ -783,3 +619,5 @@ Preview na aba Arena usa `CaptureSession` separado com `arenaCamera`/`eiArenaCam
 - Badge `ACTIVE` corrigido para `ATIVO` em portugues.
 - Popup de modo de analise (NOR/EI) com layout adaptativo para PT/EN/ES (sem overflow de texto).
 - Icone de configuracoes padronizado para engrenagem (`\u2699`) para evitar renderizacao como reticencias.
+
+

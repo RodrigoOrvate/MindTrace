@@ -8,7 +8,10 @@
 #include <QMediaDevices>
 #include <QMediaRecorder>
 #include <QStringList>
+#include <QImage>
+#include <memory>
 #include "inference_engine.h"
+#include "dshow_capture.h"
 
 // ── Inference Controller ───────────────────────────────────────────────────
 // Headless QMediaPlayer feeds frames to QVideoSink (Qt 6 replacement for
@@ -45,6 +48,8 @@ public:
                                        int preferredHeight,
                                        double preferredFps);
     Q_INVOKABLE QString liveRecordingPath() const;
+    Q_INVOKABLE bool startLivePreview(const QString& cameraName);
+    Q_INVOKABLE void stopLivePreview();
     Q_INVOKABLE void setLivePreviewOutput(QObject* videoOutput);  // QML VideoOutput para display ao vivo
     Q_INVOKABLE void setPlaybackRate(double rate);
     Q_INVOKABLE qint64 position() const;
@@ -81,6 +86,8 @@ private slots:
 
 private:
     void setAnalyzing(bool v);
+    void processImageFrame(QImage img);
+    void onDirectShowFrame(const QImage& img);
 
     QMediaPlayer*         m_player;
     QVideoSink*           m_videoSink;
@@ -88,16 +95,21 @@ private:
 
     // Live camera mode
     bool                  m_isLiveMode     = false;
+    bool                  m_isDirectShowMode = false;
     QCamera*              m_camera         = nullptr;
     QMediaCaptureSession* m_captureSession = nullptr;
     QMediaRecorder*       m_mediaRecorder  = nullptr;
     QVideoSink*           m_livePreviewSink = nullptr;
     QString               m_liveRecordingPath;
+    std::unique_ptr<DShowCapture> m_dshowCapture;
 
     bool m_isAnalyzing = false;
+    bool m_isPreviewOnly = false;
     bool m_modelReady  = false;
     int  m_videoW      = 0;
     int  m_videoH      = 0;
     qint64 m_liveFpsWindowStartMs = 0;
     int    m_liveFpsFrameCount    = 0;
+    bool   m_loggedLiveNullFrame  = false;
+
 };

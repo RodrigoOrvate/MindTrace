@@ -237,8 +237,10 @@ Item {
                         }
 
                         ScrollBar.vertical: ScrollBar {
-                            policy: ScrollBar.AsNeeded
-                            contentItem: Rectangle { implicitWidth: 4; radius: 2; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
+                            policy: ScrollBar.AlwaysOn
+                            anchors.right: parent.right
+                            anchors.rightMargin: -2
+                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
                         }
 
                         delegate: Rectangle {
@@ -821,6 +823,8 @@ Item {
                 Keys.onReturnPressed: {
                     if (text === root.pendingDeleteName) {
                         deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
                         ExperimentManager.deleteExperiment(root.pendingDeleteName)
                     }
                 }
@@ -833,7 +837,12 @@ Item {
                 Button {
                     text: "Excluir Definitivamente"
                     enabled: deleteNameField.text === root.pendingDeleteName
-                    onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    onClicked: {
+                        deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                    }
                     background: Rectangle {
                         radius: 7
                         color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } }

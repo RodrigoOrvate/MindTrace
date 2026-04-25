@@ -49,3 +49,21 @@ QVariant ThemeSettings::loadSetting(const QString& key) {
     }
     return QVariant(); // Return null if not found
 }
+
+void ThemeSettings::saveVariant(const QString& key, const QVariant& value) {
+    QJsonObject obj = loadSettingsFile();
+    if (!value.isValid() || value.isNull()) {
+        obj.remove(key);
+    } else {
+        obj[key] = QJsonValue::fromVariant(value);
+    }
+    saveSettingsFile(obj);
+}
+
+QVariant ThemeSettings::loadVariant(const QString& key, const QVariant& defaultValue) {
+    QJsonObject obj = loadSettingsFile();
+    if (obj.contains(key)) {
+        return obj[key].toVariant();
+    }
+    return defaultValue;
+}

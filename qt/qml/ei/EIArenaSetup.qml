@@ -11,6 +11,7 @@ import QtQuick.Dialogs
 import "../core"
 import "../core/Theme"
 import MindTrace.Backend 1.0
+import MindTrace.Tracking 1.0
 
 Item {
     id: root
@@ -101,6 +102,36 @@ Item {
     signal zonasEditadas()
     signal analysisModeChangedExternally(string mode)
 
+    function _cameraBaseName(cameraIdValue) {
+        var s = String(cameraIdValue || "")
+        var b = s.toLowerCase().indexOf("|backend:")
+        if (b >= 0) s = s.substring(0, b)
+        var i = s.toLowerCase().indexOf("|input:")
+        if (i >= 0) s = s.substring(0, i)
+        return s.replace(" [DirectShow]", "").trim().toLowerCase()
+    }
+
+    function _tryUseDefaultLiveCamera() {
+        var defaultId = String(ThemeSettings.loadVariant("defaultLiveCameraId", "") || "")
+        if (defaultId === "")
+            return false
+
+        var wantBase = _cameraBaseName(defaultId)
+        if (wantBase === "")
+            return false
+
+        var nativeList = cameraProbe.listVideoInputs()
+        for (var i = 0; i < nativeList.length; i++) {
+            var n = nativeList[i].name || nativeList[i].description || String(nativeList[i])
+            if (_cameraBaseName(n) === wantBase) {
+                root.cameraId = defaultId
+                root.analysisModeChangedExternally("ao_vivo")
+                return true
+            }
+        }
+        return false
+    }
+
     Loader {
         id: mediaDevicesLoader
         active: true
@@ -108,6 +139,7 @@ Item {
         onLoaded: eiCameraSelectPopup._populateFromDevices(item.videoInputs)
     }
     property alias mediaDevices: mediaDevicesLoader.item
+    VideoInputEnumerator { id: cameraProbe }
 
     // Função pública: abre o popup de modo
     function openVideoLoader() { analysisModePrompt.open() }
@@ -207,18 +239,23 @@ Item {
             active: false
         }
     }
+    InferenceController { id: eiArenaPreviewInference }
 
     onCameraIdChanged: _updateEICameraPreview()
     onAnalysisModeChanged: _updateEICameraPreview()
     Timer {
         id: eiLiveFreezeTimer
-        interval: 2500
+        interval: 1000
         repeat: false
         onTriggered: {
-            if (analysisMode === "ao_vivo" && cameraId !== "" && eiArenaCamera.active) {
+            if (root.analysisMode !== "ao_vivo")
+                return
+            // Congela o frame atual da arena para facilitar ajuste manual.
+            if (eiArenaCamera.active)
                 eiArenaCamera.active = false
-                livePreviewFrozen = true
-            }
+            if (eiArenaPreviewInference)
+                eiArenaPreviewInference.stopLivePreview()
+            root.livePreviewFrozen = true
         }
     }
 
@@ -229,28 +266,62 @@ Item {
             if (!frame || root.livePreviewFrozen || !eiArenaCamera.active)
                 return
             root.livePreviewFrameCount += 1
-            // Evita congelar frames iniciais (startup verde/instável) do driver.
-            if (root.livePreviewFrameCount >= 12) {
-                eiArenaCamera.active = false
-                root.livePreviewFrozen = true
-                eiLiveFreezeTimer.stop()
-            }
         }
     }
 
     function _updateEICameraPreview() {
         if (analysisMode !== "ao_vivo" || cameraId === "") {
+            console.log("[EIArenaSetup] Live preview OFF (mode/camera not ready). mode=", analysisMode, "cameraId=", cameraId)
             eiLiveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            eiArenaPreviewInference.setLivePreviewOutput(null)
+            eiArenaPreviewInference.stopLivePreview()
             eiArenaCamera.active = false
             eiArenaCaptureSession.videoOutput = null
             videoPlayer.videoOutput = framePreview
             return
         }
+        var selectedName = cameraId
+        var lowerSelected = selectedName.toLowerCase()
+        var isDirectShowSelection = selectedName.indexOf("[DirectShow]") >= 0
+                                    || lowerSelected.indexOf("|input:") >= 0
+                                    || lowerSelected.indexOf("|backend:dshow") >= 0
+        selectedName = selectedName.replace(" [DirectShow]", "")
+        var backendSep = selectedName.toLowerCase().indexOf("|backend:")
+        if (backendSep >= 0)
+            selectedName = selectedName.substring(0, backendSep).trim()
+        var inputSep = selectedName.indexOf("|input:")
+        if (inputSep >= 0)
+            selectedName = selectedName.substring(0, inputSep).trim()
+        if (isDirectShowSelection) {
+            console.log("[EIArenaSetup] Live preview ON for DirectShow selection:", cameraId)
+            eiLiveFreezeTimer.stop()
+            livePreviewFrozen = false
+            livePreviewFrameCount = 0
+            eiArenaCaptureSession.videoOutput = null
+            eiArenaCamera.active = false
+            videoPlayer.videoOutput = null
+            if (!eiArenaPreviewInference.startLivePreview(cameraId))
+                console.log("[EIArenaSetup] DirectShow preview failed to start:", cameraId)
+            Qt.callLater(function() {
+                eiArenaPreviewInference.setLivePreviewOutput(framePreview)
+                eiLiveFreezeTimer.restart()
+            })
+            return
+        }
+        eiArenaPreviewInference.setLivePreviewOutput(null)
+        eiArenaPreviewInference.stopLivePreview()
         var devices = mediaDevices.videoInputs
+        var selectedLower = selectedName.toLowerCase().trim()
         for (var i = 0; i < devices.length; i++) {
-            if (devices[i].description === cameraId) {
+            var devName = (devices[i].description || "").trim()
+            var devLower = devName.toLowerCase()
+            var nameMatch = devLower === selectedLower
+                            || devLower.indexOf(selectedLower) >= 0
+                            || selectedLower.indexOf(devLower) >= 0
+            if (nameMatch) {
+                console.log("[EIArenaSetup] Live preview ON via Qt camera device:", devName, "<->", selectedName)
                 eiArenaCamera.cameraDevice = devices[i]
                 videoPlayer.videoOutput = null
                 eiArenaCaptureSession.videoOutput = framePreview
@@ -261,6 +332,11 @@ Item {
                 return
             }
         }
+        var devNames = []
+        for (var j = 0; j < devices.length; j++)
+            devNames.push(devices[j].description || "")
+        console.log("[EIArenaSetup] Qt devices available:", devNames.join(" | "))
+        console.log("[EIArenaSetup] Live preview OFF (camera not found in Qt devices):", selectedName)
         eiLiveFreezeTimer.stop()
         livePreviewFrozen = false
         livePreviewFrameCount = 0
@@ -271,6 +347,8 @@ Item {
     function stopCameraPreview() {
         eiLiveFreezeTimer.stop()
         livePreviewFrameCount = 0
+        eiArenaPreviewInference.setLivePreviewOutput(null)
+        eiArenaPreviewInference.stopLivePreview()
         eiArenaCamera.active = false
         eiArenaCaptureSession.videoOutput = null
     }
@@ -575,7 +653,8 @@ Item {
                         root.saveDirectory = savePathField.text.trim()
                         root.liveOutputName = saveNameField.text.trim()
                         saveDirPopup.close()
-                        eiCameraSelectPopup.open()
+                        if (!root._tryUseDefaultLiveCamera())
+                            eiCameraSelectPopup.open()
                     }
                     background: Rectangle {
                         radius: 8
@@ -597,8 +676,8 @@ Item {
     Popup {
         id: eiCameraSelectPopup
         anchors.centerIn: parent
-        width: 400; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
-        height: Math.min(80 + Math.max(1, eiCameraSelectPopup._cameras.length) * 52 + 130, 460)
+        width: 520; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
+        height: Math.min(120 + Math.max(1, eiCameraSelectPopup._cameras.length) * 62 + 170, 560)
         background: Rectangle {
             radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
             border.color: ThemeManager.success; border.width: 1
@@ -607,13 +686,59 @@ Item {
         property int selectedIndex: 0
         property var _cameras: []
         property string _statusMsg: ""
+        property string selectedInputType: "Composite"
+
+        function _selectedCamera() {
+            if (selectedIndex >= 0 && selectedIndex < _cameras.length)
+                return _cameras[selectedIndex]
+            return null
+        }
 
         function _populateFromDevices(devices) {
             var list = []
-            for (var i = 0; i < devices.length; i++)
-                list.push({ name: devices[i].description })
+            for (var i = 0; i < devices.length; i++) {
+                var dn = devices[i].description || devices[i].name || String(devices[i])
+                list.push({ name: dn, backend: "qt", hasComposite: false, hasSVideo: false })
+            }
+            var nativeList = cameraProbe.listVideoInputs()
+            for (var j = 0; j < nativeList.length; j++) {
+                var item = nativeList[j]
+                var n = item.name || item.description || String(item)
+                var exists = false
+                for (var k = 0; k < list.length; k++) {
+                    if (list[k].name === n) {
+                        exists = true
+                        break
+                    }
+                }
+                if (!exists) {
+                    list.push({
+                        name: n,
+                        backend: item.backend || "dshow",
+                        hasComposite: !!item.hasComposite,
+                        hasSVideo: !!item.hasSVideo,
+                        isHauppauge: !!item.isHauppauge
+                    })
+                } else if ((item.backend || "").toLowerCase() === "dshow") {
+                    // Keep Qt and DirectShow entries separate when names collide.
+                    list.push({
+                        name: n + " [DirectShow]",
+                        backend: "dshow",
+                        hasComposite: !!item.hasComposite,
+                        hasSVideo: !!item.hasSVideo,
+                        isHauppauge: !!item.isHauppauge
+                    })
+                }
+            }
             _cameras = list
             selectedIndex = 0
+            for (var s = 0; s < list.length; s++) {
+                if (list[s].backend === "dshow" && (list[s].hasComposite || list[s].hasSVideo || list[s].isHauppauge)) {
+                    selectedIndex = s
+                    break
+                }
+            }
+            selectedInputType = "Composite"
             _statusMsg = list.length > 0
                 ? LanguageManager.tr3(list.length + " camera(s) encontrada(s).", list.length + " camera(s) found.", list.length + " camara(s) encontrada(s).")
                 : LanguageManager.tr3("Nenhuma camera detectada pelo sistema.", "No camera detected by the system.", "Ninguna camara detectada por el sistema.")
@@ -665,11 +790,21 @@ Item {
 
             ListView {
                 Layout.fillWidth: true
-                height: Math.min(eiCameraSelectPopup._cameras.length * 52, 220)
+                Layout.preferredHeight: Math.min(eiCameraSelectPopup._cameras.length * 62, 260)
                 clip: true
                 model: eiCameraSelectPopup._cameras
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AlwaysOn
+                    anchors.right: parent.right
+                    anchors.rightMargin: -2
+                    contentItem: Rectangle {
+                        implicitWidth: 6
+                        radius: 3
+                        color: ThemeManager.borderLight
+                    }
+                }
                 delegate: Rectangle {
-                    width: ListView.view.width; height: 48; radius: 8
+                    width: ListView.view.width; height: 58; radius: 8
                     color: eiCameraSelectPopup.selectedIndex === index
                            ? Qt.rgba(0.15, 0.55, 0.25, 0.25)
                            : (eiCamMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim)
@@ -677,18 +812,75 @@ Item {
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                    Text {
+                    Column {
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 12 }
-                        text: modelData.name
-                        color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
-                        font.pixelSize: 12; font.weight: Font.Medium
-                        elide: Text.ElideRight
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            text: (typeof modelData === "string")
+                                  ? modelData
+                                  : (modelData.name || modelData.description || "")
+                            color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                            font.pixelSize: 12; font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            width: parent.width
+                            text: {
+                                if (typeof modelData === "string") return "qt"
+                                var mode = (modelData.backend || "qt")
+                                var ins = []
+                                if (modelData.hasComposite) ins.push("Composite")
+                                if (modelData.hasSVideo) ins.push("S-Video")
+                                return ins.length > 0 ? (mode + " • " + ins.join(" / ")) : mode
+                            }
+                            color: ThemeManager.textTertiary
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                        }
                     }
                     MouseArea {
                         id: eiCamMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: eiCameraSelectPopup.selectedIndex = index
+                        onClicked: {
+                            eiCameraSelectPopup.selectedIndex = index
+                            eiCameraSelectPopup.selectedInputType = "Composite"
+                        }
                     }
                 }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: {
+                    var cam = eiCameraSelectPopup._selectedCamera()
+                    return cam && cam.backend === "dshow" && (cam.hasComposite || cam.hasSVideo || cam.isHauppauge)
+                }
+                spacing: 8
+
+                Text {
+                    text: LanguageManager.tr3("Entrada", "Input", "Entrada")
+                    color: ThemeManager.textSecondary
+                    font.pixelSize: 12
+                }
+
+                ComboBox {
+                    id: eiInputTypeCombo
+                    Layout.preferredWidth: 180
+                    model: {
+                        var cam = eiCameraSelectPopup._selectedCamera()
+                        var opts = []
+                        if (cam && cam.hasComposite) opts.push("Composite")
+                        if (cam && cam.hasSVideo) opts.push("S-Video")
+                        if (opts.length === 0) {
+                            opts.push("Composite")
+                            opts.push("S-Video")
+                        }
+                        return opts
+                    }
+                    currentIndex: Math.max(0, model.indexOf(eiCameraSelectPopup.selectedInputType))
+                    onActivated: eiCameraSelectPopup.selectedInputType = currentText
+                }
+                Item { Layout.fillWidth: true }
             }
 
             Text {
@@ -713,8 +905,17 @@ Item {
                     enabled: eiCameraSelectPopup._cameras.length > 0
                     onClicked: {
                         var idx = eiCameraSelectPopup.selectedIndex
-                        if (idx >= 0 && idx < eiCameraSelectPopup._cameras.length)
-                            root.cameraId = eiCameraSelectPopup._cameras[idx].name
+                        if (idx >= 0 && idx < eiCameraSelectPopup._cameras.length) {
+                            var c = eiCameraSelectPopup._cameras[idx]
+                            if (c.backend === "dshow") {
+                                if (c.hasComposite || c.hasSVideo || c.isHauppauge)
+                                    root.cameraId = c.name + " |backend:dshow |input:" + eiCameraSelectPopup.selectedInputType
+                                else
+                                    root.cameraId = c.name + " |backend:dshow"
+                            }
+                            else
+                                root.cameraId = c.name + " |backend:qt"
+                        }
                         eiCameraSelectPopup.close()
                         root.analysisModeChangedExternally("ao_vivo")
                     }
@@ -763,7 +964,8 @@ Item {
 
         // ── Barra de ações ────────────────────────────────────────────────────
         RowLayout {
-            Layout.fillWidth: true; spacing: 8
+            Layout.fillWidth: true
+            spacing: 10
 
             Text {
                             text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
@@ -773,17 +975,29 @@ Item {
             }
             Item { Layout.fillWidth: true }
 
-            Text {
-                text: root.devMode
-                    ? "🔧 devMode  |  Ctrl+Arrastar: Paredes  |  Shift+Arrastar: Plataforma  |  Alt+Arrastar: Grade"
-                    : "🖱 Ctrl+Arrastar: Paredes  |  Shift+Arrastar: Plataforma  |  Alt+Arrastar: Grade"
-                color: ThemeManager.textTertiary
-                Behavior on color { ColorAnimation { duration: 150 } }
-                font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
-            }
+            Column {
+                Layout.preferredWidth: Math.min(root.width * 0.74, 920)
+                spacing: 6
 
-            // Dev Mode
-            Button {
+                Text {
+                    text: root.devMode
+                        ? "🔧 devMode  |  Ctrl+Arrastar: Paredes  |  Shift+Arrastar: Plataforma  |  Alt+Arrastar: Grade"
+                        : "🖱 Ctrl+Arrastar: Paredes  |  Shift+Arrastar: Plataforma  |  Alt+Arrastar: Grade"
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignRight
+                    color: ThemeManager.textTertiary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
+                }
+
+                Flow {
+                width: parent.width
+                spacing: 8
+                layoutDirection: Qt.RightToLeft
+
+                // Dev Mode
+                Button {
                 id: devModeBtn
                 text: root.devMode ? "🔧 Dev ON" : "🔧 Dev OFF"
                 onClicked: root.devMode = !root.devMode
@@ -806,8 +1020,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
-            // Carregar vídeo
-            Button {
+                // Carregar vídeo
+                Button {
                 id: videoBtnRect
                 text: root.analysisMode === "ao_vivo" && root.cameraId !== ""
                       ? "📹 " + LanguageManager.tr3("Camera Selecionada", "Camera Selected", "Camara Seleccionada")
@@ -836,8 +1050,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
-            // Importar Arena
-            Button {
+                // Importar Arena
+                Button {
                             text: "📥 " + LanguageManager.tr3("Importar Arena", "Import Arena", "Importar Arena")
                 enabled: experimentPath !== ""
                 onClicked: importFolderDialog.open()
@@ -858,8 +1072,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
 
-            // Salvar configuração
-            Button {
+                // Salvar configuração
+                Button {
                             text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== ""
                 onClicked: {
@@ -882,6 +1096,8 @@ Item {
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
+            }
+                }
             }
         }
 
@@ -1149,4 +1365,3 @@ Item {
         }
     }
 }
-

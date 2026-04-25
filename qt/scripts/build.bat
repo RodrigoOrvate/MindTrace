@@ -1,10 +1,6 @@
 @echo off
 cd /d "%~dp0.."
 
-:: ── Limpeza Automática da pasta build ────────────────────────
-echo [INFO] Limpando a pasta build antiga...
-if exist "build" rmdir /s /q "build"
-
 :: ============================================================
 :: build.bat — Compila e executa o MindTrace (Qt 6.11 + CMake)
 :: ============================================================
@@ -109,9 +105,14 @@ if not exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" (
 :SDK_OK
 :: ── Configura com CMake ───────────────────────────────────────
 echo.
+if not exist "build\CMakeCache.txt" (
+    echo [AVISO] Primeira compilacao detectada. Isso pode demorar alguns minutos.
+    echo         Nas proximas vezes sera muito mais rapido.
+    echo.
+)
 echo [1/3] Configurando CMake...
 cmake -S . -B build ^
-    -G "NMake Makefiles" ^
+    -G "Ninja" ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_PREFIX_PATH="%QT_DIR%"
 

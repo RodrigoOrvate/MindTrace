@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include "inference_controller.h"
+#include "video_input_enumerator.h"
 #include "BehaviorTimeline.h"
 #include "BSoidAnalyzer.h"
 #include <QQmlContext>
@@ -50,6 +51,7 @@ int main(int argc, char *argv[])
     }
 
     qDebug() << "MindTrace iniciando...";
+    qDebug() << "[CAMFIX] build marker: 2026-04-25-obs-virtualcam-v3";
 
     // ── Registro de tipos C++ no motor QML ──────────────────────────────
     qmlRegisterSingletonType<ExperimentManager>(
@@ -82,6 +84,7 @@ int main(int argc, char *argv[])
     qDebug() << "Tipos QML registrados.";
 
     qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
+    qmlRegisterType<VideoInputEnumerator>("MindTrace.Tracking", 1, 0, "VideoInputEnumerator");
     qmlRegisterType<BehaviorTimeline>("MindTrace.Tracking", 1, 0, "BehaviorTimeline");
     qmlRegisterType<BSoidAnalyzer>("MindTrace.Analysis", 1, 0, "BSoidAnalyzer");
 

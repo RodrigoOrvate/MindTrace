@@ -568,14 +568,26 @@ Item {
                 color: ThemeManager.textPrimary; placeholderTextColor: ThemeManager.textSecondary; font.pixelSize: 13
                 leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                 background: Rectangle { radius: 6; color: ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 200 } } border.color: delConfirmField.activeFocus ? "#c8a000" : ThemeManager.border; border.width: 1; Behavior on border.color { ColorAnimation { duration: 150 } } }
-                Keys.onReturnPressed: { if (text === root.pendingDeleteName) { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) } }
+                Keys.onReturnPressed: {
+                    if (text === root.pendingDeleteName) {
+                        deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                    }
+                }
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10; Item { Layout.fillWidth: true }
                 GhostButton { text: "Cancelar"; onClicked: deleteStep2Popup.close() }
                 Button {
                     text: "Excluir"; enabled: delConfirmField.text === root.pendingDeleteName
-                    onClicked: { deleteStep2Popup.close(); ExperimentManager.deleteExperiment(root.pendingDeleteName) }
+                    onClicked: {
+                        deleteStep2Popup.close()
+                        if (workArea.selectedName === root.pendingDeleteName)
+                            root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                    }
                     background: Rectangle { radius: 7; color: parent.enabled ? (parent.hovered ? "#9a7800" : "#c8a000") : ThemeManager.surfaceDim; Behavior on color { ColorAnimation { duration: 150 } } }
                     contentItem: Text { text: parent.text; color: ThemeManager.buttonText; font.pixelSize: 12; font.weight: Font.Bold; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     leftPadding: 16; rightPadding: 16; topPadding: 8; bottomPadding: 8

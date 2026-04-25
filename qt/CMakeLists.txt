@@ -38,6 +38,10 @@ add_executable(MindTrace WIN32
     "${CMAKE_CURRENT_SOURCE_DIR}/src/models/ArenaConfigModel.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_controller.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_controller.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dshow_capture.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/dshow_capture.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/video_input_enumerator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/video_input_enumerator.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_engine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/inference_engine.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/tracking/BehaviorScanner.cpp"
@@ -75,3 +79,7 @@ target_link_libraries(MindTrace PRIVATE
     dxgi
     # d3d12 — NÃO linkar: DX12/CUDA são internos ao onnxruntime.dll
 )
+
+if(WIN32)
+    target_link_libraries(MindTrace PRIVATE strmiids)
+endif()

@@ -11,6 +11,7 @@ import "../core/Theme"
 import QtMultimedia
 import QtQuick.Dialogs
 import MindTrace.Backend 1.0
+import MindTrace.Tracking 1.0
 
 Item {
     id: root
@@ -42,6 +43,36 @@ Item {
     signal analysisModeChangedExternally(string mode)
     signal zonasEditadas()  // Emitido quando as zonas são editadas (tempo real)
 
+    function _cameraBaseName(cameraIdValue) {
+        var s = String(cameraIdValue || "")
+        var b = s.toLowerCase().indexOf("|backend:")
+        if (b >= 0) s = s.substring(0, b)
+        var i = s.toLowerCase().indexOf("|input:")
+        if (i >= 0) s = s.substring(0, i)
+        return s.replace(" [DirectShow]", "").trim().toLowerCase()
+    }
+
+    function _tryUseDefaultLiveCamera() {
+        var defaultId = String(ThemeSettings.loadVariant("defaultLiveCameraId", "") || "")
+        if (defaultId === "")
+            return false
+
+        var wantBase = _cameraBaseName(defaultId)
+        if (wantBase === "")
+            return false
+
+        var nativeList = cameraProbe.listVideoInputs()
+        for (var i = 0; i < nativeList.length; i++) {
+            var n = nativeList[i].name || nativeList[i].description || String(nativeList[i])
+            if (_cameraBaseName(n) === wantBase) {
+                root.cameraId = defaultId
+                root.analysisModeChangedExternally("ao_vivo")
+                return true
+            }
+        }
+        return false
+    }
+
     Loader {
         id: mediaDevicesLoader
         active: true
@@ -49,6 +80,7 @@ Item {
         onLoaded: cameraSelectPopup._populateFromDevices(item.videoInputs)
     }
     property alias mediaDevices: mediaDevicesLoader.item
+    VideoInputEnumerator { id: cameraProbe }
 
     Rectangle {
         id: unsavedToast
@@ -74,7 +106,7 @@ Item {
 
     Timer {
         id: unsavedToastTimer
-        interval: 3000
+        interval: 1000
         onTriggered: {
             unsavedToast.opacity = 0
             unsavedToast.visible = false
@@ -284,19 +316,24 @@ Item {
             active: false
         }
     }
+    InferenceController { id: arenaPreviewInference }
 
     // Inicia/para câmera ao mudar cameraId ou analysisMode
     onCameraIdChanged: _updateCameraPreview()
     onAnalysisModeChanged: _updateCameraPreview()
     Timer {
         id: liveFreezeTimer
-        interval: 2500
+        interval: 3000
         repeat: false
         onTriggered: {
-            if (analysisMode === "ao_vivo" && cameraId !== "" && arenaCamera.active) {
+            if (root.analysisMode !== "ao_vivo")
+                return
+            // Congela o frame atual da arena para facilitar ajuste manual.
+            if (arenaCamera.active)
                 arenaCamera.active = false
-                livePreviewFrozen = true
-            }
+            if (arenaPreviewInference)
+                arenaPreviewInference.stopLivePreview()
+            root.livePreviewFrozen = true
         }
     }
 
@@ -307,28 +344,62 @@ Item {
             if (!frame || root.livePreviewFrozen || !arenaCamera.active)
                 return
             root.livePreviewFrameCount += 1
-            // Evita congelar frames iniciais (startup verde/instável) do driver.
-            if (root.livePreviewFrameCount >= 12) {
-                arenaCamera.active = false
-                root.livePreviewFrozen = true
-                liveFreezeTimer.stop()
-            }
         }
     }
 
     function _updateCameraPreview() {
         if (analysisMode !== "ao_vivo" || cameraId === "") {
+            console.log("[ArenaSetup] Live preview OFF (mode/camera not ready). mode=", analysisMode, "cameraId=", cameraId)
             liveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            arenaPreviewInference.setLivePreviewOutput(null)
+            arenaPreviewInference.stopLivePreview()
             arenaCamera.active = false
             arenaCaptureSession.videoOutput = null
             videoPlayer.videoOutput = framePreview
             return
         }
+        var selectedName = cameraId
+        var lowerSelected = selectedName.toLowerCase()
+        var isDirectShowSelection = selectedName.indexOf("[DirectShow]") >= 0
+                                    || lowerSelected.indexOf("|input:") >= 0
+                                    || lowerSelected.indexOf("|backend:dshow") >= 0
+        selectedName = selectedName.replace(" [DirectShow]", "")
+        var backendSep = selectedName.toLowerCase().indexOf("|backend:")
+        if (backendSep >= 0)
+            selectedName = selectedName.substring(0, backendSep).trim()
+        var inputSep = selectedName.indexOf("|input:")
+        if (inputSep >= 0)
+            selectedName = selectedName.substring(0, inputSep).trim()
+        if (isDirectShowSelection) {
+            console.log("[ArenaSetup] Live preview ON for DirectShow selection:", cameraId)
+            liveFreezeTimer.stop()
+            livePreviewFrozen = false
+            livePreviewFrameCount = 0
+            arenaCaptureSession.videoOutput = null
+            arenaCamera.active = false
+            videoPlayer.videoOutput = null
+            if (!arenaPreviewInference.startLivePreview(cameraId))
+                console.log("[ArenaSetup] DirectShow preview failed to start:", cameraId)
+            Qt.callLater(function() {
+                arenaPreviewInference.setLivePreviewOutput(framePreview)
+                liveFreezeTimer.restart()
+            })
+            return
+        }
+        arenaPreviewInference.setLivePreviewOutput(null)
+        arenaPreviewInference.stopLivePreview()
         var devices = arenaMediaDevices.videoInputs
+        var selectedLower = selectedName.toLowerCase().trim()
         for (var i = 0; i < devices.length; i++) {
-            if (devices[i].description === cameraId) {
+            var devName = (devices[i].description || "").trim()
+            var devLower = devName.toLowerCase()
+            var nameMatch = devLower === selectedLower
+                            || devLower.indexOf(selectedLower) >= 0
+                            || selectedLower.indexOf(devLower) >= 0
+            if (nameMatch) {
+                console.log("[ArenaSetup] Live preview ON via Qt camera device:", devName, "<->", selectedName)
                 arenaCamera.cameraDevice = devices[i]
                 videoPlayer.videoOutput = null
                 arenaCaptureSession.videoOutput = framePreview
@@ -339,6 +410,11 @@ Item {
                 return
             }
         }
+        var devNames = []
+        for (var j = 0; j < devices.length; j++)
+            devNames.push(devices[j].description || "")
+        console.log("[ArenaSetup] Qt devices available:", devNames.join(" | "))
+        console.log("[ArenaSetup] Live preview OFF (camera not found in Qt devices):", selectedName)
         liveFreezeTimer.stop()
         livePreviewFrozen = false
         livePreviewFrameCount = 0
@@ -349,6 +425,8 @@ Item {
     function stopCameraPreview() {
         liveFreezeTimer.stop()
         livePreviewFrameCount = 0
+        arenaPreviewInference.setLivePreviewOutput(null)
+        arenaPreviewInference.stopLivePreview()
         arenaCamera.active = false
         arenaCaptureSession.videoOutput = null
     }
@@ -641,7 +719,8 @@ Item {
                         root.saveDirectory = savePathField.text.trim()
                         root.liveOutputName = saveNameField.text.trim()
                         saveDirDialog.close()
-                        cameraSelectPopup.open()
+                        if (!root._tryUseDefaultLiveCamera())
+                            cameraSelectPopup.open()
                     }
                     background: Rectangle {
                         radius: 8
@@ -662,8 +741,8 @@ Item {
     Popup {
         id: cameraSelectPopup
         anchors.centerIn: parent
-        width: 400; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
-        height: Math.min(80 + Math.max(1, cameraSelectPopup._cameras.length) * 52 + 130, 460)
+        width: 520; modal: true; focus: true; closePolicy: Popup.CloseOnEscape
+        height: Math.min(120 + Math.max(1, cameraSelectPopup._cameras.length) * 62 + 170, 560)
         background: Rectangle {
             radius: 14; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
             border.color: ThemeManager.success; border.width: 1
@@ -672,13 +751,59 @@ Item {
         property int selectedIndex: 0
         property var _cameras: []
         property string _statusMsg: ""
+        property string selectedInputType: "Composite"
+
+        function _selectedCamera() {
+            if (selectedIndex >= 0 && selectedIndex < _cameras.length)
+                return _cameras[selectedIndex]
+            return null
+        }
 
         function _populateFromDevices(devices) {
             var list = []
-            for (var i = 0; i < devices.length; i++)
-                list.push({ name: devices[i].description })
+            for (var i = 0; i < devices.length; i++) {
+                var dn = devices[i].description || devices[i].name || String(devices[i])
+                list.push({ name: dn, backend: "qt", hasComposite: false, hasSVideo: false })
+            }
+            var nativeList = cameraProbe.listVideoInputs()
+            for (var j = 0; j < nativeList.length; j++) {
+                var item = nativeList[j]
+                var n = item.name || item.description || String(item)
+                var exists = false
+                for (var k = 0; k < list.length; k++) {
+                    if (list[k].name === n) {
+                        exists = true
+                        break
+                    }
+                }
+                if (!exists) {
+                    list.push({
+                        name: n,
+                        backend: item.backend || "dshow",
+                        hasComposite: !!item.hasComposite,
+                        hasSVideo: !!item.hasSVideo,
+                        isHauppauge: !!item.isHauppauge
+                    })
+                } else if ((item.backend || "").toLowerCase() === "dshow") {
+                    // Keep Qt and DirectShow entries separate when names collide.
+                    list.push({
+                        name: n + " [DirectShow]",
+                        backend: "dshow",
+                        hasComposite: !!item.hasComposite,
+                        hasSVideo: !!item.hasSVideo,
+                        isHauppauge: !!item.isHauppauge
+                    })
+                }
+            }
             _cameras = list
             selectedIndex = 0
+            for (var s = 0; s < list.length; s++) {
+                if (list[s].backend === "dshow" && (list[s].hasComposite || list[s].hasSVideo || list[s].isHauppauge)) {
+                    selectedIndex = s
+                    break
+                }
+            }
+            selectedInputType = "Composite"
             _statusMsg = list.length > 0
                 ? LanguageManager.tr3(list.length + " camera(s) encontrada(s).", list.length + " camera(s) found.", list.length + " camara(s) encontrada(s).")
                 : LanguageManager.tr3("Nenhuma camera detectada pelo sistema.", "No camera detected by the system.", "Ninguna camara detectada por el sistema.")
@@ -731,11 +856,21 @@ Item {
             // Lista de câmeras
             ListView {
                 Layout.fillWidth: true
-                height: Math.min(cameraSelectPopup._cameras.length * 52, 220)
+                Layout.preferredHeight: Math.min(cameraSelectPopup._cameras.length * 62, 260)
                 clip: true
                 model: cameraSelectPopup._cameras
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AlwaysOn
+                    anchors.right: parent.right
+                    anchors.rightMargin: -2
+                    contentItem: Rectangle {
+                        implicitWidth: 6
+                        radius: 3
+                        color: ThemeManager.borderLight
+                    }
+                }
                 delegate: Rectangle {
-                    width: ListView.view.width; height: 48; radius: 8
+                    width: ListView.view.width; height: 58; radius: 8
                     color: cameraSelectPopup.selectedIndex === index
                            ? Qt.rgba(0.15, 0.55, 0.25, 0.25)
                            : (camMa.containsMouse ? ThemeManager.surfaceAlt : ThemeManager.surfaceDim)
@@ -743,18 +878,75 @@ Item {
                     border.width: 1
                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                    Text {
+                    Column {
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 12; rightMargin: 12 }
-                        text: modelData.name
-                        color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
-                        font.pixelSize: 12; font.weight: Font.Medium
-                        elide: Text.ElideRight
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            text: (typeof modelData === "string")
+                                  ? modelData
+                                  : (modelData.name || modelData.description || "")
+                            color: ThemeManager.textPrimary; Behavior on color { ColorAnimation { duration: 150 } }
+                            font.pixelSize: 12; font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            width: parent.width
+                            text: {
+                                if (typeof modelData === "string") return "qt"
+                                var mode = (modelData.backend || "qt")
+                                var ins = []
+                                if (modelData.hasComposite) ins.push("Composite")
+                                if (modelData.hasSVideo) ins.push("S-Video")
+                                return ins.length > 0 ? (mode + " • " + ins.join(" / ")) : mode
+                            }
+                            color: ThemeManager.textTertiary
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                        }
                     }
                     MouseArea {
                         id: camMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: cameraSelectPopup.selectedIndex = index
+                        onClicked: {
+                            cameraSelectPopup.selectedIndex = index
+                            cameraSelectPopup.selectedInputType = "Composite"
+                        }
                     }
                 }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: {
+                    var cam = cameraSelectPopup._selectedCamera()
+                    return cam && cam.backend === "dshow" && (cam.hasComposite || cam.hasSVideo || cam.isHauppauge)
+                }
+                spacing: 8
+
+                Text {
+                    text: LanguageManager.tr3("Entrada", "Input", "Entrada")
+                    color: ThemeManager.textSecondary
+                    font.pixelSize: 12
+                }
+
+                ComboBox {
+                    id: inputTypeCombo
+                    Layout.preferredWidth: 180
+                    model: {
+                        var cam = cameraSelectPopup._selectedCamera()
+                        var opts = []
+                        if (cam && cam.hasComposite) opts.push("Composite")
+                        if (cam && cam.hasSVideo) opts.push("S-Video")
+                        if (opts.length === 0) {
+                            opts.push("Composite")
+                            opts.push("S-Video")
+                        }
+                        return opts
+                    }
+                    currentIndex: Math.max(0, model.indexOf(cameraSelectPopup.selectedInputType))
+                    onActivated: cameraSelectPopup.selectedInputType = currentText
+                }
+                Item { Layout.fillWidth: true }
             }
 
             // Status do refresh
@@ -780,8 +972,17 @@ Item {
                     enabled: cameraSelectPopup._cameras.length > 0
                     onClicked: {
                         var idx = cameraSelectPopup.selectedIndex
-                        if (idx >= 0 && idx < cameraSelectPopup._cameras.length)
-                            root.cameraId = cameraSelectPopup._cameras[idx].name
+                        if (idx >= 0 && idx < cameraSelectPopup._cameras.length) {
+                            var c = cameraSelectPopup._cameras[idx]
+                            if (c.backend === "dshow") {
+                                if (c.hasComposite || c.hasSVideo || c.isHauppauge)
+                                    root.cameraId = c.name + " |backend:dshow |input:" + cameraSelectPopup.selectedInputType
+                                else
+                                    root.cameraId = c.name + " |backend:dshow"
+                            }
+                            else
+                                root.cameraId = c.name + " |backend:qt"
+                        }
                         cameraSelectPopup.close()
                         root.analysisModeChangedExternally("ao_vivo")
                     }
@@ -808,7 +1009,8 @@ Item {
 
         // ── Barra superior ───────────────────────────────────────────────────
         RowLayout {
-            Layout.fillWidth: true; spacing: 8
+            Layout.fillWidth: true
+            spacing: 10
 
             Text {
                             text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
@@ -817,31 +1019,44 @@ Item {
                 font.pixelSize: 14; font.weight: Font.Bold
             }
             Item { Layout.fillWidth: true }
-            Text {
-                // CA: scroll simples = centro | Ctrl+drag = paredes | Alt+drag = chão
-                // CC: scroll = objetos | Shift+drag = mover | Ctrl+drag = paredes | Alt+drag = chão
-                // NOR (devMode): scroll simples = objetos | Ctrl+drag = paredes | Alt+drag = chão
-                text: root.ccMode
-                      ? LanguageManager.tr3(
-                          "\u{1F5B1} Scroll: +/- Zonas  |  Shift + Arrastar: Mover Zonas  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
-                          "\u{1F5B1} Scroll: +/- Zones  |  Shift + Drag: Move Zones  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
-                          "\u{1F5B1} Scroll: +/- Zonas  |  Shift + Arrastrar: Mover Zonas  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
-                      : root.caMode
-                        ? LanguageManager.tr3(
-                          "\u{1F5B1} Scroll: +/- Centro  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
-                          "\u{1F5B1} Scroll: +/- Center  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
-                          "\u{1F5B1} Scroll: +/- Centro  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
-                        : LanguageManager.tr3(
-                          "\u{1F527} Dev Mode  |  Scroll: +/- Objetos  |  Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
-                          "\u{1F527} Dev Mode  |  Scroll: +/- Objects  |  Shift + Drag: Objects  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
-                          "\u{1F527} Dev Mode  |  Scroll: +/- Objetos  |  Shift + Arrastrar: Objetos  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
-                color: ThemeManager.textTertiary
-                Behavior on color { ColorAnimation { duration: 150 } }
-                font.pixelSize: 10; verticalAlignment: Text.AlignVCenter
-            }
 
-            // ── Editar Pares (apenas NOR — CA não tem pares de objetos) ──
-            Button {
+            Column {
+                Layout.preferredWidth: Math.min(root.width * 0.74, 980)
+                spacing: 6
+
+                Text {
+                    // CA: scroll simples = centro | Ctrl+drag = paredes | Alt+drag = chão
+                    // CC: scroll = objetos | Shift+drag = mover | Ctrl+drag = paredes | Alt+drag = chão
+                    // NOR (devMode): scroll simples = objetos | Ctrl+drag = paredes | Alt+drag = chão
+                    text: root.ccMode
+                          ? LanguageManager.tr3(
+                              "\u{1F5B1} Scroll: +/- Zonas  |  Shift + Arrastar: Mover Zonas  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
+                              "\u{1F5B1} Scroll: +/- Zones  |  Shift + Drag: Move Zones  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
+                              "\u{1F5B1} Scroll: +/- Zonas  |  Shift + Arrastrar: Mover Zonas  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
+                          : root.caMode
+                            ? LanguageManager.tr3(
+                              "\u{1F5B1} Scroll: +/- Centro  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
+                              "\u{1F5B1} Scroll: +/- Center  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
+                              "\u{1F5B1} Scroll: +/- Centro  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
+                            : LanguageManager.tr3(
+                              "\u{1F527} Dev Mode  |  Scroll: +/- Objetos  |  Shift + Arrastar: Objetos  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
+                              "\u{1F527} Dev Mode  |  Scroll: +/- Objects  |  Shift + Drag: Objects  |  Ctrl + Drag: Walls  |  Alt + Drag: Floor",
+                              "\u{1F527} Dev Mode  |  Scroll: +/- Objetos  |  Shift + Arrastrar: Objetos  |  Ctrl + Arrastrar: Paredes  |  Alt + Arrastrar: Piso")
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignRight
+                    color: ThemeManager.textTertiary
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    font.pixelSize: 10
+                }
+
+                Flow {
+                    width: parent.width
+                    spacing: 8
+                    layoutDirection: Qt.RightToLeft
+
+                // ── Editar Pares (apenas NOR — CA não tem pares de objetos) ──
+                Button {
                 id: editPairsBtn
                 visible: !root.caMode
                             text: "✏ " + LanguageManager.tr3("Editar Pares", "Edit Pairs", "Editar Pares")
@@ -866,8 +1081,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
-            // ── Dev Mode ──
-            Button {
+                // ── Dev Mode ──
+                Button {
                 id: devModeBtn
                 text: root.devMode ? "🔧 Dev ON" : "🔧 Dev OFF"
                 onClicked: root.devMode = !root.devMode
@@ -890,10 +1105,10 @@ Item {
                 
                 // O padding força o botão a manter o seu tamanho independentemente do texto
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
-            }
+                }
 
-            // ── Carregar Vídeo ────────────────────────────────────────────────
-            Button {
+                // ── Carregar Vídeo ────────────────────────────────────────────────
+                Button {
                 id: videoBtnRect
                 text: root.analysisMode === "ao_vivo" && root.cameraId !== ""
                       ? "📹 " + LanguageManager.tr3("Camera Selecionada", "Camera Selected", "Camara Seleccionada")
@@ -924,8 +1139,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
-            // ── Importar Arena ───────────────────────────────────────────────
-            Button {
+                // ── Importar Arena ───────────────────────────────────────────────
+                Button {
                             text: "📥 " + LanguageManager.tr3("Importar Arena", "Import Arena", "Importar Arena")
                 enabled: experimentPath !== ""
                 onClicked: importFolderDialog.open()
@@ -947,8 +1162,8 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
 
-            // ── Salvar Configuração ──────────────────────────────────────────
-            Button {
+                // ── Salvar Configuração ──────────────────────────────────────────
+                Button {
                             text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== "" && (root.caMode || root.ccMode || pair1 !== "")
                 onClicked: {
@@ -982,12 +1197,16 @@ Item {
                 }
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
+            }
+            }
         }
 
         // ── Mosaico 2×2 ──────────────────────────────────────────────────────
         GridLayout {
+            id: arenaGrid
             Layout.fillWidth: true; Layout.fillHeight: true
-            columns: 2; rowSpacing: 8; columnSpacing: 8
+            columns: width < 980 ? 1 : 2
+            rowSpacing: 8; columnSpacing: 8
 
             // ── 3 Campos ─────────────────────────────────────────────────────
             Repeater {
@@ -1655,5 +1874,3 @@ Item {
         anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 12 }
     }
 }
-
-

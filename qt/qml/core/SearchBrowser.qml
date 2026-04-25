@@ -19,16 +19,60 @@ Item {
     signal backRequested()
     signal openExperiment(string aparato, int numCampos, string expName, string expPath)
 
+    function clearPreviewSelection() {
+        experimentList.currentIndex = -1
+        previewName.text = ""
+        previewContext.text = ""
+        previewResponsible.text = ""
+        previewAparato.text = ""
+        previewCampos.text = ""
+        previewContainer.previewAparatoVal = "nor"
+        previewContainer.previewNumCamposVal = 3
+        previewContainer.previewPathVal = ""
+        previewPanel.visible = false
+    }
+
+    function isPreviewStillInModel() {
+        var p = previewContainer.previewPathVal || ""
+        if (p === "")
+            return false
+        var m = ExperimentManager.model
+        if (!m) return false
+        for (var i = 0; i < m.count; ++i) {
+            var idx = m.index(i, 0)
+            var path = m.data(idx, Qt.UserRole + 2)
+            if (path === p)
+                return true
+        }
+        return false
+    }
+
     onVisibleChanged: {
         if (visible) {
             ExperimentManager.clearFilter()
             ExperimentManager.loadAllContexts(root.aparatoFilter)
+            clearPreviewSelection()
         }
     }
 
     Component.onCompleted: {
         ExperimentManager.clearFilter()
         ExperimentManager.loadAllContexts(root.aparatoFilter)
+        clearPreviewSelection()
+    }
+
+    Connections {
+        target: ExperimentManager.model
+        function onRowsRemoved() {
+            if (previewPanel.visible && !root.isPreviewStillInModel())
+                root.clearPreviewSelection()
+        }
+        function onModelReset() {
+            if (previewPanel.visible && !root.isPreviewStillInModel())
+                root.clearPreviewSelection()
+            if (experimentList.count === 0)
+                root.clearPreviewSelection()
+        }
     }
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -460,6 +504,7 @@ Item {
                 Keys.onReturnPressed: {
                     if (text === root.pendingDeleteName) {
                         deleteStep2Popup.close()
+                        root.clearPreviewSelection()
                         ExperimentManager.deleteExperiment(root.pendingDeleteName, root.pendingDeleteContext)
                     }
                 }
@@ -474,8 +519,8 @@ Item {
                     enabled: deleteNameField.text === root.pendingDeleteName
                     onClicked: {
                         deleteStep2Popup.close()
+                        root.clearPreviewSelection()
                         ExperimentManager.deleteExperiment(root.pendingDeleteName, root.pendingDeleteContext)
-                        previewPanel.visible = false
                     }
                     background: Rectangle {
                         radius: 7
@@ -491,5 +536,4 @@ Item {
         }
     }
 }
-
 

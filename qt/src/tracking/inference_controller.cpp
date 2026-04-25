@@ -1,4 +1,4 @@
-#include "inference_controller.h"
+﻿#include "inference_controller.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QFile>
@@ -19,6 +19,8 @@
 #include <QPageLayout>
 #include <climits>
 #include <QRegularExpression>
+#include <QTimer>
+#include <algorithm>
 
 InferenceController::InferenceController(QObject* parent)
     : QObject(parent)
@@ -26,25 +28,25 @@ InferenceController::InferenceController(QObject* parent)
     , m_videoSink(new QVideoSink(this))
     , m_engine(new InferenceEngine(this))
 {
-    // ── Attach sink to headless player ───────────────────────────────────────
+    // â”€â”€ Attach sink to headless player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Qt 6: QVideoSink replaces QAbstractVideoSurface. The sink receives every
     // decoded frame on the multimedia thread, forwarding it to the InferenceEngine.
     // The visible video in QML uses a separate MediaPlayer + VideoOutput pair.
     m_player->setVideoOutput(m_videoSink);
 
-    // ── Frame delivery → engine (multimedia thread, DirectConnection) ───────
+    // â”€â”€ Frame delivery â†’ engine (multimedia thread, DirectConnection) â”€â”€â”€â”€â”€â”€â”€
     connect(m_videoSink, &QVideoSink::videoFrameChanged,
             this, &InferenceController::onVideoFrameChanged,
             Qt::DirectConnection);
 
-    // ── InferenceEngine signals → InferenceController signals ──────────────────────────
+    // â”€â”€ InferenceEngine signals â†’ InferenceController signals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     connect(m_engine, &InferenceEngine::modelReady, this, [this]() {
         m_modelReady = true;
         if (m_isAnalyzing) {
             // Normal start: emit ready to unblock the UI
             emit readyReceived();
         } else {
-            // Pre-warm completed silently — sessions ready for instant start
+            // Pre-warm completed silently â€” sessions ready for instant start
             qDebug() << "[InferenceController] Sessions pre-warmed successfully.";
         }
     }, Qt::QueuedConnection);
@@ -72,11 +74,11 @@ InferenceController::InferenceController(QObject* parent)
             [this](QString msg) { emit infoReceived(msg); },
             Qt::QueuedConnection);
 
-    // ── Media player status ───────────────────────────────────────────────────
+    // â”€â”€ Media player status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     connect(m_player, &QMediaPlayer::mediaStatusChanged,
             this, &InferenceController::onMediaStatusChanged);
 
-    // ── Pre-warm: load ONNX sessions immediately at construction ─────────────
+    // â”€â”€ Pre-warm: load ONNX sessions immediately at construction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Sessions take several seconds to load. Starting the engine thread here
     // means sessions will be ready before the user clicks "Start Analysis".
     {
@@ -111,9 +113,10 @@ InferenceController::InferenceController(QObject* parent)
 InferenceController::~InferenceController()
 {
     stopAnalysis();
+    stopLivePreview();
 }
 
-// ── Properties ────────────────────────────────────────────────────────────────
+// â”€â”€ Properties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 bool InferenceController::isAnalyzing() const { return m_isAnalyzing; }
 
@@ -126,6 +129,66 @@ QString InferenceController::defaultModelDir() const
 void InferenceController::setAnalyzing(bool v)
 {
     if (m_isAnalyzing != v) { m_isAnalyzing = v; emit analyzingChanged(); }
+}
+
+void InferenceController::processImageFrame(QImage img)
+{
+    if (img.isNull()) return;
+
+    // Count live frames even before modelReady so the DirectShow watchdog
+    // detects camera signal correctly (avoids false "Sem sinal").
+    if (m_isLiveMode) {
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        if (m_liveFpsWindowStartMs <= 0)
+            m_liveFpsWindowStartMs = nowMs;
+        m_liveFpsFrameCount++;
+
+        const qint64 elapsed = nowMs - m_liveFpsWindowStartMs;
+        if (elapsed >= 1000) {
+            const double measuredFps = (1000.0 * static_cast<double>(m_liveFpsFrameCount))
+                                       / static_cast<double>(elapsed);
+            QMetaObject::invokeMethod(this, [this, measuredFps]() {
+                emit fpsReceived(measuredFps);
+            }, Qt::QueuedConnection);
+            m_liveFpsWindowStartMs = nowMs;
+            m_liveFpsFrameCount = 0;
+        }
+    }
+
+    if (!m_modelReady || !m_isAnalyzing) return;
+
+    if (img.format() != QImage::Format_RGB888)
+        img = img.convertToFormat(QImage::Format_RGB888);
+
+    const int w = img.width();
+    const int h = img.height();
+
+    if (m_videoW != w || m_videoH != h) {
+        m_videoW = w;
+        m_videoH = h;
+        QMetaObject::invokeMethod(this, [this, w, h]() {
+            emit dimsReceived(w, h);
+        }, Qt::QueuedConnection);
+    }
+
+    m_engine->enqueueFrame(img, w, h);
+}
+
+void InferenceController::onDirectShowFrame(const QImage& img)
+{
+    if (img.isNull())
+        return;
+
+    // Keep inference off the UI thread (DirectShow callback thread calls this).
+    // This avoids UI stalls/freeze when live analysis is active.
+    processImageFrame(img);
+    // Mirror DirectShow frames to QML VideoOutput on UI thread without shared locks.
+    if (m_livePreviewSink) {
+        QMetaObject::invokeMethod(this, [this, img]() {
+            if (m_livePreviewSink)
+                m_livePreviewSink->setVideoFrame(QVideoFrame(img));
+        }, Qt::QueuedConnection);
+    }
 }
 
 void InferenceController::loadBehaviorModel(const QString& path)
@@ -166,12 +229,33 @@ void InferenceController::setFullFrameMode(bool enabled) {
 }
 
 void InferenceController::setLivePreviewOutput(QObject* videoOutput) {
-    if (!m_captureSession)
-        return;
-
+    qDebug() << "[setLivePreviewOutput] mode directshow=" << m_isDirectShowMode
+             << "captureSession?" << (m_captureSession != nullptr)
+             << "videoOutput?" << (videoOutput != nullptr);
     if (m_livePreviewSink) {
         m_livePreviewSink->disconnect(this);
         m_livePreviewSink = nullptr;
+    }
+
+    if (m_isDirectShowMode) {
+        if (!videoOutput) {
+            emit infoReceived("Live preview DirectShow: desativado.");
+            return;
+        }
+        QObject* sinkObj = videoOutput->property("videoSink").value<QObject*>();
+        auto* sink = qobject_cast<QVideoSink*>(sinkObj);
+        if (!sink) {
+            emit infoReceived("Live preview DirectShow sem videoSink valido.");
+            return;
+        }
+        m_livePreviewSink = sink;
+        emit infoReceived("Live preview DirectShow: ativo.");
+        return;
+    }
+
+    if (!m_captureSession) {
+        emit infoReceived("Live preview: capture session indisponivel.");
+        return;
     }
 
     m_captureSession->setVideoOutput(videoOutput);
@@ -394,13 +478,13 @@ bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int cam
 
     const auto& history = m_engine->getScannerHistory(campo);
     if (history.empty()) {
-        qWarning() << "[InferenceController] exportBehaviorFeatures: histórico vazio para campo" << campo;
+        qWarning() << "[InferenceController] exportBehaviorFeatures: histÃ³rico vazio para campo" << campo;
         return false;
     }
 
     QFile file(csvPath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qWarning() << "[InferenceController] exportBehaviorFeatures: não foi possível abrir" << csvPath;
+        qWarning() << "[InferenceController] exportBehaviorFeatures: nÃ£o foi possÃ­vel abrir" << csvPath;
         return false;
     }
 
@@ -409,7 +493,7 @@ bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int cam
     out.setEncoding(QStringConverter::Utf8);
     out << "\xEF\xBB\xBF";
 
-    // Cabeçalho
+    // CabeÃ§alho
     out << "frame,move_nose,move_body,bp_sum,bp_mean,bp_min,bp_max"
            ",roll2s_mean,roll2s_sum,roll5s_mean,roll5s_sum"
            ",roll6s_mean,roll6s_sum,roll7_5s_mean,roll7_5s_sum"
@@ -431,7 +515,7 @@ bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int cam
     return true;
 }
 
-// ── Control ───────────────────────────────────────────────────────────────────
+// â”€â”€ Control â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void InferenceController::startAnalysis(const QString& videoPath, const QString& modelDir)
 {
@@ -441,43 +525,43 @@ void InferenceController::startAnalysis(const QString& videoPath, const QString&
     if (cleanVideo.startsWith("file:///"))
         cleanVideo = cleanVideo.mid(8);
 
-    // Locate model
-    QString appDir    = QCoreApplication::applicationDirPath();
-    QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
-    if (!QFile::exists(modelPath))
-        modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
-    if (!modelDir.isEmpty() && QFile::exists(modelDir))
-        modelPath = modelDir;
-
-    if (!QFile::exists(modelPath)) {
-        emit errorOccurred("Modelo ONNX não encontrado: " + modelPath);
-        return;
-    }
-
     m_videoW = 0;
     m_videoH = 0;
 
-    // Behavior model is NOT auto-loaded — rule-based is the default.
+    // Behavior model is NOT auto-loaded â€” rule-based is the default.
     // If the user previously loaded a model via loadBehaviorModel(), it stays active.
     // To reset to rule-based, call loadBehaviorModel("") explicitly.
 
-    m_engine->loadModel(modelPath);
-
     if (m_modelReady && m_engine->isRunning()) {
-        // Sessions were pre-warmed — emit ready on next event loop tick so
+        qDebug() << "[startAnalysis] using pre-warmed sessions (skip loadModel)";
+        // Sessions were pre-warmed â€” emit ready on next event loop tick so
         // the caller's setAnalyzing(true) fires before QML reacts to readyReceived.
         QMetaObject::invokeMethod(this, [this]() {
             emit readyReceived();
         }, Qt::QueuedConnection);
     } else if (!m_engine->isRunning()) {
-        // Engine stopped (first run without pre-warm, or after stopAnalysis) — start fresh
+        // Locate model only when we really need to (engine stopped / no pre-warm).
+        QString appDir    = QCoreApplication::applicationDirPath();
+        QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
+        if (!QFile::exists(modelPath))
+            modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+        if (!modelDir.isEmpty() && QFile::exists(modelDir))
+            modelPath = modelDir;
+
+        if (!QFile::exists(modelPath)) {
+            emit errorOccurred("Modelo ONNX nÃ£o encontrado: " + modelPath);
+            return;
+        }
+
+        m_engine->loadModel(modelPath);
+        // Engine stopped (first run without pre-warm, or after stopAnalysis) â€” start fresh
         m_modelReady = false;
         m_engine->start();
     }
-    // else: engine running but pre-warm still in progress —
+    // else: engine running but pre-warm still in progress â€”
     //       modelReady signal will fire later and emit readyReceived() since m_isAnalyzing==true
 
-    // Start headless playback — QVideoSink delivers every decoded frame
+    // Start headless playback â€” QVideoSink delivers every decoded frame
     m_player->setSource(QUrl::fromLocalFile(cleanVideo));  // Qt 6: setSource (was setMedia)
     m_player->setPlaybackRate(1.0);
     m_player->play();
@@ -503,24 +587,158 @@ void InferenceController::seekTo(qint64 ms)
 QVariantList InferenceController::listVideoInputs()
 {
     QVariantList result;
+    QStringList seenNames;
+
     const auto devices = QMediaDevices::videoInputs();
+    qDebug() << "[listVideoInputs] Qt devices:" << devices.size();
     for (const auto& dev : devices) {
+        qDebug() << "  Qt:" << dev.description();
         QVariantMap map;
         map["name"] = dev.description();
+        map["backend"] = "qt";
+        result.append(map);
+        seenNames.append(dev.description());
+    }
+
+    const auto dsInputs = DShowCapture::enumerateInputs();
+    qDebug() << "[listVideoInputs] DShow devices:" << dsInputs.size();
+    for (const auto& ds : dsInputs) {
+        qDebug() << "  DShow:" << ds.name
+                 << "composite=" << ds.hasComposite
+                 << "svideo=" << ds.hasSVideo
+                 << "hauppauge=" << ds.isHauppauge;
+        QString label = ds.name;
+        if (label.isEmpty())
+            continue;
+
+        if (seenNames.contains(label, Qt::CaseInsensitive))
+            label += " [DirectShow]";
+        else
+            seenNames.append(label);
+
+        QVariantMap map;
+        map["name"] = label;
+        map["backend"] = "dshow";
+        map["hasComposite"] = ds.hasComposite;
+        map["hasSVideo"] = ds.hasSVideo;
+        map["isHauppauge"] = ds.isHauppauge;
         result.append(map);
     }
+
+    qDebug() << "[listVideoInputs] Total entries returned:" << result.size();
     return result;
 }
 
 void InferenceController::startLiveAnalysis(const QString& cameraName, const QString& modelDir)
 {
-    // preferredWidth/Height = 0 → use camera's default format (honors DroidCam/driver setting)
+    // preferredWidth/Height = 0 â†’ use camera's default format (honors DroidCam/driver setting)
     startLiveAnalysis(cameraName, modelDir, QString(), QString(), 0, 0, 0.0);
 }
 
 QString InferenceController::liveRecordingPath() const
 {
     return m_liveRecordingPath;
+}
+
+bool InferenceController::startLivePreview(const QString& cameraName)
+{
+    if (m_isAnalyzing)
+        return false;
+
+    stopLivePreview();
+
+    m_videoW = 0;
+    m_videoH = 0;
+    m_isLiveMode = true;
+    m_isDirectShowMode = false;
+    m_isPreviewOnly = true;
+    m_liveRecordingPath.clear();
+
+    QString normalizedCameraName = cameraName;
+    QString preferredAnalogInput = "Composite";
+    QString preferredBackend;
+    {
+        const QStringList parts = cameraName.split("|", Qt::SkipEmptyParts);
+        if (!parts.isEmpty())
+            normalizedCameraName = parts.first().trimmed();
+        for (int i = 1; i < parts.size(); ++i) {
+            const QString token = parts[i].trimmed();
+            const QString low = token.toLower();
+            if (low.startsWith("input:"))
+                preferredAnalogInput = token.mid(6).trimmed();
+            else if (low.startsWith("backend:"))
+                preferredBackend = token.mid(8).trimmed().toLower();
+        }
+    }
+    const bool explicitDShow = preferredBackend == "dshow"
+                               || cameraName.contains("|input:", Qt::CaseInsensitive)
+                               || normalizedCameraName.endsWith("[DirectShow]");
+    normalizedCameraName.replace(" [DirectShow]", "");
+
+    bool hasDShowMatch = explicitDShow;
+    if (!explicitDShow) {
+        const auto dsInputs = DShowCapture::enumerateInputs();
+        const auto dsIt = std::find_if(dsInputs.begin(), dsInputs.end(),
+                                       [&](const DShowVideoInput& d) { return d.name == normalizedCameraName; });
+        hasDShowMatch = (dsIt != dsInputs.end());
+    }
+    if (!hasDShowMatch) {
+        m_isLiveMode = false;
+        m_isPreviewOnly = false;
+        return false;
+    }
+
+    m_dshowCapture = std::make_unique<DShowCapture>();
+    QString dsError;
+    if (!m_dshowCapture->start(normalizedCameraName,
+                               preferredAnalogInput,
+                               [this](const QImage& img) { onDirectShowFrame(img); },
+                               &dsError)) {
+        emit infoReceived("DirectShow preview falhou: " + dsError);
+        m_dshowCapture.reset();
+        m_isLiveMode = false;
+        m_isPreviewOnly = false;
+        return false;
+    }
+
+    m_isDirectShowMode = true;
+    emit infoReceived(QStringLiteral("Arena preview DirectShow: ") + normalizedCameraName);
+    return true;
+}
+
+void InferenceController::stopLivePreview()
+{
+    if (m_isDirectShowMode && m_dshowCapture) {
+        m_dshowCapture->stop();
+        m_dshowCapture.reset();
+    }
+    if (m_livePreviewSink) {
+        m_livePreviewSink->disconnect(this);
+        m_livePreviewSink = nullptr;
+    }
+    if (m_mediaRecorder) {
+        if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState)
+            m_mediaRecorder->stop();
+        delete m_mediaRecorder;
+        m_mediaRecorder = nullptr;
+    }
+    if (m_camera) {
+        m_camera->stop();
+        delete m_camera;
+        m_camera = nullptr;
+    }
+    if (m_captureSession) {
+        m_captureSession->setRecorder(nullptr);
+        m_captureSession->setVideoOutput(nullptr);
+        delete m_captureSession;
+        m_captureSession = nullptr;
+    }
+    m_isPreviewOnly = false;
+    m_isLiveMode = false;
+    m_isDirectShowMode = false;
+    m_liveFpsWindowStartMs = 0;
+    m_liveFpsFrameCount = 0;
+    m_loggedLiveNullFrame = false;
 }
 
 void InferenceController::startLiveAnalysis(const QString& cameraName,
@@ -531,58 +749,234 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
                                             int preferredHeight,
                                             double preferredFps)
 {
+    qDebug() << "[startLiveAnalysis] camera=" << cameraName << "isAnalyzing=" << m_isAnalyzing;
     if (m_isAnalyzing) return;
-
-    // Find camera device by description; fall back to default
-    const auto devices = QMediaDevices::videoInputs();
-    QCameraDevice selected;
-    for (const auto& dev : devices) {
-        if (dev.description() == cameraName) { selected = dev; break; }
-    }
-    if (selected.isNull() && !devices.isEmpty())
-        selected = devices.first();
-    if (selected.isNull()) {
-        emit errorOccurred("Nenhuma câmera encontrada.");
-        return;
-    }
-
-    // Locate model
-    QString appDir    = QCoreApplication::applicationDirPath();
-    QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
-    if (!QFile::exists(modelPath))
-        modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
-    if (!modelDir.isEmpty() && QFile::exists(modelDir))
-        modelPath = modelDir;
-    if (!QFile::exists(modelPath)) {
-        emit errorOccurred("Modelo ONNX não encontrado: " + modelPath);
-        return;
-    }
+    if (m_isPreviewOnly)
+        stopLivePreview();
+    qDebug() << "[startLiveAnalysis][A] entered";
 
     m_videoW = 0;
     m_videoH = 0;
     m_isLiveMode = true;
+    m_isDirectShowMode = false;
+    m_isPreviewOnly = false;
     m_liveRecordingPath.clear();
+    qDebug() << "[startLiveAnalysis][B] live state reset";
+    qDebug() << "[startLiveAnalysis][C] dshow preview queue reset";
 
-    m_engine->loadModel(modelPath);
-    if (m_modelReady && m_engine->isRunning()) {
+    const bool engineRunningNow = m_engine->isRunning();
+    qDebug() << "[startLiveAnalysis][D] modelReady=" << m_modelReady
+             << "engineRunning=" << engineRunningNow;
+    if (m_modelReady && engineRunningNow) {
+        qDebug() << "[startLiveAnalysis] using pre-warmed sessions (skip loadModel)";
         QMetaObject::invokeMethod(this, [this]() { emit readyReceived(); }, Qt::QueuedConnection);
-    } else if (!m_engine->isRunning()) {
+    } else if (!engineRunningNow) {
+        // Locate model only when needed (engine stopped / no pre-warm available).
+        QString appDir    = QCoreApplication::applicationDirPath();
+        QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
+        if (!QFile::exists(modelPath))
+            modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+        if (!modelDir.isEmpty() && QFile::exists(modelDir))
+            modelPath = modelDir;
+        if (!QFile::exists(modelPath)) {
+            emit errorOccurred("Modelo ONNX nao encontrado: " + modelPath);
+            return;
+        }
+
+        qDebug() << "[startLiveAnalysis] modelPath resolved:" << modelPath;
+        m_engine->loadModel(modelPath);
+        qDebug() << "[startLiveAnalysis] loadModel done. modelReady=" << m_modelReady
+                 << "engineRunning=" << m_engine->isRunning();
         m_modelReady = false;
         m_engine->start();
+        qDebug() << "[startLiveAnalysis] engine started for live mode";
     }
+    qDebug() << "[startLiveAnalysis][E] engine path done";
 
-    // Emit camera info for the UI log
-    emit infoReceived("📹 Câmera: " + selected.description());
-
-    // FPS is measured from received frames in onVideoFrameChanged().
+    // FPS is measured from received frames.
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
+    m_loggedLiveNullFrame = false;
+
+    // Prefer DirectShow for analog capture cards (e.g. Hauppauge Composite).
+    QString normalizedCameraName = cameraName;
+    QString preferredAnalogInput = "Composite";
+    QString preferredBackend;
+    bool retryAttempted = false;
+    {
+        const QStringList parts = cameraName.split("|", Qt::SkipEmptyParts);
+        if (!parts.isEmpty())
+            normalizedCameraName = parts.first().trimmed();
+        for (int i = 1; i < parts.size(); ++i) {
+            const QString token = parts[i].trimmed();
+            const QString low = token.toLower();
+            if (low.startsWith("input:"))
+                preferredAnalogInput = token.mid(6).trimmed();
+            else if (low.startsWith("backend:"))
+                preferredBackend = token.mid(8).trimmed().toLower();
+            else if (low.startsWith("retry:"))
+                retryAttempted = true;
+        }
+    }
+    const bool explicitDShow = preferredBackend == "dshow"
+                               || cameraName.contains("|input:", Qt::CaseInsensitive)
+                               || normalizedCameraName.endsWith("[DirectShow]");
+    const bool explicitQt = preferredBackend == "qt";
+    normalizedCameraName.replace(" [DirectShow]", "");
+    qDebug() << "[startLiveAnalysis][F] camera tokens parsed";
+
+    // Virtual cameras (OBS, etc.) are often better on Qt, but when user explicitly
+    // selected DirectShow we must avoid Qt device probing here (some environments
+    // can block/hang on videoInputs enumeration).
+    const QString normLower = normalizedCameraName.toLower();
+    const bool isVirtualCamera = normLower.contains("virtual camera")
+                                 || normLower.contains("obs virtual");
+    bool hasQtMatchNow = false;
+    if (!explicitDShow) {
+        const auto qtInputsNow = QMediaDevices::videoInputs();
+        const QString wantedLowerNow = normalizedCameraName.trimmed().toLower();
+        for (const auto& dev : qtInputsNow) {
+            const QString descLower = dev.description().trimmed().toLower();
+            if (descLower == wantedLowerNow
+                || (!wantedLowerNow.isEmpty()
+                    && (descLower.contains(wantedLowerNow) || wantedLowerNow.contains(descLower)))) {
+                hasQtMatchNow = true;
+                break;
+            }
+        }
+    }
+    if (isVirtualCamera && explicitDShow && hasQtMatchNow) {
+        emit infoReceived(QStringLiteral("Virtual camera detectada (%1): Qt encontrou dispositivo, priorizando backend Qt.")
+                          .arg(normalizedCameraName));
+    } else if (isVirtualCamera && explicitDShow && !hasQtMatchNow) {
+        emit infoReceived(QStringLiteral("Virtual camera detectada (%1): Qt nao encontrou dispositivo, mantendo DirectShow.")
+                          .arg(normalizedCameraName));
+    }
+
+    // Some DirectShow drivers can block during device enumeration.
+    // If backend was explicitly requested as dshow, skip enumeration and try open directly.
+    bool hasDShowMatch = explicitDShow;
+    QList<DShowVideoInput> dsInputs;
+    if (!explicitDShow) {
+        dsInputs = DShowCapture::enumerateInputs();
+        const auto dsIt = std::find_if(dsInputs.begin(), dsInputs.end(),
+                                       [&](const DShowVideoInput& d) { return d.name == normalizedCameraName; });
+        hasDShowMatch = (dsIt != dsInputs.end());
+    }
+    const bool shouldTryDShow = !explicitQt
+                                && (explicitDShow || hasDShowMatch)
+                                && !(isVirtualCamera && hasQtMatchNow);
+    qDebug() << "[startLiveAnalysis] parsed cameraName=" << normalizedCameraName
+             << "preferredBackend=" << preferredBackend
+             << "preferredInput=" << preferredAnalogInput
+             << "explicitDShow=" << explicitDShow
+             << "explicitQt=" << explicitQt
+             << "hasQtMatchNow=" << hasQtMatchNow
+             << "hasDShowMatch=" << hasDShowMatch
+             << "shouldTryDShow=" << shouldTryDShow;
+
+    if (shouldTryDShow) {
+        m_dshowCapture = std::make_unique<DShowCapture>();
+        QString dsError;
+        if (m_dshowCapture->start(normalizedCameraName,
+                                  preferredAnalogInput,
+                                  [this](const QImage& img) { onDirectShowFrame(img); },
+                                  &dsError)) {
+            m_isDirectShowMode = true;
+            emit infoReceived(QStringLiteral("📹 Camera: ") + normalizedCameraName + " (DirectShow)");
+            if (hasDShowMatch)
+                emit infoReceived(QStringLiteral("DirectShow input: ") + preferredAnalogInput);
+            emit infoReceived("Live recording file: ");
+            setAnalyzing(true);
+
+            // Watchdog: if no frames arrive, auto-try alternate analog input once.
+            const QString watchCameraName = normalizedCameraName;
+            const QString watchInput = preferredAnalogInput;
+            const bool watchRetryAttempted = retryAttempted;
+            QTimer::singleShot(2200, this, [this,
+                                            watchCameraName,
+                                            watchInput,
+                                            watchRetryAttempted,
+                                            modelDir,
+                                            saveDirectory,
+                                            preferredFileName,
+                                            preferredWidth,
+                                            preferredHeight,
+                                            preferredFps]() {
+                if (!m_isAnalyzing || !m_isDirectShowMode)
+                    return;
+                if (m_liveFpsFrameCount > 0)
+                    return;
+
+                if (!watchRetryAttempted) {
+                    const bool currentSVideo = watchInput.trimmed().toLower().contains("s-video")
+                                               || watchInput.trimmed().toLower().contains("svideo");
+                    const QString altInput = currentSVideo ? QStringLiteral("Composite")
+                                                           : QStringLiteral("S-Video");
+                    emit infoReceived(QStringLiteral("DirectShow sem frames em %1, tentando %2...")
+                                      .arg(watchInput, altInput));
+                    stopAnalysis();
+                    startLiveAnalysis(watchCameraName + " |input:" + altInput + " |retry:1",
+                                      modelDir,
+                                      saveDirectory,
+                                      preferredFileName,
+                                      preferredWidth,
+                                      preferredHeight,
+                                      preferredFps);
+                    return;
+                }
+
+                emit errorOccurred("Sem sinal de video da placa de captura (DirectShow). Verifique cabos/fonte e padrao analogico.");
+                stopAnalysis();
+            });
+            return;
+        }
+        emit infoReceived("DirectShow falhou: " + dsError);
+        // Se o dispositivo estava na lista DShow (hasDShowMatch), não fazer fallback para Qt camera:
+        // evita abrir a primeira webcam disponível quando a placa de captura falha.
+        if (explicitDShow || hasDShowMatch) {
+            emit errorOccurred("Falha ao abrir a placa de captura (DirectShow): " + dsError);
+            m_dshowCapture.reset();
+            return;
+        }
+        m_dshowCapture.reset();
+    }
+
+    // Fallback to Qt camera backend.
+    const auto devices = QMediaDevices::videoInputs();
+    QStringList qtDeviceNames;
+    qtDeviceNames.reserve(devices.size());
+    for (const auto& d : devices)
+        qtDeviceNames.append(d.description());
+    emit infoReceived(QString("Qt video inputs: %1").arg(qtDeviceNames.join(" | ")));
+
+    QCameraDevice selected;
+    const QString wantedLower = normalizedCameraName.trimmed().toLower();
+    for (const auto& dev : devices) {
+        const QString desc = dev.description().trimmed();
+        const QString descLower = desc.toLower();
+        if (desc == normalizedCameraName || desc == cameraName
+            || descLower == wantedLower
+            || (!wantedLower.isEmpty() && (descLower.contains(wantedLower) || wantedLower.contains(descLower)))) {
+            selected = dev;
+            break;
+        }
+    }
+    if (selected.isNull()) {
+        emit errorOccurred("Camera solicitada nao encontrada no backend Qt: " + normalizedCameraName);
+        return;
+    }
+
+    emit infoReceived(QStringLiteral("📹 Camera: ") + selected.description());
 
     // Build capture pipeline: QCamera -> QMediaCaptureSession.
     m_camera         = new QCamera(selected);
     m_captureSession = new QMediaCaptureSession();
+    connect(m_camera, &QCamera::errorOccurred, this,
+            [this](QCamera::Error, const QString& errorString) {
+                emit errorOccurred("Camera error: " + errorString);
+            });
 
-    // Helper: pixel format enum → readable name
     auto pixFmtName = [](QVideoFrameFormat::PixelFormat pix) -> QString {
         switch (pix) {
             case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
@@ -600,7 +994,6 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
         }
     };
 
-    // Log all formats advertised by this camera device
     const auto formats = selected.videoFormats();
     emit infoReceived(QString("Camera device: %1 (%2 formats advertised)")
                       .arg(selected.description()).arg(formats.size()));
@@ -614,8 +1007,6 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
                           .arg(pixFmtName(f.pixelFormat())));
     }
 
-    // If no preference given (width==0), let the driver use its default format.
-    // Otherwise pick the best matching format from the camera's advertised list.
     if (preferredWidth > 0) {
         QCameraFormat bestFormat;
         bool hasBest = false;
@@ -660,7 +1051,6 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     m_captureSession->setCamera(m_camera);
     m_captureSession->setVideoOutput(nullptr);
 
-    // Optional live recording to disk.
     QString outDir = saveDirectory.trimmed();
     if (outDir.startsWith("file:///"))
         outDir = outDir.mid(8);
@@ -691,6 +1081,10 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     mediaFormat.setVideoCodec(QMediaFormat::VideoCodec::H264);
     m_mediaRecorder->setMediaFormat(mediaFormat);
     m_mediaRecorder->setOutputLocation(QUrl::fromLocalFile(m_liveRecordingPath));
+    connect(m_mediaRecorder, &QMediaRecorder::errorOccurred, this,
+            [this](QMediaRecorder::Error, const QString& errorString) {
+                emit errorOccurred("Recorder error: " + errorString);
+            });
     if (preferredWidth > 0) {
         m_mediaRecorder->setVideoResolution(preferredWidth, preferredHeight);
         m_mediaRecorder->setVideoFrameRate(preferredFps);
@@ -701,6 +1095,18 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     m_camera->start();
     m_mediaRecorder->record();
     setAnalyzing(true);
+
+    // Watchdog for Qt camera backend: give clear diagnostics instead of silent white preview.
+    const QString watchCameraName = selected.description();
+    QTimer::singleShot(2600, this, [this, watchCameraName]() {
+        if (!m_isAnalyzing || !m_isLiveMode || m_isDirectShowMode)
+            return;
+        if (m_liveFpsFrameCount > 0)
+            return;
+        emit errorOccurred("Sem frames da camera (Qt backend): " + watchCameraName
+                           + ". Tente trocar para formato MJPEG/YUY2 no driver/OBS ou selecionar a entrada [DirectShow].");
+        stopAnalysis();
+    });
 }
 
 void InferenceController::stopAnalysis()
@@ -708,6 +1114,10 @@ void InferenceController::stopAnalysis()
     if (!m_isAnalyzing) return;
 
     if (m_isLiveMode) {
+        if (m_isDirectShowMode && m_dshowCapture) {
+            m_dshowCapture->stop();
+            m_dshowCapture.reset();
+        }
         if (m_livePreviewSink) { m_livePreviewSink->disconnect(this); m_livePreviewSink = nullptr; }
         if (m_mediaRecorder)  {
             if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState)
@@ -723,6 +1133,7 @@ void InferenceController::stopAnalysis()
             m_captureSession = nullptr;
         }
         m_isLiveMode = false;
+        m_isDirectShowMode = false;
     } else {
         m_player->stop();
     }
@@ -731,17 +1142,15 @@ void InferenceController::stopAnalysis()
     m_engine->wait(3000);
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
+    m_loggedLiveNullFrame = false;
     setAnalyzing(false);
 }
 
-// ── Frame capture (multimedia thread) ────────────────────────────────────────
+// â”€â”€ Frame capture (multimedia thread) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
 {
-    // Guard: drop frames until model is loaded
-    if (!m_modelReady || !m_isAnalyzing) return;
-
-    // Log real pixel format on the very first live frame — shows what the camera actually delivers
+    // Log real pixel format on first live frame for diagnostics.
     if (m_isLiveMode && m_videoW == 0 && m_videoH == 0) {
         const int fw = frame.width();
         const int fh = frame.height();
@@ -767,49 +1176,38 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
         }, Qt::QueuedConnection);
     }
 
-    // Qt 6: QVideoFrame::toImage() handles mapping/unmapping internally
-    QImage img = frame.toImage();
-    if (img.isNull()) return;
-
-    // Ensure RGB888 for ONNX input tensor
-    if (img.format() != QImage::Format_RGB888)
-        img = img.convertToFormat(QImage::Format_RGB888);
-
-    const int w = img.width();
-    const int h = img.height();
-
-    // Emit dims once when they become known (queued to main thread)
-    if (m_videoW != w || m_videoH != h) {
-        m_videoW = w;
-        m_videoH = h;
-        QMetaObject::invokeMethod(this, [this, w, h]() {
-            emit dimsReceived(w, h);
-        }, Qt::QueuedConnection);
-    }
-
-    if (m_isLiveMode) {
-        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-        if (m_liveFpsWindowStartMs <= 0)
-            m_liveFpsWindowStartMs = nowMs;
-        m_liveFpsFrameCount++;
-
-        const qint64 elapsed = nowMs - m_liveFpsWindowStartMs;
-        if (elapsed >= 1000) {
-            const double measuredFps = (1000.0 * static_cast<double>(m_liveFpsFrameCount))
-                                       / static_cast<double>(elapsed);
-            QMetaObject::invokeMethod(this, [this, measuredFps]() {
-                emit fpsReceived(measuredFps);
+    QImage image = frame.toImage();
+    if (image.isNull()) {
+        if (m_isLiveMode && !m_loggedLiveNullFrame) {
+            m_loggedLiveNullFrame = true;
+            const QVideoFrameFormat::PixelFormat pix = frame.surfaceFormat().pixelFormat();
+            auto pixStr = [](QVideoFrameFormat::PixelFormat p) -> QString {
+                switch (p) {
+                    case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
+                    case QVideoFrameFormat::Format_NV12:    return "NV12";
+                    case QVideoFrameFormat::Format_NV21:    return "NV21";
+                    case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
+                    case QVideoFrameFormat::Format_YUYV:    return "YUYV";
+                    case QVideoFrameFormat::Format_UYVY:    return "UYVY";
+                    case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
+                    case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
+                    case QVideoFrameFormat::Format_Invalid: return "Invalid";
+                    default: return QString("Unknown(%1)").arg(static_cast<int>(p));
+                }
+            };
+            QMetaObject::invokeMethod(this, [this, pix, pixStr]() {
+                emit infoReceived(QString("Live frame conversion falhou (QVideoFrame::toImage nulo). PixelFormat=%1 (%2)")
+                                  .arg(pixStr(pix))
+                                  .arg(static_cast<int>(pix)));
             }, Qt::QueuedConnection);
-            m_liveFpsWindowStartMs = nowMs;
-            m_liveFpsFrameCount = 0;
         }
+        return;
     }
 
-    // Hand off to the ONNX engine thread (single-slot queue, drops stale frames)
-    m_engine->enqueueFrame(img, w, h);
+    processImageFrame(image);
 }
 
-// ── Player status ─────────────────────────────────────────────────────────────
+// Player status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
@@ -823,7 +1221,7 @@ void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         setAnalyzing(false);
 
     } else if (status == QMediaPlayer::InvalidMedia) {
-        emit errorOccurred("Vídeo inválido ou não suportado pelo codec do sistema.");
+        emit errorOccurred("VÃ­deo invÃ¡lido ou nÃ£o suportado pelo codec do sistema.");
         setAnalyzing(false);
     }
 }
