@@ -20,6 +20,7 @@ debug/
 *.ilk
 *.exp
 *.rar
+resources_rc.py
 
 # ── Binários (gerados no build ou ferramentas externas) ──
 *.exe
