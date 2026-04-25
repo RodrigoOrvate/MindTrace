@@ -33,11 +33,11 @@ Dê duplo clique em `MindTrace_Setup.exe` e siga as instruções:
 
 O instalador copia o executável, todas as bibliotecas necessárias e cria um atalho no Menu Iniciar e na Área de Trabalho.
 
-### Passo 3 — Colocar o modelo ONNX
+### Passo 3 — Modelo ONNX
 
-O arquivo de modelo `Network-MemoryLab-v2.onnx` não está incluído no instalador. Copie-o para a pasta de instalação do MindTrace (ex: `C:\Program Files\MindTrace\`).
+O modelo de pose já está incluído no instalador — nenhuma ação é necessária.
 
-> Se não souber onde obter esse arquivo, entre em contato com o administrador do laboratório.
+**Para trocar o modelo:** basta substituir o arquivo `.onnx` na pasta de instalação do MindTrace (ex: `C:\Program Files\MindTrace\`) pelo novo modelo. O app carrega automaticamente qualquer arquivo `.onnx` que encontrar na pasta — não importa o nome.
 
 ### Desinstalar
 
@@ -134,7 +134,7 @@ Baixe o instalador `.msi` para Windows x64. Durante a instalação:
 
 ### 3. Colocar o modelo ONNX
 
-Copie o arquivo `Network-MemoryLab-v2.onnx` para a pasta `qt\` do repositório clonado.
+Copie o arquivo `.onnx` de pose para a pasta `qt\` do repositório clonado. O nome do arquivo não importa — o app carrega o primeiro `.onnx` encontrado na pasta do executável.
 
 ---
 

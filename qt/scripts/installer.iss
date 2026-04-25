@@ -38,7 +38,7 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "english";             MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Criar atalho na {cm:DesktopFolder}"; GroupDescription: "Atalhos adicionais:"
+Name: "desktopicon"; Description: "Criar atalho na Area de Trabalho"; GroupDescription: "Atalhos adicionais:"
 
 [Files]
 ; Executável principal

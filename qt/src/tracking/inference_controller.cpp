@@ -1,5 +1,13 @@
 ﻿#include "inference_controller.h"
 #include <QCoreApplication>
+
+// Retorna o primeiro .onnx encontrado no diretório (exclui subpastas).
+// Usado para carregar o modelo de pose independente do nome do arquivo.
+static QString findPoseModel(const QString &dir)
+{
+    const QStringList entries = QDir(dir).entryList({"*.onnx"}, QDir::Files);
+    return entries.isEmpty() ? QString() : dir + "/" + entries.first();
+}
 #include <QStandardPaths>
 #include <QFile>
 #include <QFileInfo>
@@ -83,16 +91,16 @@ InferenceController::InferenceController(QObject* parent)
     // means sessions will be ready before the user clicks "Start Analysis".
     {
         const QString appDir     = QCoreApplication::applicationDirPath();
-        QString preWarmModel     = appDir + "/Network-MemoryLab-v2.onnx";
-        if (!QFile::exists(preWarmModel))
-            preWarmModel = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+        QString preWarmModel = findPoseModel(appDir);
+        if (preWarmModel.isEmpty())
+            preWarmModel = findPoseModel(defaultModelDir());
 
         if (QFile::exists(preWarmModel)) {
             // AUTO-LOAD BEHAVIOR MODELS DISABLED - Use rule-based classifySimple instead
             // To enable ONNX behavior models, uncomment below and ensure behavior_models/ folder exists
             /*
             QString behaviorModelDir = preWarmModel;
-            behaviorModelDir.replace("Network-MemoryLab-v2.onnx", "behavior_models");
+            behaviorModelDir = QFileInfo(preWarmModel).absolutePath() + "/behavior_models";
             if (!QDir(behaviorModelDir).exists()) {
                 behaviorModelDir = appDir + "/behavior_models";
             }
@@ -542,14 +550,14 @@ void InferenceController::startAnalysis(const QString& videoPath, const QString&
     } else if (!m_engine->isRunning()) {
         // Locate model only when we really need to (engine stopped / no pre-warm).
         QString appDir    = QCoreApplication::applicationDirPath();
-        QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
-        if (!QFile::exists(modelPath))
-            modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+        QString modelPath = findPoseModel(appDir);
+        if (modelPath.isEmpty())
+            modelPath = findPoseModel(defaultModelDir());
         if (!modelDir.isEmpty() && QFile::exists(modelDir))
             modelPath = modelDir;
 
         if (!QFile::exists(modelPath)) {
-            emit errorOccurred("Modelo ONNX nÃ£o encontrado: " + modelPath);
+            emit errorOccurred("Modelo ONNX nao encontrado em: " + appDir);
             return;
         }
 
@@ -773,13 +781,13 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     } else if (!engineRunningNow) {
         // Locate model only when needed (engine stopped / no pre-warm available).
         QString appDir    = QCoreApplication::applicationDirPath();
-        QString modelPath = appDir + "/Network-MemoryLab-v2.onnx";
-        if (!QFile::exists(modelPath))
-            modelPath = defaultModelDir() + "/Network-MemoryLab-v2.onnx";
+        QString modelPath = findPoseModel(appDir);
+        if (modelPath.isEmpty())
+            modelPath = findPoseModel(defaultModelDir());
         if (!modelDir.isEmpty() && QFile::exists(modelDir))
             modelPath = modelDir;
         if (!QFile::exists(modelPath)) {
-            emit errorOccurred("Modelo ONNX nao encontrado: " + modelPath);
+            emit errorOccurred("Modelo ONNX nao encontrado em: " + appDir);
             return;
         }
 
