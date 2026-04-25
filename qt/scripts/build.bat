@@ -30,8 +30,6 @@ if not exist "%QT_DIR%\lib\cmake\Qt6\Qt6Config.cmake" (
 )
 
 :: ── Detecta o Visual Studio via vswhere ──────────────────────
-::    vswhere.exe fica sempre no mesmo lugar desde o VS 2019.
-::    Funciona com VS 2019, 2022 e versoes futuras.
 set VSWHERE="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 
 if not exist %VSWHERE% (
@@ -40,7 +38,6 @@ if not exist %VSWHERE% (
     pause & exit /b 1
 )
 
-:: Pega o caminho de instalacao do VS mais recente disponivel
 for /f "usebackq tokens=*" %%i in (
     `%VSWHERE% -latest -property installationPath`
 ) do set VS_PATH=%%i
@@ -56,13 +53,14 @@ if not exist %VCVARS% (
     pause & exit /b 1
 )
 
-echo [OK] Visual Studio encontrado em: %VS_PATH%
-
-:: Ativa o ambiente MSVC (VS 2022, toolset 14.4+)
+:: Ativa o ambiente MSVC (define VisualStudioVersion no ambiente)
 call %VCVARS%
 
-:: ── Cria a pasta de build ─────────────────────────────────────
-if not exist build mkdir build
+:: Determina generator pelo VisualStudioVersion definido pelo vcvars
+set VS_GENERATOR=Visual Studio 17 2022
+if "%VisualStudioVersion:~0,2%"=="18" set VS_GENERATOR=Visual Studio 18 2026
+
+echo [OK] Visual Studio encontrado: %VS_GENERATOR%
 
 :: ── Verifica SDK ONNX (Obrigatório para CMake) ───────────────
 for %%i in ("%~dp0..\..\onnxruntime_sdk") do set "ONNX_SDK=%%~fi"
@@ -96,7 +94,6 @@ if errorlevel 1 (
     pause & exit /b 1
 )
 
-rem Verifica se funcionou apos o script
 if not exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" (
     echo [ERRO] O setup falhou ou nao foi concluido corretamente (arquivos ausentes^).
     pause & exit /b 1
@@ -105,15 +102,14 @@ if not exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" (
 :SDK_OK
 :: ── Configura com CMake ───────────────────────────────────────
 echo.
-if not exist "build\CMakeCache.txt" (
+if not exist "..\build\CMakeCache.txt" (
     echo [AVISO] Primeira compilacao detectada. Isso pode demorar alguns minutos.
     echo         Nas proximas vezes sera muito mais rapido.
     echo.
 )
 echo [1/3] Configurando CMake...
-cmake -S . -B build ^
-    -G "Ninja" ^
-    -DCMAKE_BUILD_TYPE=Release ^
+cmake -S . -B ..\build ^
+    -G "%VS_GENERATOR%" -A x64 ^
     -DCMAKE_PREFIX_PATH="%QT_DIR%"
 
 if errorlevel 1 (
@@ -124,50 +120,54 @@ if errorlevel 1 (
 :: ── Compila ───────────────────────────────────────────────────
 echo.
 echo [2/3] Compilando...
-cmake --build build --config Release --parallel
+cmake --build ..\build --config Release --parallel
 
 if errorlevel 1 (
     echo [ERRO] Falha na compilacao.
     pause & exit /b 1
 )
 
-:: ── Copia DLLs do Qt ─────────────────────────────────────────
+:: ── Copia DLLs do Qt (apenas se ainda não existem) ──────────
 echo.
-echo [3/3] Copiando DLLs do Qt...
-set EXE=build\MindTrace.exe
+set EXE=..\build\Release\MindTrace.exe
 
-"%QT_DIR%\bin\windeployqt.exe" --qmldir qml --release "%EXE%"
-
-:: ── Copia ONNX Runtime DLLs (motor nativo C++) ───────────────
-echo.
-
-:: Copia DLLs necessárias para a pasta build
-echo [INFO] Copiando binarios do ORT...
-for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll DirectML.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
-    if exist "%ONNX_SDK%\lib\%%D" (
-        copy /y "%ONNX_SDK%\lib\%%D" "build\" >nul
-        echo [OK] DLL copiada: %%D
-    )
+if not exist "..\build\Release\Qt6Core.dll" (
+    echo [3/3] Copiando DLLs do Qt...
+    "%QT_DIR%\bin\windeployqt.exe" --qmldir qml --release "%EXE%"
+) else (
+    echo [3/3] DLLs Qt ja presentes, pulando windeployqt.
 )
-echo [INFO] Prioridade GPU: CUDA (NVIDIA) -> DirectML (AMD/Intel) -> CPU
 
-:: Copia modelo ONNX de pose para build\
+:: ── Copia ONNX Runtime DLLs (apenas se ainda não existem) ───
+echo.
+if not exist "..\build\Release\onnxruntime.dll" (
+    echo [INFO] Copiando binarios do ORT...
+    for %%D in (onnxruntime.dll onnxruntime_providers_shared.dll DirectML.dll onnxruntime_providers_cuda.dll onnxruntime_providers_tensorrt.dll) do (
+        if exist "%ONNX_SDK%\lib\%%D" (
+            copy /y "%ONNX_SDK%\lib\%%D" "..\build\Release\" >nul
+            echo [OK] DLL copiada: %%D
+        )
+    )
+    echo [INFO] Prioridade GPU: CUDA ^(NVIDIA^) ^> DirectML ^(AMD/Intel^) ^> CPU
+) else (
+    echo [INFO] DLLs ORT ja presentes, pulando copia.
+)
+
+:: ── Copia modelo ONNX de pose ────────────────────────────────
 echo [INFO] Coletando modelos...
 if exist "Network-MemoryLab-v2.onnx" (
-    echo [INFO] Copiando Network-MemoryLab-v2.onnx para a pasta build...
-    copy /y "Network-MemoryLab-v2.onnx" "build\" >nul
+    copy /y "Network-MemoryLab-v2.onnx" "..\build\Release\" >nul
     if errorlevel 1 (
-        echo [ERRO] Falha ao copiar Network-MemoryLab-v2.onnx. Verifique permissoes ou espaco em disco.
+        echo [ERRO] Falha ao copiar Network-MemoryLab-v2.onnx.
     ) else (
         echo [OK] Modelo copiado: Network-MemoryLab-v2.onnx
     )
 ) else (
     echo [AVISO] Network-MemoryLab-v2.onnx nao encontrado na pasta qt/.
 )
-:: Nota: Behavior.onnx e carregado em runtime pelo usuario — nao e necessario no build.
 
 echo [4/4] Finalizando build...
-if not exist "build\MindTrace.exe" (
+if not exist "%EXE%" (
     echo [ERRO] Falha na geracao do executavel.
     pause & exit /b 1
 )
@@ -175,7 +175,7 @@ if not exist "build\MindTrace.exe" (
 echo.
 echo ==========================================
 echo [SUCESSO] Build concluido com sucesso!
-echo Local: qt\build\MindTrace.exe
+echo Local: build\Release\MindTrace.exe
 echo ==========================================
 echo.
 pause

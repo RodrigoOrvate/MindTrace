@@ -4,8 +4,7 @@
 set SCRIPT_DIR=%~dp0
 pushd "%SCRIPT_DIR%\.."
 
-set EXE=build\Release\MindTrace.exe
-if not exist "%EXE%" set EXE=build\MindTrace.exe
+set EXE=..\build\Release\MindTrace.exe
 
 if not exist "%EXE%" (
     echo [ERRO] Executavel nao encontrado. Execute build.bat primeiro.

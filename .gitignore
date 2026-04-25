@@ -1,3 +1,8 @@
+# ── Arquivos de IA (uso interno, não versionar) ───────────
+AGENTS.md
+CLAUDE.md
+.claude/
+
 # ── Python ───────────────────────────────────────────────
 __pycache__/
 *.py[cod]
@@ -7,6 +12,7 @@ venv_lab312/
 
 # ── Qt / C++ build artifacts ─────────────────────────────
 build/
+installer/
 debug/
 *.o
 *.obj
@@ -14,7 +20,6 @@ debug/
 *.ilk
 *.exp
 *.rar
-CPU
 
 # ── Binários (gerados no build ou ferramentas externas) ──
 *.exe
@@ -42,17 +47,15 @@ MindTrace_Data/
 Thumbs.db
 desktop.ini
 
-# ── Claude Code settings ─────────────────────────────────
-# Ignore local overrides but keep shared settings
-.claude/settings.local.json
-
 # ── Logs ─────────────────────────────────────────────────
 *.log
 .expo/
-# Local env and secrets
+
+# ── Variáveis de ambiente e segredos ─────────────────────
 .env
 .env.*
-!.env.example
+# Exceção: .env do backend é template com dados fictícios (documentação)
+!animal-lifecycle-platform/backend/.env
 
 # Animal Lifecycle — backend
 animal-lifecycle-platform/backend/.venv/

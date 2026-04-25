@@ -83,3 +83,16 @@ target_link_libraries(MindTrace PRIVATE
 if(WIN32)
     target_link_libraries(MindTrace PRIVATE strmiids)
 endif()
+
+target_precompile_headers(MindTrace PRIVATE
+    <QObject>
+    <QString>
+    <QVariant>
+    <QList>
+    <QMap>
+    <QDebug>
+    <QQuickItem>
+    <QQmlEngine>
+    <QMediaPlayer>
+    <QVideoSink>
+)
