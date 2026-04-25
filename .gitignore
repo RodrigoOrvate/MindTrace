@@ -54,33 +54,6 @@ desktop.ini
 # ── Variáveis de ambiente e segredos ─────────────────────
 .env
 .env.*
-# Exceção: .env do backend é template com dados fictícios (documentação)
-!animal-lifecycle-platform/backend/.env
-
-# Animal Lifecycle — backend
-animal-lifecycle-platform/backend/.venv/
-animal-lifecycle-platform/backend/.pytest_cache/
-animal-lifecycle-platform/backend/**/__pycache__/
-animal-lifecycle-platform/backend/*.db
-animal-lifecycle-platform/backend/*.sqlite
-animal-lifecycle-platform/backend/pytest-cache-files-*/
-animal-lifecycle-platform/backend/.mypy_cache/
-animal-lifecycle-platform/backend/.ruff_cache/
-animal-lifecycle-platform/backend/.coverage
-animal-lifecycle-platform/backend/coverage.xml
-animal-lifecycle-platform/backend/htmlcov/
-# PostgreSQL dumps e backups locais
-animal-lifecycle-platform/backend/*.sql
-animal-lifecycle-platform/backend/*.dump
-animal-lifecycle-platform/backend/*.tar.gz
-animal-lifecycle-platform/backend/*.bak
-
-# Animal Lifecycle — mobile
-animal-lifecycle-platform/mobile/node_modules/
-animal-lifecycle-platform/mobile/.expo/
-animal-lifecycle-platform/mobile/dist/
-animal-lifecycle-platform/mobile/web-build/
-animal-lifecycle-platform/mobile/.env
 
 # Chaves e certificados locais (nunca subir)
 *.pem
