@@ -47,6 +47,9 @@ Source: "{#SourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Modelo ONNX de pose (obrigatório para tracking)
 Source: "{#SourceDir}\Network-MemoryLab-v2.onnx"; DestDir: "{app}"; Flags: ignoreversion
 
+; Script Python para exportação Excel
+Source: "{#SourceDir}\formatar_mindtrace.py"; DestDir: "{app}"; Flags: ignoreversion
+
 ; ONNX Runtime (motor de inferência)
 Source: "{#SourceDir}\onnxruntime.dll";                  DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\onnxruntime_providers_shared.dll"; DestDir: "{app}"; Flags: ignoreversion

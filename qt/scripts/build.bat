@@ -153,6 +153,12 @@ if not exist "..\build\Release\onnxruntime.dll" (
     echo [INFO] DLLs ORT ja presentes, pulando copia.
 )
 
+:: ── Copia script Python de exportação Excel ─────────────────
+if exist "formatar_mindtrace.py" (
+    copy /y "formatar_mindtrace.py" "..\build\Release\" >nul
+    echo [OK] formatar_mindtrace.py copiado.
+)
+
 :: ── Copia modelo ONNX de pose ────────────────────────────────
 echo [INFO] Coletando modelos...
 if exist "Network-MemoryLab-v2.onnx" (

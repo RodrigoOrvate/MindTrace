@@ -251,12 +251,12 @@ bool ExperimentTableModel::exportCsv(const QString &destPath) const
 
     file.close();
 
-#if defined(Q_OS_WIN)
-    QString scriptPath = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../../formatar_mindtrace.py");
-#else
-    QString scriptPath = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../formatar_mindtrace.py");
-#endif
-    
+    // Busca o script ao lado do exe (instalado) ou em qt/ (desenvolvimento)
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QString scriptPath = appDir + "/formatar_mindtrace.py";
+    if (!QFile::exists(scriptPath))
+        scriptPath = QDir::cleanPath(appDir + "/../../qt/formatar_mindtrace.py");
+
     // Chama o Python que transformará este CSV puro no arquivo final .xlsx com abas
     QProcess::startDetached(QStringLiteral("python"), QStringList() << scriptPath << destPath);
 
