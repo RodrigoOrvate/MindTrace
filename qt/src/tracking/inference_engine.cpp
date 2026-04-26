@@ -122,7 +122,9 @@ InferenceEngine::InferenceEngine(QObject* parent)
 InferenceEngine::~InferenceEngine()
 {
     requestStop();
-    wait(5000);
+    // Ensure thread is fully finished before QObject teardown.
+    // Timed waits can still leave a running thread during slow session creation.
+    wait();
 }
 
 void InferenceEngine::loadModel(const QString& path)

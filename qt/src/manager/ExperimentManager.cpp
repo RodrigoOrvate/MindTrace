@@ -17,6 +17,84 @@
 #include <QUrl>
 #include <QCryptographicHash>
 
+namespace {
+
+QJsonArray loadRegistryArray(const QString& regPath)
+{
+    QFile regFile(regPath);
+    if (!regFile.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(regFile.readAll()).array();
+}
+
+void saveRegistryArray(const QString& regPath, const QJsonArray& arr)
+{
+    QFile regFile(regPath);
+    if (regFile.open(QIODevice::WriteOnly))
+        regFile.write(QJsonDocument(arr).toJson());
+}
+
+void upsertRegistryEntry(const QString& regPath,
+                         const QString& context,
+                         const QString& name,
+                         const QString& path)
+{
+    QJsonArray arr = loadRegistryArray(regPath);
+    bool updated = false;
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject obj = arr[i].toObject();
+        if (obj["context"].toString() == context && obj["name"].toString() == name) {
+            obj["path"] = path;
+            arr[i] = obj;
+            updated = true;
+            break;
+        }
+    }
+    if (!updated) {
+        QJsonObject obj;
+        obj["name"] = name;
+        obj["context"] = context;
+        obj["path"] = path;
+        arr.append(obj);
+    }
+    saveRegistryArray(regPath, arr);
+}
+
+QString resolveCaseAwareFolderPath(const QString& rootDir,
+                                   const QString& requestedName,
+                                   bool* usedAliasPath = nullptr)
+{
+    QDir root(rootDir);
+    root.mkpath(".");
+
+    bool hasCaseInsensitiveMatch = false;
+    bool hasExactMatch = false;
+    const QStringList entries = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString& entry : entries) {
+        if (QString::compare(entry, requestedName, Qt::CaseInsensitive) == 0) {
+            hasCaseInsensitiveMatch = true;
+            if (entry == requestedName)
+                hasExactMatch = true;
+            break;
+        }
+    }
+
+    if (!hasCaseInsensitiveMatch || hasExactMatch) {
+        if (usedAliasPath) *usedAliasPath = false;
+        return root.filePath(requestedName);
+    }
+
+    if (usedAliasPath) *usedAliasPath = true;
+    int suffix = 2;
+    QString candidate;
+    do {
+        candidate = QStringLiteral("%1__%2").arg(requestedName).arg(suffix++);
+    } while (root.exists(candidate));
+    return root.filePath(candidate);
+}
+
+} // namespace
+
 // ===========================================================================
 // ExperimentListModel
 // ===========================================================================
@@ -127,15 +205,36 @@ QString ExperimentManager::basePath() const
 void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
 {
     QStringList names, paths, contexts, aparatos, responsibles;
+    QHash<QString, QString> registryNameByPath;
+    {
+        QFile regFile(basePath() + QStringLiteral("/registry.json"));
+        if (regFile.open(QIODevice::ReadOnly)) {
+            const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
+            for (const auto& v : arr) {
+                const QJsonObject obj = v.toObject();
+                if (obj["context"].toString() == m_activeContext) {
+                    const QString regPath = obj["path"].toString().trimmed();
+                    const QString regName = obj["name"].toString().trimmed();
+                    if (!regPath.isEmpty() && !regName.isEmpty())
+                        registryNameByPath.insert(regPath, regName);
+                }
+            }
+        }
+    }
 
     auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
         if (paths.contains(path, Qt::CaseInsensitive)) return;
 
         QVariantMap meta = readMetadataFromPath(path);
         QString apa = meta["aparato"].toString();
+        QString displayName = registryNameByPath.value(path).trimmed();
+        if (displayName.isEmpty())
+            displayName = meta["name"].toString().trimmed();
+        if (displayName.isEmpty())
+            displayName = name;
         
         if (aparatoFilter.isEmpty() || apa == aparatoFilter) {
-            names << name;
+            names << displayName;
             paths << path;
             contexts << ctx;
             aparatos << apa;
@@ -154,16 +253,8 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
     }
 
     // 2. Experimentos em diretÃƒÂ³rios livres (registry)
-    QFile regFile(basePath() + QStringLiteral("/registry.json"));
-    if (regFile.open(QIODevice::ReadOnly)) {
-        QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (const auto& v : arr) {
-            QJsonObject obj = v.toObject();
-            if (obj["context"].toString() == m_activeContext) {
-                checkAndAdd(obj["name"].toString(), obj["path"].toString(), m_activeContext);
-            }
-        }
-    }
+    for (auto it = registryNameByPath.cbegin(); it != registryNameByPath.cend(); ++it)
+        checkAndAdd(it.value(), it.key(), m_activeContext);
 
     m_model->setSourceData(names, paths, contexts, aparatos, responsibles);
 }
@@ -206,8 +297,18 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
     }
 
     const QString trimmedName = name.trimmed();
-    const QString folderPath  = basePath() + QLatin1Char('/')
-                                + m_activeContext + QLatin1Char('/') + trimmedName;
+    const QString contextRoot = basePath() + QLatin1Char('/') + m_activeContext;
+    QString folderPath;
+    if (experimentExists(m_activeContext, trimmedName)) {
+        folderPath = experimentPath(trimmedName, m_activeContext);
+    } else {
+        bool usedAliasPath = false;
+        folderPath = resolveCaseAwareFolderPath(contextRoot, trimmedName, &usedAliasPath);
+        if (usedAliasPath) {
+            upsertRegistryEntry(basePath() + QStringLiteral("/registry.json"),
+                                m_activeContext, trimmedName, folderPath);
+        }
+    }
 
     QDir dir;
     if (!dir.mkpath(folderPath)) {
@@ -394,26 +495,25 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
     QString folderPath;
     
     if (savePath.isEmpty()) {
-        folderPath = basePath() + QLatin1Char('/') + m_activeContext + QLatin1Char('/') + trimmedName;
+        const QString contextRoot = basePath() + QLatin1Char('/') + m_activeContext;
+        if (experimentExists(m_activeContext, trimmedName)) {
+            folderPath = experimentPath(trimmedName, m_activeContext);
+        } else {
+            bool usedAliasPath = false;
+            folderPath = resolveCaseAwareFolderPath(contextRoot, trimmedName, &usedAliasPath);
+            if (usedAliasPath) {
+                upsertRegistryEntry(basePath() + QStringLiteral("/registry.json"),
+                                    m_activeContext, trimmedName, folderPath);
+            }
+        }
     } else {
-        folderPath = savePath.startsWith("file:///") ? savePath.mid(8) : savePath;
-        folderPath += QLatin1Char('/') + trimmedName;
-        
+        const QString root = savePath.startsWith("file:///") ? savePath.mid(8) : savePath;
+        bool usedAliasPath = false;
+        folderPath = resolveCaseAwareFolderPath(root, trimmedName, &usedAliasPath);
+        Q_UNUSED(usedAliasPath)
         QDir().mkpath(basePath());
-        QFile regFile(basePath() + QStringLiteral("/registry.json"));
-        QJsonArray arr;
-        if (regFile.open(QIODevice::ReadOnly)) {
-            arr = QJsonDocument::fromJson(regFile.readAll()).array();
-            regFile.close();
-        }
-        QJsonObject newExp;
-        newExp["name"] = trimmedName;
-        newExp["context"] = m_activeContext;
-        newExp["path"] = folderPath;
-        arr.append(newExp);
-        if (regFile.open(QIODevice::WriteOnly)) {
-            regFile.write(QJsonDocument(arr).toJson());
-        }
+        upsertRegistryEntry(basePath() + QStringLiteral("/registry.json"),
+                            m_activeContext, trimmedName, folderPath);
     }
 
     QDir dir;
@@ -439,15 +539,38 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
 
     QStringList ctxFolders = base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     QStringList names, paths, contexts, aparatos, responsibles;
+    QHash<QString, QString> registryNameByPath;
+    QHash<QString, QString> registryContextByPath;
+    {
+        QFile regFile(basePath() + QStringLiteral("/registry.json"));
+        if (regFile.open(QIODevice::ReadOnly)) {
+            const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
+            for (const auto& v : arr) {
+                const QJsonObject obj = v.toObject();
+                const QString regPath = obj["path"].toString().trimmed();
+                const QString regName = obj["name"].toString().trimmed();
+                const QString regCtx  = obj["context"].toString().trimmed();
+                if (!regPath.isEmpty()) {
+                    if (!regName.isEmpty()) registryNameByPath.insert(regPath, regName);
+                    if (!regCtx.isEmpty())  registryContextByPath.insert(regPath, regCtx);
+                }
+            }
+        }
+    }
 
     auto checkAndAdd = [&](const QString &name, const QString &path, const QString &ctx) {
         if (paths.contains(path, Qt::CaseInsensitive)) return;
 
         QVariantMap meta = readMetadataFromPath(path);
         QString apa = meta["aparato"].toString();
+        QString displayName = registryNameByPath.value(path).trimmed();
+        if (displayName.isEmpty())
+            displayName = meta["name"].toString().trimmed();
+        if (displayName.isEmpty())
+            displayName = name;
         
         if (aparatoFilter.isEmpty() || apa == aparatoFilter) {
-            names << name;
+            names << displayName;
             paths << path;
             contexts << ctx;
             aparatos << apa;
@@ -464,13 +587,11 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
     }
 
     // Registry
-    QFile regFile(basePath() + QStringLiteral("/registry.json"));
-    if (regFile.open(QIODevice::ReadOnly)) {
-        QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (const auto& v : arr) {
-            QJsonObject obj = v.toObject();
-            checkAndAdd(obj["name"].toString(), obj["path"].toString(), obj["context"].toString());
-        }
+    for (auto it = registryNameByPath.cbegin(); it != registryNameByPath.cend(); ++it) {
+        const QString regPath = it.key();
+        const QString regName = it.value();
+        const QString regCtx  = registryContextByPath.value(regPath);
+        checkAndAdd(regName, regPath, regCtx);
     }
 
     m_inSearchMode = true;
@@ -506,9 +627,33 @@ bool ExperimentManager::experimentExists(const QString &context, const QString &
 {
     const QString trimmedName = name.trimmed();
     if (context.isEmpty() || trimmedName.isEmpty()) return false;
-    const QString folderPath = basePath() + QLatin1Char('/') + context
-                               + QLatin1Char('/') + trimmedName;
-    return QDir(folderPath).exists();
+
+    QFile regFile(basePath() + QStringLiteral("/registry.json"));
+    if (regFile.open(QIODevice::ReadOnly)) {
+        const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
+        for (const auto& v : arr) {
+            const QJsonObject obj = v.toObject();
+            if (obj["context"].toString() == context
+                && obj["name"].toString() == trimmedName) {
+                return true;
+            }
+        }
+    }
+
+    const QString contextPath = basePath() + QLatin1Char('/') + context;
+    QDir dir(contextPath);
+    if (!dir.exists()) return false;
+
+    const QFileInfoList entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& info : entries) {
+        const QVariantMap meta = readMetadataFromPath(info.absoluteFilePath());
+        QString logicalName = meta.value("name").toString().trimmed();
+        if (logicalName.isEmpty())
+            logicalName = info.fileName();
+        if (logicalName == trimmedName)
+            return true;
+    }
+    return false;
 }
 
 QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) const
@@ -1163,5 +1308,3 @@ void ExperimentManager::writeCsv(const QString    &folderPath,
     for (int i = 0; i < animalCount; ++i)
         out << emptyRow << QLatin1Char('\n');
 }
-
-

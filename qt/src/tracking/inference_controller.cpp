@@ -1,5 +1,6 @@
 ﻿#include "inference_controller.h"
 #include <QCoreApplication>
+#include <QDir>
 
 // Retorna o primeiro .onnx encontrado no diretório (exclui subpastas).
 // Usado para carregar o modelo de pose independente do nome do arquivo.
@@ -1119,35 +1120,48 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
 
 void InferenceController::stopAnalysis()
 {
-    if (!m_isAnalyzing) return;
-
     if (m_isLiveMode) {
         if (m_isDirectShowMode && m_dshowCapture) {
             m_dshowCapture->stop();
             m_dshowCapture.reset();
         }
-        if (m_livePreviewSink) { m_livePreviewSink->disconnect(this); m_livePreviewSink = nullptr; }
-        if (m_mediaRecorder)  {
+        if (m_livePreviewSink) {
+            m_livePreviewSink->disconnect(this);
+            m_livePreviewSink = nullptr;
+        }
+        if (m_mediaRecorder) {
             if (m_mediaRecorder->recorderState() == QMediaRecorder::RecordingState)
                 m_mediaRecorder->stop();
             delete m_mediaRecorder;
             m_mediaRecorder = nullptr;
         }
-        if (m_camera)         { m_camera->stop();         delete m_camera;         m_camera         = nullptr; }
+        if (m_camera) {
+            m_camera->stop();
+            delete m_camera;
+            m_camera = nullptr;
+        }
         if (m_captureSession) {
             m_captureSession->setRecorder(nullptr);
             m_captureSession->setVideoOutput(nullptr);
             delete m_captureSession;
             m_captureSession = nullptr;
         }
-        m_isLiveMode = false;
-        m_isDirectShowMode = false;
-    } else {
+    } else if (m_isAnalyzing) {
         m_player->stop();
     }
 
-    m_engine->requestStop();
-    m_engine->wait(3000);
+    // Important: pre-warm may leave InferenceEngine running even when
+    // m_isAnalyzing is false. Always stop thread during teardown.
+    // Do not use a short timeout here: if the thread is still creating ONNX
+    // sessions, a timed wait can return early and QThread may be destroyed
+    // while still running.
+    if (m_engine && m_engine->isRunning()) {
+        m_engine->requestStop();
+        m_engine->wait();
+    }
+
+    m_isLiveMode = false;
+    m_isDirectShowMode = false;
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
     m_loggedLiveNullFrame = false;
@@ -1233,3 +1247,4 @@ void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         setAnalyzing(false);
     }
 }
+

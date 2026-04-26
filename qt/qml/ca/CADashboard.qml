@@ -558,7 +558,8 @@ Item {
 
                             // â"€â"€ Tab 2: Dados â€" Layout aparato-específico
                             DataView {
-                                anchors.fill: parent
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
                                 tableModel: tableModel
                                 workArea: workArea
                             }
