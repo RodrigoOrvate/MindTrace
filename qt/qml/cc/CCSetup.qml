@@ -16,6 +16,7 @@ Item {
     property int    numCampos:    3
     property string context:      ""
     property string arenaId:      ""
+    property var    contextPatterns: []
     property string selectedPath: ""
     property int    sessionMinutes: 5    // 5 ou 20
 
@@ -78,6 +79,7 @@ Item {
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
+            LanguageManager.tr3("Contexto", "Context", "Contexto"),
             LanguageManager.tr3("Duracao (min)", "Duration (min)", "Duracion (min)"),
             LanguageManager.tr3("Distancia Total (m)", "Total Distance (m)", "Distancia Total (m)"),
             LanguageManager.tr3("Velocidade Media (m/s)", "Average Speed (m/s)", "Velocidad Media (m/s)"),

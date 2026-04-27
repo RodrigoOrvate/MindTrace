@@ -18,6 +18,7 @@ Item {
 
     property string context:   ""
     property string arenaId:   ""
+    property var    contextPatterns: []
     property int    numCampos: 3
     property bool   searchMode: false
     property int    currentTabIndex: 0
@@ -307,6 +308,7 @@ Item {
                 property int    colCount:     0
                 property bool   includeDrug:      true
                 property bool   hasReactivation:  false
+                property var    contextPatterns:  root.contextPatterns
                 property var    dayNames:         []
                 property string analysisMode:     "offline"
                 property string cameraId:         ""
@@ -320,10 +322,12 @@ Item {
 
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx  = meta.context || ""
+                    root.context = ctx
                     ExperimentManager.setActiveContext(ctx)
 
                     includeDrug     = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
+                    contextPatterns = meta.contextPatterns || []
                     dayNames        = meta.dayNames || (meta.hasReactivation
                                       ? [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"), LanguageManager.tr3("Teste", "Test", "Prueba")]
                                       : [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Teste", "Test", "Prueba")])
@@ -446,6 +450,7 @@ Item {
                                     visible: workArea.activeNumCampos > 1
                                     experimentPath: workArea.activeNumCampos > 1 ? workArea.selectedPath : ""
                                     context: root.context
+                                    contextPatterns: workArea.contextPatterns
                                     numCampos: workArea.activeNumCampos
                                     aparato: "campo_aberto"
                                     caMode: true
@@ -496,6 +501,8 @@ Item {
                                 id: liveRecordingTab
                                 videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                context: root.context
+                                contextPatterns: workArea.contextPatterns
                                 saveDirectory: workArea.saveDirectory
                                 liveOutputName: workArea.activeNumCampos === 1 ? eiArenaSetupCA.liveOutputName : tabArenaSetup.liveOutputName
                                 cameraId:     workArea.cameraId
@@ -532,6 +539,7 @@ Item {
                                     caResultDialog.perMinuteData    = liveRecordingTab.perMinuteData
                                     caResultDialog.explorationTimes = liveRecordingTab.explorationTimes
                                     caResultDialog.explorationBouts = liveRecordingTab.explorationBouts
+                                    caResultDialog.contextPatterns  = workArea.contextPatterns
                                     caResultDialog.includeDrug      = workArea.includeDrug
                                     caResultDialog.hasReactivation  = workArea.hasReactivation
                                     caResultDialog.dayNames         = workArea.dayNames
@@ -575,6 +583,7 @@ Item {
         id: caResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
+        contextPatterns: workArea.contextPatterns
     }
 
     // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€

@@ -83,6 +83,8 @@ Item {
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Campo", "Field", "Campo"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
                     Rectangle { Layout.preferredWidth: 90; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Dia", "Day", "Dia"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
+                    Rectangle { Layout.preferredWidth: 140; height: 40; color: accentColor
+                        Text { anchors.centerIn: parent; text: LanguageManager.tr3("Contexto", "Context", "Contexto"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
                     Rectangle { visible: hasTreatment(); Layout.fillWidth: true; Layout.minimumWidth: 90; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Tratamento", "Treatment", "Tratamiento"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
                     Item { visible: !hasTreatment(); Layout.fillWidth: true }
@@ -117,6 +119,11 @@ Item {
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Dia", "Day"])
                                 color: accentColor; font.pixelSize: 11; font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
+                        Rectangle { Layout.preferredWidth: 140; height: 36; color: dataRow.rowBg
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Contexto", "Context"])
+                                color: ThemeManager.textSecondary; font.pixelSize: 11; elide: Text.ElideRight
+                                Behavior on color { ColorAnimation { duration: 150 } } } }
                         Rectangle { visible: hasTreatment(); Layout.fillWidth: true; Layout.minimumWidth: 90; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Tratamento", "Treatment", "Tratamiento"])
@@ -136,4 +143,3 @@ Item {
     }
     Item { id: placeholder; property var model: null; property var workArea: null }
 }
-

@@ -25,6 +25,7 @@ Popup {
     property string saveDirectory:    ""
     property string videoPath:        ""
     property int    numCampos:        3
+    property var    contextPatterns:  []
 
     // ── Dados de tracking da sessão ───────────────────────────────────────
     property var sessionExplorationBouts: [[], [], [], [], [], []]
@@ -50,6 +51,16 @@ Popup {
             return out
         }
         return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
+    }
+
+    function contextDisplayName(patternKey) {
+        var key = String(patternKey || "").toLowerCase().trim()
+        if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
+        if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
+        if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
+        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
+        return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
     }
 
     property var _animalTexts:  ["", "", ""]
@@ -87,25 +98,29 @@ Popup {
         var v    = root.videoPath.replace("file:///", "")
         var fase = dayCombo.currentText
         var dia  = String(dayCombo.currentIndex + 1)
+        var includeContext = root.contextPatterns && root.contextPatterns.length > 0
         var rows = []
         var pares = [root.pair1, root.pair2, root.pair3]
 
         for (var i = 0; i < root.numCampos; i++) {
             var aText = root._animalTexts[i] || ""
             if (!aText) continue
+            var contexto = root.contextDisplayName(root.contextPatterns[i] || "")
             var zi0 = i * 2, zi1 = i * 2 + 1
             var tA = root.sessionExplorationTimes[zi0] || 0
-            var tB = root.sessionExplorationTimes[zi1] || 0
+            var tB = pares[i].length > 1 ? (root.sessionExplorationTimes[zi1] || 0) : 0
             var tot = tA + tB
-            var di = tot > 0 ? ((tB - tA) / tot).toFixed(3) : "0.000"
+            var di = pares[i].length <= 1 ? "N/A" : (tot > 0 ? ((tB - tA) / tot).toFixed(3) : "0.000")
             var bA = (root.sessionExplorationBouts[zi0] || []).length
-            var bB = (root.sessionExplorationBouts[zi1] || []).length
-            var row = [v, aText, String(i + 1), dia, pares[i],
-                       tA.toFixed(2), bA,
-                       tB.toFixed(2), bB,
-                       tot.toFixed(2), di,
-                       (root.sessionTotalDistance[i] || 0).toFixed(3),
-                       (root.sessionAvgVelocity[i]   || 0).toFixed(3)]
+            var bB = pares[i].length > 1 ? (root.sessionExplorationBouts[zi1] || []).length : 0
+            var row = [v, aText, String(i + 1), dia]
+            if (includeContext) row.push(contexto)
+            row.push(pares[i],
+                     tA.toFixed(2), bA,
+                     tB.toFixed(2), bB,
+                     tot.toFixed(2), di,
+                     (root.sessionTotalDistance[i] || 0).toFixed(3),
+                     (root.sessionAvgVelocity[i]   || 0).toFixed(3))
             if (root.includeDrug) row.push(root._drogaTexts[i] || "")
             rows.push(row)
         }
@@ -126,6 +141,7 @@ Popup {
             var t1 = root.sessionExplorationTimes[z1] || 0
             sessionMeta["campos"].push({
                 "animal": root._animalTexts[j], "campo": j + 1,
+                "contexto": root.contextDisplayName(root.contextPatterns[j] || ""),
                 "par": paresArr[j], "droga": root._drogaTexts[j],
                 "exploração": {
                     "objA_total_s": t0.toFixed(1), "objB_total_s": t1.toFixed(1),
@@ -162,6 +178,7 @@ Popup {
                 day_index: parseInt(dia, 10),
                 experiment_name: root.experimentName,
                 field: k + 1,
+                context: root.contextDisplayName(root.contextPatterns[k] || ""),
                 pair: pares[k],
                 treatment: root.includeDrug ? (root._drogaTexts[k] || "") : "",
                 exploration_a_s: parseFloat(tkA.toFixed(2)),

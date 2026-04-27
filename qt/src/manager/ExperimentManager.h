@@ -159,6 +159,8 @@ public:
 
     // Persiste dayNames no metadata.json existente do experimento.
     Q_INVOKABLE bool updateDayNames(const QString &folderPath, const QStringList &dayNames);
+    // Persiste os padrões visuais de contexto por campo (ex: horizontal, vertical, dots...).
+    Q_INVOKABLE bool updateContextPatterns(const QString &folderPath, const QVariantList &patterns);
     Q_INVOKABLE void refreshResearchers();
     Q_INVOKABLE QString researcherFullName(const QString &username) const;
     Q_INVOKABLE QString syncTimestamp() const;

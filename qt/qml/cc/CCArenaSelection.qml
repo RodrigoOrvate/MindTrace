@@ -1,9 +1,9 @@
-// qml/cc/CCArenaSelection.qml
-// Passo 2 do fluxo CC: seleção do layout de campos e contexto.
+﻿// qml/cc/CCArenaSelection.qml
+// Passo 2 do fluxo CC: seleÃ§Ã£o do layout de campos e contexto.
 //
 // Regras de layout:
-// 2 campos → Padrão ou Contextual
-// 3 campos → Sem contexto (fixo)
+// 2 campos â†’ PadrÃ£o ou Contextual
+// 3 campos â†’ Sem contexto (fixo)
 
 import QtQuick
 import QtQuick.Controls
@@ -15,20 +15,55 @@ Item {
     id: root
 
     property int    selectedNumCampos: 3
-    property string selectedContext:   "Padrão"
+    property var    fieldPatterns: ["horizontal", "vertical", "dots"]
+    property int    editingFieldIdx: -1
+    readonly property var patternOptions: [
+        { key: "horizontal", label: LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales") },
+        { key: "vertical",   label: LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales") },
+        { key: "dots",       label: LanguageManager.tr3("Bolinhas", "Dots", "Puntos") },
+        { key: "triangles",  label: LanguageManager.tr3("Triangulos", "Triangles", "Triangulos") },
+        { key: "squares",    label: LanguageManager.tr3("Quadrados", "Squares", "Cuadrados") }
+    ]
+    property string selectedContext:   "PadrÃ£o"
 
     readonly property string selectedArenaId:
         "cc_" + selectedNumCampos + "campos"
 
-    // 1 e 3 campos não permitem escolha de contexto
+    // 1 e 3 campos nÃ£o permitem escolha de contexto
     readonly property bool contextForced: selectedNumCampos !== 2
 
-    signal selectionConfirmed(int numCampos, string context, string arenaId)
+    signal selectionConfirmed(int numCampos, string context, string arenaId, var contextPatterns)
     signal backRequested()
+
+    function patternLabel(key) {
+        for (var i = 0; i < patternOptions.length; i++) {
+            if (patternOptions[i].key === key) return patternOptions[i].label
+        }
+        return LanguageManager.tr3("Padrao", "Default", "Predeterminado")
+    }
+    function ensurePatternDefaults() {
+        var defaults = ["horizontal", "vertical", "dots"]
+        var next = []
+        for (var i = 0; i < 3; i++) {
+            var p = (fieldPatterns && fieldPatterns.length > i) ? String(fieldPatterns[i] || "") : ""
+            next.push(p !== "" ? p : defaults[i])
+        }
+        fieldPatterns = next
+    }
+    function openPatternPicker(fieldIdx, fieldItem) {
+        editingFieldIdx = fieldIdx
+        var pt = fieldItem.mapToItem(root, fieldItem.width / 2, fieldItem.height / 2)
+        patternPopup.x = Math.max(8, Math.min(root.width - patternPopup.width - 8, pt.x - patternPopup.width / 2))
+        patternPopup.y = Math.max(8, Math.min(root.height - patternPopup.height - 8, pt.y - patternPopup.height / 2))
+        patternPopup.open()
+    }
 
     onContextForcedChanged: {
         if (contextForced) selectedContext = "Padrão"
+        ensurePatternDefaults()
     }
+    onSelectedNumCamposChanged: ensurePatternDefaults()
+    Component.onCompleted: ensurePatternDefaults()
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
@@ -37,13 +72,13 @@ Item {
         anchors.margins: 40
         spacing: 0
 
-        // ── Header ───────────────────────────────────────────────────────
+        // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
             GhostButton { text: LanguageManager.tr3("<- Voltar", "<- Back", "<- Volver"); onClicked: root.backRequested() }
             Item { width: 8 }
-            Text { text: "🧩"; font.pixelSize: 28; color: "#7a3dab" }
+            Text { text: "\uD83E\uDDE9"; font.pixelSize: 28; color: "#7a3dab" }
 
             ColumnLayout {
                 spacing: 2
@@ -66,13 +101,13 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // ── Corpo ─────────────────────────────────────────────────────────
+        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 32
 
-            // ── Preview dinâmico ─────────────────────────────────────────
+            // â”€â”€ Preview dinÃ¢mico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: parent.height
@@ -92,7 +127,7 @@ Item {
                     Behavior on width  { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-                    // Grid view — 2 ou 3 campos
+                    // Grid view â€” 2 ou 3 campos
                     Item {
                         id: grid
                         anchors { fill: parent; margins: 8 }
@@ -107,6 +142,8 @@ Item {
                         Rectangle {
                             x: 0; y: 0
                             width: grid.cellW; height: grid.cellH
+                            property int fieldIndex: 0
+                            property color contextWallColor: "#ab3d4c"
                             radius: 6
                             color: root.selectedNumCampos >= 1 ? "#0d0d22" : "#0a0a18"
                             border.color: root.selectedNumCampos >= 1 ? "#7a3dab" : "#1a1a2e"
@@ -115,19 +152,42 @@ Item {
                             Behavior on border.color { ColorAnimation { duration: 200 } }
 
                             Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
-                                        height: 4; color: "#ab3d4c"; opacity: 0.8
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 1 }
+                            Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 1 }
                             Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                        width: 4; color: "#6aab3d"; opacity: 0.8
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 1 }
+                            Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 1 }
 
                             Text {
                                 anchors.centerIn: parent
-                                text: root.selectedNumCampos >= 1 ? LanguageManager.tr3("Campo 1", "Field 1", "Campo 1") : "—"
+                                text: root.selectedNumCampos >= 1 ? LanguageManager.tr3("Campo 1", "Field 1", "Campo 1") : "-"
                                 color: root.selectedNumCampos >= 1 ? "#7a3dab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
+                            }
+                            Text {
+                                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 8 }
+                                visible: grid.ctx && root.selectedNumCampos >= 1
+                                text: root.patternLabel(root.fieldPatterns[parent.fieldIndex])
+                                color: ThemeManager.textSecondary
+                                font.pixelSize: 9
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: root.selectedNumCampos >= 1 && !root.contextForced
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (root.selectedContext !== "Contextual") root.selectedContext = "Contextual"
+                                    root.openPatternPicker(parent.fieldIndex, parent)
+                                }
                             }
                         }
 
@@ -135,6 +195,8 @@ Item {
                         Rectangle {
                             x: grid.cellW + 6; y: 0
                             width: grid.cellW; height: grid.cellH
+                            property int fieldIndex: 1
+                            property color contextWallColor: "#3d7aab"
                             radius: 6
                             color: root.selectedNumCampos >= 2 ? "#0d0d22" : "#0a0a18"
                             border.color: root.selectedNumCampos >= 2 ? "#7a3dab" : "#1a1a2e"
@@ -143,19 +205,42 @@ Item {
                             Behavior on border.color { ColorAnimation { duration: 200 } }
 
                             Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
-                                        height: 4; color: "#ab3d4c"; opacity: 0.8
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 2 }
+                            Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 2 }
+                            Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 2 }
                             Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-                                        width: 4; color: "#ab8a3d"; opacity: 0.8
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 2 }
 
                             Text {
                                 anchors.centerIn: parent
-                                text: root.selectedNumCampos >= 2 ? LanguageManager.tr3("Campo 2", "Field 2", "Campo 2") : "—"
+                                text: root.selectedNumCampos >= 2 ? LanguageManager.tr3("Campo 2", "Field 2", "Campo 2") : "-"
                                 color: root.selectedNumCampos >= 2 ? "#7a3dab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
+                            }
+                            Text {
+                                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 8 }
+                                visible: grid.ctx && root.selectedNumCampos >= 2
+                                text: root.patternLabel(root.fieldPatterns[parent.fieldIndex])
+                                color: ThemeManager.textSecondary
+                                font.pixelSize: 9
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: root.selectedNumCampos >= 2 && !root.contextForced
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (root.selectedContext !== "Contextual") root.selectedContext = "Contextual"
+                                    root.openPatternPicker(parent.fieldIndex, parent)
+                                }
                             }
                         }
 
@@ -163,6 +248,8 @@ Item {
                         Rectangle {
                             x: 0; y: grid.cellH + 6
                             width: grid.cellW; height: grid.cellH
+                            property int fieldIndex: 2
+                            property color contextWallColor: "#6aab3d"
                             radius: 6
                             color: root.selectedNumCampos >= 3 ? "#0d0d22" : "#0a0a18"
                             border.color: root.selectedNumCampos >= 3 ? "#7a3dab" : "#1a1a2e"
@@ -170,37 +257,60 @@ Item {
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
 
+                            Rectangle { anchors { top: parent.top; left: parent.left; right: parent.right }
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 3 }
                             Rectangle { anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-                                        height: 4; color: "#3d7aab"; opacity: 0.8
+                                        height: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 3 }
                             Rectangle { anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                                        width: 4; color: "#6aab3d"; opacity: 0.8
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
+                                        visible: grid.ctx && root.selectedNumCampos >= 3 }
+                            Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                                        width: 4; color: parent.contextWallColor; opacity: 0.85
                                         visible: grid.ctx && root.selectedNumCampos >= 3 }
 
                             Text {
                                 anchors.centerIn: parent
-                                text: root.selectedNumCampos >= 3 ? LanguageManager.tr3("Campo 3", "Field 3", "Campo 3") : "—"
+                                text: root.selectedNumCampos >= 3 ? LanguageManager.tr3("Campo 3", "Field 3", "Campo 3") : "-"
                                 color: root.selectedNumCampos >= 3 ? "#7a3dab" : "#1a1a2e"
                                 font.pixelSize: Math.max(8, parent.width * 0.13)
                                 font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
+                            Text {
+                                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 8 }
+                                visible: grid.ctx && root.selectedNumCampos >= 3
+                                text: root.patternLabel(root.fieldPatterns[parent.fieldIndex])
+                                color: ThemeManager.textSecondary
+                                font.pixelSize: 9
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: root.selectedNumCampos >= 3 && !root.contextForced
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (root.selectedContext !== "Contextual") root.selectedContext = "Contextual"
+                                    root.openPatternPicker(parent.fieldIndex, parent)
+                                }
+                            }
                         }
 
-                        // Célula inferior-dir: sempre inativa
+                        // CÃ©lula inferior-dir: sempre inativa
                         Rectangle {
                             x: grid.cellW + 6; y: grid.cellH + 6
                             width: grid.cellW; height: grid.cellH
                             radius: 6; color: "#0a0a18"
                             border.color: "#1a1a2e"; border.width: 1
                             Text {
-                                anchors.centerIn: parent; text: "—"; color: "#1a1a2e"
+                                anchors.centerIn: parent; text: "-"; color: "#1a1a2e"
                                 font.pixelSize: Math.max(10, parent.width * 0.15); font.weight: Font.Bold
                             }
                         }
                     }
 
-                    // Vista retangular — 1 campo (estilo EI adaptado)
+                    // Vista retangular â€” 1 campo (estilo EI adaptado)
                     Item {
                         anchors { fill: parent; margins: 8 }
                         opacity: root.selectedNumCampos === 1 ? 1 : 0
@@ -243,13 +353,13 @@ Item {
                 }
             }
 
-            // ── Painel de opções ─────────────────────────────────────────
+            // â”€â”€ Painel de opÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             ColumnLayout {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 280
                 spacing: 24
 
-                // ── Número de campos ──────────────────────────────────────
+                // â”€â”€ NÃºmero de campos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -297,7 +407,7 @@ Item {
                     }
                 }
 
-                // ── Contexto ──────────────────────────────────────────────
+                // â”€â”€ Contexto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -322,7 +432,7 @@ Item {
 
                     Repeater {
                         model: [
-                            { ctx: "Padrão",     label: LanguageManager.tr3("Sem Contexto", "No Context", "Sin Contexto"),  desc: LanguageManager.tr3("Paredes uniformes - arena neutra.", "Uniform walls - neutral arena.", "Paredes uniformes - arena neutra.") },
+                            { ctx: "PadrÃ£o",     label: LanguageManager.tr3("Sem Contexto", "No Context", "Sin Contexto"),  desc: LanguageManager.tr3("Paredes uniformes - arena neutra.", "Uniform walls - neutral arena.", "Paredes uniformes - arena neutra.") },
                             { ctx: "Contextual", label: LanguageManager.tr3("Com Contexto", "With Context", "Con Contexto"),  desc: LanguageManager.tr3("Paredes coloridas - pistas visuais distintas.", "Colored walls - distinct visual cues.", "Paredes coloreadas - pistas visuales distintas.") }
                         ]
                         delegate: Rectangle {
@@ -365,7 +475,7 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // ── Rodapé ────────────────────────────────────────────────────────
+        // â”€â”€ RodapÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
@@ -373,7 +483,7 @@ Item {
 
             Button {
                 text: LanguageManager.tr3("Proximo ->", "Next ->", "Siguiente ->")
-                onClicked: root.selectionConfirmed(root.selectedNumCampos, root.selectedContext, root.selectedArenaId)
+                onClicked: root.selectionConfirmed(root.selectedNumCampos, root.selectedContext, root.selectedArenaId, root.fieldPatterns.slice(0, root.selectedNumCampos))
 
                 background: Rectangle {
                     radius: 8
@@ -391,4 +501,57 @@ Item {
 
         Item { Layout.minimumHeight: 4 }
     }
+
+    Popup {
+        id: patternPopup
+        modal: false
+        focus: true
+        width: 230
+        height: patternList.implicitHeight + 16
+        padding: 8
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            radius: 10
+            color: ThemeManager.surface
+            border.color: "#7a3dab"
+            border.width: 1
+        }
+        ListView {
+            id: patternList
+            anchors.fill: parent
+            clip: true
+            model: root.patternOptions
+            implicitHeight: contentHeight
+            interactive: false
+            delegate: Rectangle {
+                width: patternList.width
+                height: 30
+                radius: 6
+                property bool isSelected: root.editingFieldIdx >= 0
+                                          && root.fieldPatterns[root.editingFieldIdx] === modelData.key
+                color: isSelected ? ThemeManager.accentDim : (pm.containsMouse ? ThemeManager.surfaceHover : "transparent")
+                Text {
+                    anchors.centerIn: parent
+                    text: modelData.label
+                    color: ThemeManager.textPrimary
+                    font.pixelSize: 12
+                }
+                MouseArea {
+                    id: pm
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.editingFieldIdx >= 0) {
+                            var arr = root.fieldPatterns.slice()
+                            arr[root.editingFieldIdx] = modelData.key
+                            root.fieldPatterns = arr
+                        }
+                        patternPopup.close()
+                    }
+                }
+            }
+        }
+    }
 }
+

@@ -16,6 +16,7 @@ Item {
     property int    numCampos: 3
     property string context:   ""
     property string arenaId:   ""
+    property var    contextPatterns: []
     property string selectedPath: ""
 
     // name, cols, includeDrug, responsavel, dayNames, savePath
@@ -77,6 +78,7 @@ Item {
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
+            LanguageManager.tr3("Contexto", "Context", "Contexto"),
             LanguageManager.tr3("Tempo no Centro (s)", "Time in Center (s)", "Tiempo en Centro (s)"),
             LanguageManager.tr3("Tempo na Borda (s)", "Time at Border (s)", "Tiempo en Borde (s)"),
             LanguageManager.tr3("Visitas ao Centro", "Center Visits", "Visitas al Centro"),

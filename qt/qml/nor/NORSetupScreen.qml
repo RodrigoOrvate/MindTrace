@@ -16,6 +16,7 @@ Item {
 
     property string context:   ""
     property string arenaId:   ""
+    property var    contextPatterns: []
     property int    numCampos: 3
 
     // name, cols, par por campo, flag droga, responsavel, dayNames, savePath
@@ -90,6 +91,7 @@ Item {
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
+            LanguageManager.tr3("Contexto", "Context", "Contexto"),
             LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
             LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
             LanguageManager.tr3("Bouts Obj1", "Obj1 Bouts", "Bouts Obj1"),

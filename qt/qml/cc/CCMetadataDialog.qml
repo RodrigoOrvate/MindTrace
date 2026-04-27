@@ -19,6 +19,7 @@ Popup {
     property string videoPath:       ""
     property int    numCampos:       3
     property bool   includeDrug:     true
+    property var    contextPatterns: []
 
     // Resultados da sessão (vindos do LiveRecording)
     property var totalDistance: [0.0, 0.0, 0.0]
@@ -55,6 +56,16 @@ Popup {
         return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
     }
 
+    function contextDisplayName(patternKey) {
+        var key = String(patternKey || "").toLowerCase().trim()
+        if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
+        if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
+        if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
+        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
+        return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
+    }
+
     // ── Geometria ─────────────────────────────────────────────────────────
     anchors.centerIn: parent
     width:  540
@@ -86,11 +97,13 @@ Popup {
         var v    = root.videoPath.replace("file:///", "")
         var fase = dayCombo.currentText
         var dia  = String(dayCombo.currentIndex + 1)
+        var includeContext = root.contextPatterns && root.contextPatterns.length > 0
 
         var rows = []
         for (var ci = 0; ci < root.numCampos; ci++) {
             var aText = root._animalTexts[ci] || ""
             if (!aText) continue
+            var contexto = root.contextDisplayName(root.contextPatterns[ci] || "")
             var bc = root.behaviorCounts[ci] || {}
             var cWalk  = bc["Walking"] || 0
             var cSniff = bc["Sniffing"] || 0
@@ -98,11 +111,9 @@ Popup {
             var cRest  = bc["Resting"] || 0
             var cRear  = bc["Rearing"] || 0
 
-            var row = [
-                v,
-                aText,
-                String(ci + 1),
-                dia,
+            var row = [v, aText, String(ci + 1), dia]
+            if (includeContext) row.push(contexto)
+            row.push(
                 String(root.sessionMinutes),
                 parseFloat((root.totalDistance[ci] || 0).toFixed(3)),
                 parseFloat((root.avgVelocity[ci]   || 0).toFixed(3)),
@@ -111,7 +122,7 @@ Popup {
                 String(cGroom),
                 String(cRest),
                 String(cRear)
-            ]
+            )
             if (root.includeDrug) row.push(root._drogaTexts[ci] || "")
             rows.push(row)
         }
@@ -133,6 +144,7 @@ Popup {
             sessionMeta["campos"].push({
                 "animal": a,
                 "campo":  cj + 1,
+                "contexto": root.contextDisplayName(root.contextPatterns[cj] || ""),
                 "droga":  root.includeDrug ? (root._drogaTexts[cj] || "") : "",
                 "movimento": {
                     "distancia_total_m":   parseFloat((root.totalDistance[cj] || 0).toFixed(3)),
@@ -162,6 +174,7 @@ Popup {
                 day_index: parseInt(dia, 10),
                 experiment_name: root.experimentName,
                 field: ck + 1,
+                context: root.contextDisplayName(root.contextPatterns[ck] || ""),
                 treatment: root.includeDrug ? (root._drogaTexts[ck] || "") : "",
                 session_minutes: root.sessionMinutes,
                 distance_m:      dist,
@@ -453,4 +466,3 @@ Popup {
         }
     }
 }
-

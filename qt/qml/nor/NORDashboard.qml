@@ -14,6 +14,7 @@ Item {
     
     property string context:   ""
     property string arenaId:   ""
+    property var    contextPatterns: []
     property int    numCampos: 3
     property bool   searchMode: false
 
@@ -329,6 +330,7 @@ Item {
                 property string pair1:       ""
                 property string pair2:       ""
                 property string pair3:       ""
+                property var    contextPatterns: root.contextPatterns
                 property bool   includeDrug: true
                 property bool   hasReactivation: false
                 property var    dayNames:        []
@@ -357,6 +359,7 @@ Item {
                     // Carrega metadata primeiro para saber o CONTEXTO real
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx = meta.context || ""
+                    root.context = ctx
 
                     // Define o contexto ativo (usado pelo tracker/sessions)
                     // Se estivermos em searchMode, a sidebar NÃO será limpa (graças ao m_inSearchMode no C++)
@@ -365,6 +368,7 @@ Item {
                     pair1          = meta.pair1 || ""
                     pair2          = meta.pair2 || ""
                     pair3          = meta.pair3 || ""
+                    contextPatterns = meta.contextPatterns || []
                     includeDrug     = meta.includeDrug !== false
                     hasReactivation = meta.hasReactivation === true
                     dayNames        = meta.dayNames || (meta.hasReactivation
@@ -484,6 +488,7 @@ Item {
                                 id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
                                 context: root.context
+                                contextPatterns: workArea.contextPatterns
 
                                 pair1: workArea.pair1
                                 pair2: workArea.pair2
@@ -513,6 +518,8 @@ Item {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                context: root.context
+                                contextPatterns: workArea.contextPatterns
                                 saveDirectory: workArea.saveDirectory
                                 liveOutputName: tabArenaSetup.liveOutputName
                                 cameraId:     workArea.cameraId
@@ -673,12 +680,12 @@ Item {
                         // Colunas padrão NOR (sem droga por simplicidade neste atalho)
                         ExperimentManager.createExperimentWithConfig(
                             createNameField.text.trim(), 0,
-                            [LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
-                             LanguageManager.tr3("Animal", "Animal", "Animal"),
-                             LanguageManager.tr3("Campo", "Field", "Campo"),
-                             LanguageManager.tr3("Dia", "Day", "Dia"),
-                             LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
-                             LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
+                             [LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+                              LanguageManager.tr3("Animal", "Animal", "Animal"),
+                              LanguageManager.tr3("Campo", "Field", "Campo"),
+                              LanguageManager.tr3("Dia", "Day", "Dia"),
+                              LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
+                              LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
                              LanguageManager.tr3("Bouts Obj1", "Obj1 Bouts", "Bouts Obj1"),
                              LanguageManager.tr3("Exploracao Obj2 (s)", "Obj2 Exploration (s)", "Exploracion Obj2 (s)"),
                              LanguageManager.tr3("Bouts Obj2", "Obj2 Bouts", "Bouts Obj2"),
@@ -865,6 +872,7 @@ Item {
         pair1:            workArea.pair1
         pair2:            workArea.pair2
         pair3:            workArea.pair3
+        contextPatterns:  workArea.contextPatterns
         hasReactivation:  workArea.hasReactivation
         dayNames:         workArea.dayNames
         includeDrug:      workArea.includeDrug

@@ -20,6 +20,7 @@ Item {
 
     property string context:   ""
     property string arenaId:   ""
+    property var    contextPatterns: []
     property int    numCampos: 3
     property bool   searchMode: false
     property int    currentTabIndex: 0
@@ -1456,6 +1457,7 @@ Item {
                 property string cameraId:         ""
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
+                property var    contextPatterns:  root.contextPatterns
                 property var    dayNames:         []
 
                 function loadExperiment(name, path) {
@@ -1466,10 +1468,12 @@ Item {
 
                     var meta = ExperimentManager.readMetadataFromPath(path)
                     var ctx  = meta.context || ""
+                    root.context = ctx
                     ExperimentManager.setActiveContext(ctx)
 
                     includeDrug     = meta.includeDrug !== false
                     hasObjectZones  = meta.hasObjectZones !== false
+                    contextPatterns = meta.contextPatterns || []
                     activeNumCampos = meta.numCampos || root.numCampos
                     sessionMinutes  = meta.sessionMinutes || 5
                     dayNames        = meta.dayNames || Array.from({length: meta.sessionDays || 5}, function(_, i) { return LanguageManager.tr3("Day ", "Day ", "Dia ") + (i+1) })
@@ -1615,6 +1619,7 @@ Item {
                                     visible: workArea.activeNumCampos > 1
                                     experimentPath: workArea.activeNumCampos > 1 ? workArea.selectedPath : ""
                                     context: root.context
+                                    contextPatterns: workArea.contextPatterns
                                     numCampos: workArea.activeNumCampos
                                     aparato: "comportamento_complexo"
                                     caMode: true
@@ -1662,6 +1667,8 @@ Item {
                                 id: liveRecordingTab
                                 videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                context: root.context
+                                contextPatterns: workArea.contextPatterns
                                 saveDirectory: workArea.saveDirectory || ""
                                 liveOutputName: (workArea.activeNumCampos === 1 ? eiArenaSetupCC.liveOutputName : tabArenaSetup.liveOutputName) || ""
                                 cameraId:     workArea.cameraId
@@ -1692,6 +1699,7 @@ Item {
                                     ccResultDialog.avgVelocity    = liveRecordingTab.avgVelocityMeans
                                     ccResultDialog.perMinuteData  = liveRecordingTab.perMinuteData
                                     ccResultDialog.behaviorCounts = liveRecordingTab.behaviorCounts
+                                    ccResultDialog.contextPatterns = workArea.contextPatterns
                                     ccResultDialog.includeDrug    = workArea.includeDrug
                                     ccResultDialog.experimentName = workArea.selectedName
                                     ccResultDialog.experimentPath = workArea.selectedPath
@@ -3251,6 +3259,7 @@ Item {
         id: ccResultDialog
         parent: Overlay.overlay
         anchors.centerIn: parent
+        contextPatterns: workArea.contextPatterns
     }
 
     // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€

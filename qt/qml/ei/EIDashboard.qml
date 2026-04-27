@@ -455,6 +455,7 @@ Item {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
                                 analysisMode: workArea.analysisMode
+                                context: root.context
                                 saveDirectory: workArea.saveDirectory
                                 liveOutputName: tabArenaSetup.liveOutputName
                                 cameraId:     workArea.cameraId

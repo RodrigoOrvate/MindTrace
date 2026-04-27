@@ -19,6 +19,7 @@ Popup {
     property bool   includeDrug:     true
     property bool   hasReactivation: false
     property var    dayNames:        []
+    property var    contextPatterns: []
 
     property var totalDistance: [0.0, 0.0, 0.0]
     property var avgVelocity:   [0.0, 0.0, 0.0]
@@ -53,6 +54,16 @@ Popup {
         return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
     }
 
+    function contextDisplayName(patternKey) {
+        var key = String(patternKey || "").toLowerCase().trim()
+        if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
+        if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
+        if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
+        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
+        return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
+    }
+
     anchors.centerIn: parent
     width:  540
     height: mainLayout.implicitHeight + 48
@@ -78,11 +89,13 @@ Popup {
         var v    = root.videoPath.replace("file:///", "")
         var fase = dayCombo.currentText
         var dia  = String(dayCombo.currentIndex + 1)
+        var includeContext = root.contextPatterns && root.contextPatterns.length > 0
 
         var rows = []
         for (var ci = 0; ci < root.numCampos; ci++) {
             var aText = root._animalTexts[ci] || ""
             if (!aText) continue
+            var contexto = root.contextDisplayName(root.contextPatterns[ci] || "")
             var tCentro = 0, tBorda = 0, vCentro = 0
             if (root.explorationTimes.length >= (ci + 1) * 2) {
                 tCentro = parseFloat(root.explorationTimes[ci * 2]) || 0
@@ -95,9 +108,10 @@ Popup {
             var distReal = parseFloat(root.totalDistance[ci]) || 0.0
             var vMedia   = tTotal > 0.5 ? (distReal / tTotal) : 0.0
 
-            var row = [v, aText, String(ci + 1), dia,
-                       tCentro.toFixed(2), tBorda.toFixed(2),
-                       String(vCentro), distReal.toFixed(3), vMedia.toFixed(3)]
+            var row = [v, aText, String(ci + 1), dia]
+            if (includeContext) row.push(contexto)
+            row.push(tCentro.toFixed(2), tBorda.toFixed(2),
+                     String(vCentro), distReal.toFixed(3), vMedia.toFixed(3))
             if (root.includeDrug) row.push(root._drogaTexts[ci] || "")
             rows.push(row)
         }
@@ -123,6 +137,7 @@ Popup {
             var distRealJ = parseFloat(root.totalDistance[cj]) || 0.0
             sessionMeta["campos"].push({
                 "animal": a, "campo": cj + 1,
+                "contexto": root.contextDisplayName(root.contextPatterns[cj] || ""),
                 "droga": root.includeDrug ? (root._drogaTexts[cj] || "") : "",
                 "movimento": {
                     "tempo_centro_s": tCentroJ, "tempo_borda_s": tBordaJ,
@@ -159,6 +174,7 @@ Popup {
                 day_index: parseInt(dia, 10),
                 experiment_name: root.experimentName,
                 field: ck + 1,
+                context: root.contextDisplayName(root.contextPatterns[ck] || ""),
                 treatment: root.includeDrug ? (root._drogaTexts[ck] || "") : "",
                 tempo_centro_s:    parseFloat(tCk.toFixed(2)),
                 tempo_borda_s:     parseFloat(tBk.toFixed(2)),

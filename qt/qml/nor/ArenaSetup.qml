@@ -18,6 +18,7 @@ Item {
 
     property string experimentPath: ""
     property string context: ""
+    property var    contextPatterns: []
     property string pair1: ""
     property string pair2: ""
     property string pair3: ""
@@ -201,8 +202,10 @@ Item {
     property real centroRatio: 0.5
 
     function zoneIdsForPair(pair) {
-        if (!pair || pair.length < 2) return ["—", "—"]
-        var a = pair[0], b = pair[1]
+        if (!pair || pair.length < 1) return ["—", "—"]
+        var a = pair[0]
+        if (pair.length === 1) return ["OBJ" + a, null]
+        var b = pair[1]
         if (a === b) return ["OBJ" + a, "OBJ" + a + "1"]
         return ["OBJ" + a, "OBJ" + b]
     }
@@ -275,6 +278,9 @@ Item {
                 
                 // Puxa o raio matemático automático baseado na letra
                 var dynamicRadius = root.getRadiusForObject(objId)
+
+                // Par único (1 objeto): desativa zona B para que o tracking nunca dispare
+                if (i % 2 === 1 && campoPair.length === 1) dynamicRadius = 0
 
                 if (i < n) {
                     var z = ArenaConfigModel.zone(i)
@@ -1334,6 +1340,87 @@ Item {
                                             ctx.closePath(); ctx.fillStyle=f; ctx.fill()
                                             ctx.lineWidth=1; ctx.strokeStyle=s; ctx.stroke()
                                         }
+                                        function polyPath(pts){
+                                            ctx.beginPath()
+                                            ctx.moveTo(pts[0].x, pts[0].y)
+                                            for (var t = 1; t < pts.length; t++) ctx.lineTo(pts[t].x, pts[t].y)
+                                            ctx.closePath()
+                                        }
+                                        function fieldPatternStyle(fieldIdx){
+                                            var p = (root.contextPatterns && root.contextPatterns.length > fieldIdx)
+                                                    ? String(root.contextPatterns[fieldIdx] || "")
+                                                    : ""
+                                            if (p !== "") return p
+                                            if (fieldIdx % 3 === 0) return "horizontal"
+                                            if (fieldIdx % 3 === 1) return "vertical"
+                                            return "dots"
+                                        }
+                                        function hatchWall(pts, style, strokeColor, spacing){
+                                            var minX = pts[0].x, maxX = pts[0].x
+                                            var minY = pts[0].y, maxY = pts[0].y
+                                            for (var m = 1; m < pts.length; m++) {
+                                                minX = Math.min(minX, pts[m].x); maxX = Math.max(maxX, pts[m].x)
+                                                minY = Math.min(minY, pts[m].y); maxY = Math.max(maxY, pts[m].y)
+                                            }
+                                            ctx.save()
+                                            polyPath(pts)
+                                            ctx.clip()
+                                            ctx.strokeStyle = strokeColor
+                                            ctx.lineWidth = 1
+                                            if (style === "horizontal") {
+                                                for (var y = minY - spacing; y <= maxY + spacing; y += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(minX - 12, y)
+                                                    ctx.lineTo(maxX + 12, y)
+                                                    ctx.stroke()
+                                                }
+                                            } else if (style === "vertical") {
+                                                for (var x = minX - spacing; x <= maxX + spacing; x += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(x, minY - 12)
+                                                    ctx.lineTo(x, maxY + 12)
+                                                    ctx.stroke()
+                                                }
+                                            } else if (style === "dots") {
+                                                for (var dy = minY; dy <= maxY; dy += spacing) {
+                                                    for (var dx = minX; dx <= maxX; dx += spacing) {
+                                                        ctx.beginPath()
+                                                        ctx.arc(dx, dy, 1.2, 0, Math.PI * 2)
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fill()
+                                                    }
+                                                }
+                                            } else if (style === "triangles") {
+                                                var tri = 5
+                                                for (var ty = minY; ty <= maxY; ty += spacing) {
+                                                    for (var tx = minX; tx <= maxX; tx += spacing) {
+                                                        ctx.beginPath()
+                                                        ctx.moveTo(tx, ty - tri * 0.8)
+                                                        ctx.lineTo(tx - tri * 0.8, ty + tri * 0.8)
+                                                        ctx.lineTo(tx + tri * 0.8, ty + tri * 0.8)
+                                                        ctx.closePath()
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fill()
+                                                    }
+                                                }
+                                            } else if (style === "squares") {
+                                                for (var sy = minY; sy <= maxY; sy += spacing) {
+                                                    for (var sx = minX; sx <= maxX; sx += spacing) {
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fillRect(sx - 1.6, sy - 1.6, 3.2, 3.2)
+                                                    }
+                                                }
+                                            } else {
+                                                var spanY = (maxY - minY) + 24
+                                                for (var d = minX - spanY; d <= maxX + spanY; d += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(d, minY - 12)
+                                                    ctx.lineTo(d + spanY, maxY + 12)
+                                                    ctx.stroke()
+                                                }
+                                            }
+                                            ctx.restore()
+                                        }
 
                                         if (root.caMode) {
                                             // --- MODO CA / CC ---
@@ -1384,6 +1471,22 @@ Item {
                                             ctx.fillText(LanguageManager.tr3("Parede", "Wall", "Pared"), (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
                                         }
 
+                                        // Dica visual de contexto: padrão igual nas 4 paredes do campo, variando por campo.
+                                        if (root.context === "Contextual" && ci < root.numCampos) {
+                                            var wallTop = [oTL,oTR,iTR,iTL]
+                                            var wallBottom = [iBL,iBR,oBR,oBL]
+                                            var wallLeft = [oTL,iTL,iBL,oBL]
+                                            var wallRight = [iTR,oTR,oBR,iBR]
+                                            var patt = fieldPatternStyle(ci)
+                                            var color = ci % 3 === 0 ? "rgba(255,120,120,0.45)"
+                                                      : ci % 3 === 1 ? "rgba(120,200,255,0.45)"
+                                                                     : "rgba(180,255,120,0.42)"
+                                            hatchWall(wallTop, patt, color, 8)
+                                            hatchWall(wallBottom, patt, color, 8)
+                                            hatchWall(wallLeft, patt, color, 8)
+                                            hatchWall(wallRight, patt, color, 8)
+                                        }
+
                                         // Borda da arena total
                                         ctx.strokeStyle="rgba(255,170,0,0.8)"; ctx.lineWidth=2
                                         ctx.beginPath(); ctx.moveTo(oTL.x,oTL.y)
@@ -1423,7 +1526,7 @@ Item {
                                 // ── Zona B (azul) ─────────────────────────────
                                 Rectangle {
                                     id: zoneB
-                                    visible: (!root.caMode || root.ccMode) && root.showObjectZones
+                                    visible: (!root.caMode || root.ccMode) && root.showObjectZones && campoCell.campoIds[1] !== null
                                     property var zd: root.zones[campoCell.campoIndex * 2 + 1]
                                     width:  arenaRect.width  * zd.r * 2
                                     height: width; radius: width / 2
@@ -1774,7 +1877,7 @@ Item {
     Popup {
         id: editPairsPopup
         anchors.centerIn: parent
-        width: 340; height: 286
+        width: 340; height: 310
         modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         
@@ -1801,6 +1904,11 @@ Item {
                 font.pixelSize: 15; font.weight: Font.Bold
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.borderLight; Behavior on color { ColorAnimation { duration: 200 } } }
+            Text {
+                Layout.fillWidth: true
+                text: LanguageManager.tr3("1 letra = 1 objeto (Reminder). 2 letras = par normal.", "1 letter = 1 object (Reminder). 2 letters = normal pair.", "1 letra = 1 objeto (Reminder). 2 letras = par normal.")
+                color: ThemeManager.textTertiary; font.pixelSize: 10; wrapMode: Text.WordWrap
+            }
 
             RowLayout {
                 spacing: 10

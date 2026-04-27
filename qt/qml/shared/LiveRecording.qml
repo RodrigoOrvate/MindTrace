@@ -19,6 +19,8 @@ Item {
     property string pair3: ""
     property string analysisMode: "offline"  // "offline" ou "ao_vivo"
     property string aparato:      "nor"
+    property string context:      ""
+    property var    contextPatterns: []
     property int    numCampos:    3           // 1, 2 ou 3 campos ativos
     property bool   ccMode:       false      // CC: usa canvas EI mas exibe apenas distância/velocidade/comportamentos
 
@@ -424,10 +426,11 @@ Item {
                         var ff = recordingRoot.fieldFinished.slice()
                         ff[i] = true
                         recordingRoot.fieldFinished = ff
+                        var rateField = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
                         for (var zf = 0; zf < 2; zf++) {
                             var ziField = i * 2 + zf
                             if (recordingRoot._inZone[ziField]) {
-                                var durField = (Date.now() - recordingRoot._entryTime[ziField]) / 1000.0
+                                var durField = (Date.now() - recordingRoot._entryTime[ziField]) / 1000.0 * rateField
                                 if (durField > 0.1) {
                                     var eb = recordingRoot.explorationBouts.slice()
                                     var ebz = eb[ziField] ? eb[ziField].slice() : []
@@ -610,7 +613,7 @@ Item {
 
     function accumulateExploration() {
         if (recordingRoot.aparato === "nor" && (!zones || zones.length < 6)) return
-        
+
         var ox    = [0,   0.5, 0  ]
         var oy    = [0,   0,   0.5]
         var cellW = 0.5
@@ -620,6 +623,8 @@ Item {
         var newBouts = []
         for (var i = 0; i < 6; i++) newBouts.push(explorationBouts[i].slice())
         var boutsChanged = false
+        // Em análise offline, cada tick de 100 ms wall-clock cobre (100 * rate) ms de vídeo
+        var rate = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
         for (var campo = 0; campo < 3; campo++) {
             if (recordingRoot.fieldFinished[campo]) continue
             var rx, ry, rli;
@@ -637,7 +642,7 @@ Item {
                 for (var ob2 = 0; ob2 < 2; ob2++) {
                     var zi2 = campo * 2 + ob2
                     if (_inZone[zi2]) {
-                        var dur2 = (now - _entryTime[zi2]) / 1000.0
+                        var dur2 = (now - _entryTime[zi2]) / 1000.0 * rate
                         if (dur2 > 0.1) { newBouts[zi2].push(parseFloat(dur2.toFixed(1))); boutsChanged = true }
                         _inZone[zi2] = false
                     }
@@ -668,10 +673,10 @@ Item {
                 for (var zca = 0; zca < 2; zca++) {
                     var ziCA = campo * 2 + zca
                     if (zonesCA[zca]) {
-                        newTimes[ziCA] += 0.1
+                        newTimes[ziCA] += 0.1 * rate
                         if (!_inZone[ziCA]) { _inZone[ziCA] = true; _entryTime[ziCA] = now }
                     } else if (_inZone[ziCA]) {
-                        var durCA = (now - _entryTime[ziCA]) / 1000.0
+                        var durCA = (now - _entryTime[ziCA]) / 1000.0 * rate
                         if (durCA > 0.1) { newBouts[ziCA].push(parseFloat(durCA.toFixed(1))); boutsChanged = true }
                         _inZone[ziCA] = false
                     }
@@ -698,7 +703,7 @@ Item {
                 for (var zia = 0; zia < 2; zia++) {
                     var ziA = campo * 2 + zia
                     if (zonesIA[zia]) {
-                        newTimes[ziA] += 0.1
+                        newTimes[ziA] += 0.1 * rate
                         if (!_inZone[ziA]) {
                             _inZone[ziA] = true
                             _entryTime[ziA] = now
@@ -709,7 +714,7 @@ Item {
                             }
                         }
                     } else if (_inZone[ziA]) {
-                        var durIA = (now - _entryTime[ziA]) / 1000.0
+                        var durIA = (now - _entryTime[ziA]) / 1000.0 * rate
                         if (durIA > 0.1) { newBouts[ziA].push(parseFloat(durIA.toFixed(1))); boutsChanged = true }
                         _inZone[ziA] = false
                     }
@@ -727,10 +732,10 @@ Item {
                     var dy   = ry - zy
                     var inZ  = (Math.sqrt(dx*dx + dy*dy) < zr)
                     if (inZ) {
-                        newTimes[zi] += 0.1
+                        newTimes[zi] += 0.1 * rate
                         if (!_inZone[zi]) { _inZone[zi] = true; _entryTime[zi] = now }
                     } else if (_inZone[zi]) {
-                        var dur = (now - _entryTime[zi]) / 1000.0
+                        var dur = (now - _entryTime[zi]) / 1000.0 * rate
                         if (dur > 0.1) { newBouts[zi].push(parseFloat(dur.toFixed(1))); boutsChanged = true }
                         _inZone[zi] = false
                     }
@@ -783,9 +788,10 @@ Item {
                 var dx   = (blx - prevX) * arenaWidthM
                 var dy   = (bly - prevY) * arenaHeightM
                 var dist = Math.sqrt(dx * dx + dy * dy)
-                var dt   = (now2 - prevT) / 1000.0
+                // dt em tempo de vídeo: wall-clock * playbackRate
+                var dt   = (now2 - prevT) / 1000.0 * rate
 
-                // Filtra saltos impossíveis (> 10 m/s = glitch de modelo ou pulo da GPU)
+                // Filtra saltos impossíveis (> 10 m/s de vídeo = glitch de modelo ou pulo da GPU)
                 if (dt > 0 && dist / dt < 10.0) {
                     newVel[ci]   = dist / dt
                     newDist[ci] += dist
@@ -834,7 +840,8 @@ Item {
     function currentBoutSec(zi) {
         var _t = recordingRoot._explorationTick
         if (!_inZone[zi]) return 0.0
-        return (Date.now() - _entryTime[zi]) / 1000.0
+        var rateDisp = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
+        return (Date.now() - _entryTime[zi]) / 1000.0 * rateDisp
     }
 
     // Índice de discriminação: (T_novo - T_familiar) / (T_novo + T_familiar)
@@ -1116,6 +1123,87 @@ Item {
                                             ctx.closePath(); ctx.fillStyle=f; ctx.fill()
                                             ctx.lineWidth=1; ctx.strokeStyle=s; ctx.stroke()
                                         }
+                                        function polyPath(pts){
+                                            ctx.beginPath()
+                                            ctx.moveTo(pts[0].x, pts[0].y)
+                                            for (var t = 1; t < pts.length; t++) ctx.lineTo(pts[t].x, pts[t].y)
+                                            ctx.closePath()
+                                        }
+                                        function fieldPatternStyle(fieldIdx){
+                                            var p = (recordingRoot.contextPatterns && recordingRoot.contextPatterns.length > fieldIdx)
+                                                    ? String(recordingRoot.contextPatterns[fieldIdx] || "")
+                                                    : ""
+                                            if (p !== "") return p
+                                            if (fieldIdx % 3 === 0) return "horizontal"
+                                            if (fieldIdx % 3 === 1) return "vertical"
+                                            return "dots"
+                                        }
+                                        function hatchWall(pts, style, strokeColor, spacing){
+                                            var minX = pts[0].x, maxX = pts[0].x
+                                            var minY = pts[0].y, maxY = pts[0].y
+                                            for (var m = 1; m < pts.length; m++) {
+                                                minX = Math.min(minX, pts[m].x); maxX = Math.max(maxX, pts[m].x)
+                                                minY = Math.min(minY, pts[m].y); maxY = Math.max(maxY, pts[m].y)
+                                            }
+                                            ctx.save()
+                                            polyPath(pts)
+                                            ctx.clip()
+                                            ctx.strokeStyle = strokeColor
+                                            ctx.lineWidth = 1
+                                            if (style === "horizontal") {
+                                                for (var y = minY - spacing; y <= maxY + spacing; y += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(minX - 12, y)
+                                                    ctx.lineTo(maxX + 12, y)
+                                                    ctx.stroke()
+                                                }
+                                            } else if (style === "vertical") {
+                                                for (var x = minX - spacing; x <= maxX + spacing; x += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(x, minY - 12)
+                                                    ctx.lineTo(x, maxY + 12)
+                                                    ctx.stroke()
+                                                }
+                                            } else if (style === "dots") {
+                                                for (var dy = minY; dy <= maxY; dy += spacing) {
+                                                    for (var dx = minX; dx <= maxX; dx += spacing) {
+                                                        ctx.beginPath()
+                                                        ctx.arc(dx, dy, 1.2, 0, Math.PI * 2)
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fill()
+                                                    }
+                                                }
+                                            } else if (style === "triangles") {
+                                                var tri = 5
+                                                for (var ty = minY; ty <= maxY; ty += spacing) {
+                                                    for (var tx = minX; tx <= maxX; tx += spacing) {
+                                                        ctx.beginPath()
+                                                        ctx.moveTo(tx, ty - tri * 0.8)
+                                                        ctx.lineTo(tx - tri * 0.8, ty + tri * 0.8)
+                                                        ctx.lineTo(tx + tri * 0.8, ty + tri * 0.8)
+                                                        ctx.closePath()
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fill()
+                                                    }
+                                                }
+                                            } else if (style === "squares") {
+                                                for (var sy = minY; sy <= maxY; sy += spacing) {
+                                                    for (var sx = minX; sx <= maxX; sx += spacing) {
+                                                        ctx.fillStyle = strokeColor
+                                                        ctx.fillRect(sx - 1.6, sy - 1.6, 3.2, 3.2)
+                                                    }
+                                                }
+                                            } else {
+                                                var spanY = (maxY - minY) + 24
+                                                for (var d = minX - spanY; d <= maxX + spanY; d += spacing) {
+                                                    ctx.beginPath()
+                                                    ctx.moveTo(d, minY - 12)
+                                                    ctx.lineTo(d + spanY, maxY + 12)
+                                                    ctx.stroke()
+                                                }
+                                            }
+                                            ctx.restore()
+                                        }
 
                                         if (recordingRoot.aparato === "esquiva_inibitoria") {
                                             // EI: desenha 4 paredes + Plataforma (0-3) + Grade (4-7)
@@ -1164,6 +1252,22 @@ Item {
                                         poly([iBL,iBR,oBR,oBL],"rgba(0,255,0,0.12)",  "rgba(0,255,0,0.5)")
                                         poly([oTL,iTL,iBL,oBL],"rgba(0,255,255,0.12)","rgba(0,255,255,0.5)")
                                         poly([iTR,oTR,oBR,iBR],"rgba(255,255,0,0.12)","rgba(255,255,0,0.5)")
+
+                                        if (recordingRoot.context === "Contextual" && ci < recordingRoot.numCampos) {
+                                            var wallTop = [oTL,oTR,iTR,iTL]
+                                            var wallBottom = [iBL,iBR,oBR,oBL]
+                                            var wallLeft = [oTL,iTL,iBL,oBL]
+                                            var wallRight = [iTR,oTR,oBR,iBR]
+                                            var patt = fieldPatternStyle(ci)
+                                            var color = ci % 3 === 0 ? "rgba(255,120,120,0.45)"
+                                                      : ci % 3 === 1 ? "rgba(120,200,255,0.45)"
+                                                                     : "rgba(180,255,120,0.42)"
+                                            hatchWall(wallTop, patt, color, 8)
+                                            hatchWall(wallBottom, patt, color, 8)
+                                            hatchWall(wallLeft, patt, color, 8)
+                                            hatchWall(wallRight, patt, color, 8)
+                                        }
+
                                         ctx.strokeStyle="rgba(255,170,0,0.8)"; ctx.lineWidth=2
                                         ctx.beginPath(); ctx.moveTo(oTL.x,oTL.y)
                                         ctx.lineTo(oTR.x,oTR.y); ctx.lineTo(oBR.x,oTR.y); ctx.lineTo(oBL.x,oTR.y)
@@ -1194,11 +1298,12 @@ Item {
                                     color: "#40ab3d4c"; border.width: 2
                                     opacity: 0.7
                                 }
-                                // Zona B (azul) - apenas quando há zonas configuradas
+                                // Zona B (azul) - apenas quando há zonas configuradas e par tem 2 objetos
                                 Rectangle {
                                     id: zoneB
                                     visible: recordingRoot.aparato === "nor"
-                                             ? (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
+                                             ? (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1
+                                                && recordingRoot.pairForCampo(campoCell.ci).length > 1)
                                              : (recordingRoot.aparato === "comportamento_complexo"
                                                 && recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
                                     property var zd: (recordingRoot.zones && recordingRoot.zones.length > campoCell.ci*2+1)
@@ -1687,11 +1792,12 @@ Item {
                                                 }
                                             }
 
-                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+                                            // OBJ B (novo) — oculto em modo 1 objeto
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; visible: pairStr.length > 1 }
 
-                                            // OBJ B (novo)
                                             RowLayout {
                                                 Layout.fillWidth: true; spacing: 5
+                                                visible: pairStr.length > 1
                                                 Rectangle { width: 8; height: 8; radius: 4; color: "#4466aa" }
                                                 Text { text: "OBJ " + campoCard.lb; color: "#5577bb"; font.pixelSize: 10; font.weight: Font.Bold }
                                                 Item { Layout.fillWidth: true }
@@ -1699,7 +1805,8 @@ Item {
                                             }
                                             // Bout live OBJ B
                                             Rectangle {
-                                                Layout.fillWidth: true; height: 18; radius: 4; visible: recordingRoot._inZone[campoCard.zi1]
+                                                Layout.fillWidth: true; height: 18; radius: 4
+                                                visible: pairStr.length > 1 && recordingRoot._inZone[campoCard.zi1]
                                                 color: ThemeManager.surfaceDim; border.color: ThemeManager.borderLight; border.width: 1
                                                 Text {
                                                     anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: 6 }
@@ -1708,12 +1815,13 @@ Item {
                                                 }
                                             }
 
-                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
+                                            // Discriminação (DI) — oculto em modo 1 objeto
+                                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; visible: pairStr.length > 1 }
 
-                                            // Discriminação (DI)
                                             Rectangle {
                                                 id: diBox
                                                 Layout.fillWidth: true; height: 26; radius: 4
+                                                visible: pairStr.length > 1
                                                 property real dv: recordingRoot.discriminationIndex(campoCard.ci)
                                                 color: ThemeManager.surfaceDim; border.color: isNaN(diBox.dv) ? ThemeManager.border : (diBox.dv > 0.199 ? ThemeManager.success : ThemeManager.accent); border.width: 1
                                                 RowLayout {

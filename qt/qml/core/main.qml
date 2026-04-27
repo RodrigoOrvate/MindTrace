@@ -34,6 +34,7 @@ ApplicationWindow {
     property string pendingContext:     ""
     property string pendingArenaId:     ""
     property int    pendingNorNumCampos: 3
+    property var    pendingNorContextPatterns: []
     property string pendingPair1:       ""
     property string pendingPair2:       ""
     property string pendingPair3:       ""
@@ -43,12 +44,14 @@ ApplicationWindow {
     property int    pendingCaNumCampos: 3
     property string pendingCaContext:   "Padrão"
     property string pendingCaArenaId:   "ca_3campos"
+    property var    pendingCaContextPatterns: []
     property bool   pendingCaFlow:      false   // distingue NOR vs CA no onExperimentCreated
 
     // ── Estado acumulado durante o fluxo de criação CC ──────────────────────────────────
     property int    pendingCcNumCampos:    3
     property string pendingCcContext:      "Padrão"
     property string pendingCcArenaId:      "cc_3campos"
+    property var    pendingCcContextPatterns: []
     property int    pendingCcSessionMin:   5
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
     property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
@@ -80,6 +83,15 @@ ApplicationWindow {
             // Persist day names into metadata.json
             if (root.pendingDayNames.length > 0)
                 ExperimentManager.updateDayNames(path, root.pendingDayNames)
+            if (root.pendingEiFlow) {
+                ExperimentManager.updateContextPatterns(path, [])
+            } else if (root.pendingCcFlow) {
+                ExperimentManager.updateContextPatterns(path, root.pendingCcContextPatterns || [])
+            } else if (root.pendingCaFlow) {
+                ExperimentManager.updateContextPatterns(path, root.pendingCaContextPatterns || [])
+            } else {
+                ExperimentManager.updateContextPatterns(path, root.pendingNorContextPatterns || [])
+            }
 
             // Pop back to HomeScreen (depth 2) so Back from dashboard lands there
             while (stack.depth > 2) stack.pop(StackView.Immediate)
@@ -95,6 +107,7 @@ ApplicationWindow {
                 stack.push(ccDashboardComponent, {
                     "context":               root.pendingCcContext,
                     "arenaId":               root.pendingCcArenaId,
+                    "contextPatterns":       root.pendingCcContextPatterns,
                     "numCampos":             root.pendingCcNumCampos,
                     "searchMode":            false,
                     "initialExperimentName": name
@@ -104,6 +117,7 @@ ApplicationWindow {
                 stack.push(caDashboardComponent, {
                     "context":               root.pendingCaContext,
                     "arenaId":               root.pendingCaArenaId,
+                    "contextPatterns":       root.pendingCaContextPatterns,
                     "numCampos":             root.pendingCaNumCampos,
                     "searchMode":            false,
                     "initialExperimentName": name
@@ -112,6 +126,7 @@ ApplicationWindow {
                 stack.push(dashboardComponent, {
                     "context":               root.pendingContext,
                     "arenaId":               root.pendingArenaId,
+                    "contextPatterns":       root.pendingNorContextPatterns,
                     "numCampos":             root.pendingNorNumCampos,
                     "searchMode":            false,
                     "currentTabIndex":       0,
@@ -219,13 +234,15 @@ ApplicationWindow {
     Component {
         id: arenaSelectionComponent
         ArenaSelection {
-            onSelectionConfirmed: function(numCampos, context, arenaId) {
+            onSelectionConfirmed: function(numCampos, context, arenaId, contextPatterns) {
                 root.pendingNorNumCampos = numCampos
                 root.pendingContext = context
                 root.pendingArenaId = arenaId
+                root.pendingNorContextPatterns = contextPatterns || []
                 stack.push(norSetupComponent, {
                     "context":   context,
                     "arenaId":   arenaId,
+                    "contextPatterns": contextPatterns || [],
                     "numCampos": numCampos
                 })
             }
@@ -267,14 +284,16 @@ ApplicationWindow {
     Component {
         id: caArenaSelectionComponent
         CAArenaSelection {
-            onSelectionConfirmed: function(numCampos, context, arenaId) {
+            onSelectionConfirmed: function(numCampos, context, arenaId, contextPatterns) {
                 root.pendingCaNumCampos = numCampos
                 root.pendingCaContext   = context
                 root.pendingCaArenaId   = arenaId
+                root.pendingCaContextPatterns = contextPatterns || []
                 stack.push(caSetupComponent, {
                     "numCampos": numCampos,
                     "context":   context,
-                    "arenaId":   arenaId
+                    "arenaId":   arenaId,
+                    "contextPatterns": contextPatterns || []
                 })
             }
             onBackRequested: stack.pop()
@@ -312,14 +331,16 @@ ApplicationWindow {
     Component {
         id: ccArenaSelectionComponent
         CCArenaSelection {
-            onSelectionConfirmed: function(numCampos, context, arenaId) {
+            onSelectionConfirmed: function(numCampos, context, arenaId, contextPatterns) {
                 root.pendingCcNumCampos = numCampos
                 root.pendingCcContext   = context
                 root.pendingCcArenaId   = arenaId
+                root.pendingCcContextPatterns = contextPatterns || []
                 stack.push(ccSetupComponent, {
                     "numCampos": numCampos,
                     "context":   context,
-                    "arenaId":   arenaId
+                    "arenaId":   arenaId,
+                    "contextPatterns": contextPatterns || []
                 })
             }
             onBackRequested: stack.pop()

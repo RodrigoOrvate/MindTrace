@@ -669,6 +669,7 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("responsible_username")] = QString();
     result[QStringLiteral("numCampos")]       = 3;
     result[QStringLiteral("centroRatio")]     = 0.5;
+    result[QStringLiteral("contextPatterns")] = QVariantList();
 
     QFile file(folderPath + QStringLiteral("/metadata.json"));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -704,6 +705,12 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
                                                 ? obj[QStringLiteral("sessionDays")].toInt(5)
                                                 : 5;
+    if (obj.contains(QStringLiteral("contextPatterns"))) {
+        QVariantList patterns;
+        const QJsonArray arr = obj[QStringLiteral("contextPatterns")].toArray();
+        for (const QJsonValue &v : arr) patterns.append(v.toString());
+        result[QStringLiteral("contextPatterns")] = patterns;
+    }
     if (obj.contains(QStringLiteral("dayNames"))) {
         const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
         QStringList names;
@@ -726,6 +733,7 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("responsible_username")] = QString();
     result[QStringLiteral("numCampos")]       = 3;
     result[QStringLiteral("centroRatio")]     = 0.5;
+    result[QStringLiteral("contextPatterns")] = QVariantList();
 
     const QString path = experimentPath(name.trimmed())
                          + QStringLiteral("/metadata.json");
@@ -763,6 +771,12 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     result[QStringLiteral("sessionDays")]    = obj.contains(QStringLiteral("sessionDays"))
                                                 ? obj[QStringLiteral("sessionDays")].toInt(5)
                                                 : 5;
+    if (obj.contains(QStringLiteral("contextPatterns"))) {
+        QVariantList patterns;
+        const QJsonArray arr = obj[QStringLiteral("contextPatterns")].toArray();
+        for (const QJsonValue &v : arr) patterns.append(v.toString());
+        result[QStringLiteral("contextPatterns")] = patterns;
+    }
     if (obj.contains(QStringLiteral("dayNames"))) {
         const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
         QStringList names;
@@ -1232,6 +1246,23 @@ bool ExperimentManager::updateDayNames(const QString &folderPath, const QStringL
     QJsonArray arr;
     for (const QString &n : dayNames) arr.append(n);
     meta[QStringLiteral("dayNames")] = arr;
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    file.write(QJsonDocument(meta).toJson(QJsonDocument::Indented));
+    return true;
+}
+
+bool ExperimentManager::updateContextPatterns(const QString &folderPath, const QVariantList &patterns)
+{
+    const QString metaPath = folderPath + QStringLiteral("/metadata.json");
+    QFile file(metaPath);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QJsonObject meta = QJsonDocument::fromJson(file.readAll()).object();
+    file.close();
+
+    QJsonArray arr;
+    for (const QVariant &p : patterns) arr.append(p.toString());
+    meta[QStringLiteral("contextPatterns")] = arr;
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
     file.write(QJsonDocument(meta).toJson(QJsonDocument::Indented));
