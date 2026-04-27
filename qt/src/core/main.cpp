@@ -18,12 +18,16 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
+#include <QMutex>
+#include <QMutexLocker>
 
 // Redireciona todos os logs do Qt para um arquivo ao lado do exe
 static QFile *g_logFile = nullptr;
+static QMutex g_logMutex;
 static void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
 {
     Q_UNUSED(ctx)
+    QMutexLocker lock(&g_logMutex);
     if (!g_logFile || !g_logFile->isOpen()) return;
     QTextStream out(g_logFile);
     const char *level = "DEBUG";

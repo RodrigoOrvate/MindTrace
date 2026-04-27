@@ -9,6 +9,8 @@
 #include <atomic>
 #include <vector>
 #include <cstring>
+#include <climits>
+#include <cstdlib>
 #include <QDebug>
 #include <QByteArray>
 
@@ -207,7 +209,10 @@ static IAMCrossbar* tryFindCrossbar(ICaptureGraphBuilder2* builder, IBaseFilter*
     return nullptr;
 }
 
-static void tryConfigureAnalogTvStandard(ICaptureGraphBuilder2* builder, IBaseFilter* capFilter)
+static void tryConfigureAnalogTvStandard(ICaptureGraphBuilder2* builder,
+                                         IBaseFilter* capFilter,
+                                         const QString& cameraName,
+                                         const QString& preferredTvStandard)
 {
     if (!capFilter) return;
 
@@ -225,21 +230,162 @@ static void tryConfigureAnalogTvStandard(ICaptureGraphBuilder2* builder, IBaseFi
 
     long available = 0;
     if (SUCCEEDED(decoder->get_AvailableTVFormats(&available)) && available != 0) {
-        const long preferred[] = {
-            AnalogVideo_PAL_M,
-            AnalogVideo_NTSC_M,
-            AnalogVideo_PAL_N,
-            AnalogVideo_PAL_B,
-            AnalogVideo_PAL_G
+        const QString camLower = cameraName.trimmed().toLower();
+        const bool isHauppauge = camLower.contains("hauppauge") || camLower.contains("hvr");
+
+        const auto trySetStandard = [decoder, available](long stdFmt, const char* label) -> bool {
+            if ((available & stdFmt) == 0)
+                return false;
+            const HRESULT hr = decoder->put_TVFormat(stdFmt);
+            qDebug() << "[DShow] TV standard tentativa:" << label
+                     << "available=" << ((available & stdFmt) != 0)
+                     << "hr=" << Qt::hex << static_cast<uint>(hr);
+            return SUCCEEDED(hr);
         };
-        for (long stdFmt : preferred) {
-            if (available & stdFmt) {
-                decoder->put_TVFormat(stdFmt);
-                break;
-            }
+
+        const QString forcedTv = preferredTvStandard.trimmed().toUpper();
+        const auto tryForcedFromToken = [&](const QString& token) -> bool {
+            if (token == "NTSC" || token == "NTSC_M")
+                return trySetStandard(AnalogVideo_NTSC_M, "NTSC_M");
+            if (token == "PAL_M")
+                return trySetStandard(AnalogVideo_PAL_M, "PAL_M");
+            if (token == "PAL_N")
+                return trySetStandard(AnalogVideo_PAL_N, "PAL_N");
+            if (token == "PAL_B")
+                return trySetStandard(AnalogVideo_PAL_B, "PAL_B");
+            if (token == "PAL_G")
+                return trySetStandard(AnalogVideo_PAL_G, "PAL_G");
+            return false;
+        };
+
+        bool setOk = false;
+        if (!forcedTv.isEmpty() && forcedTv != "AUTO")
+            setOk = tryForcedFromToken(forcedTv);
+        if (!setOk && isHauppauge) {
+            // Hauppauge USB2 cards frequently lock on static/noise if PAL is selected on NTSC input.
+            setOk = trySetStandard(AnalogVideo_NTSC_M, "NTSC_M");
+        }
+        if (!setOk) {
+            const long preferred[] = {
+                AnalogVideo_PAL_M,
+                AnalogVideo_NTSC_M,
+                AnalogVideo_PAL_N,
+                AnalogVideo_PAL_B,
+                AnalogVideo_PAL_G
+            };
+            const char* labels[] = { "PAL_M", "NTSC_M", "PAL_N", "PAL_B", "PAL_G" };
+            for (int i = 0; i < 5 && !setOk; ++i)
+                setOk = trySetStandard(preferred[i], labels[i]);
+        }
+
+        long active = 0;
+        if (SUCCEEDED(decoder->get_TVFormat(&active))) {
+            qDebug() << "[DShow] TV standard ativo(Data1)=" << Qt::hex << static_cast<uint>(active);
         }
     }
     decoder->Release();
+}
+
+static void freeMediaType(AM_MEDIA_TYPE* mt)
+{
+    if (!mt) return;
+    if (mt->cbFormat != 0 && mt->pbFormat) {
+        CoTaskMemFree(mt->pbFormat);
+        mt->cbFormat = 0;
+        mt->pbFormat = nullptr;
+    }
+    if (mt->pUnk) {
+        mt->pUnk->Release();
+        mt->pUnk = nullptr;
+    }
+    CoTaskMemFree(mt);
+}
+
+static bool tryForcePreferredCaptureSubtype(ICaptureGraphBuilder2* builder, IBaseFilter* capFilter)
+{
+    if (!builder || !capFilter)
+        return false;
+
+    IAMStreamConfig* streamConfig = nullptr;
+    HRESULT hr = builder->FindInterface(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video, capFilter,
+                                        IID_IAMStreamConfig, reinterpret_cast<void**>(&streamConfig));
+    if (FAILED(hr) || !streamConfig) {
+        hr = builder->FindInterface(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video, capFilter,
+                                    IID_IAMStreamConfig, reinterpret_cast<void**>(&streamConfig));
+    }
+    if (FAILED(hr) || !streamConfig) {
+        qDebug() << "[DShow] StreamConfig indisponivel (capture/preview).";
+        return false;
+    }
+
+    int count = 0;
+    int capSize = 0;
+    if (FAILED(streamConfig->GetNumberOfCapabilities(&count, &capSize)) || count <= 0 || capSize <= 0) {
+        qDebug() << "[DShow] StreamConfig sem capabilities validas.";
+        streamConfig->Release();
+        return false;
+    }
+
+    int bestIndex = -1;
+    int bestScore = INT_MIN;
+    AM_MEDIA_TYPE* bestType = nullptr;
+    std::vector<BYTE> caps(static_cast<size_t>(capSize));
+    for (int i = 0; i < count; ++i) {
+        AM_MEDIA_TYPE* mt = nullptr;
+        if (FAILED(streamConfig->GetStreamCaps(i, &mt, caps.data())) || !mt)
+            continue;
+        if (!IsEqualGUID(mt->majortype, MEDIATYPE_Video)) {
+            freeMediaType(mt);
+            continue;
+        }
+
+        int score = -1000;
+        if (IsEqualGUID(mt->subtype, MEDIASUBTYPE_YUY2))      score = 100;
+        else if (IsEqualGUID(mt->subtype, MEDIASUBTYPE_UYVY)) score = 90;
+        else if (IsEqualGUID(mt->subtype, MEDIASUBTYPE_NV12)) score = 80;
+        else if (guidToFourCC(mt->subtype) == "YV12"
+                 || guidToFourCC(mt->subtype) == "I420"
+                 || guidToFourCC(mt->subtype) == "IYUV")      score = 70;
+        else if (guidToFourCC(mt->subtype) == "MJPG")         score = 60;
+
+        int w = 0;
+        int h = 0;
+        if (mt->formattype == FORMAT_VideoInfo && mt->pbFormat && mt->cbFormat >= sizeof(VIDEOINFOHEADER)) {
+            const auto* vih = reinterpret_cast<const VIDEOINFOHEADER*>(mt->pbFormat);
+            w = std::abs(vih->bmiHeader.biWidth);
+            h = std::abs(vih->bmiHeader.biHeight);
+        } else if (mt->formattype == FORMAT_VideoInfo2 && mt->pbFormat && mt->cbFormat >= sizeof(VIDEOINFOHEADER2)) {
+            const auto* vih2 = reinterpret_cast<const VIDEOINFOHEADER2*>(mt->pbFormat);
+            w = std::abs(vih2->bmiHeader.biWidth);
+            h = std::abs(vih2->bmiHeader.biHeight);
+        }
+        if (w == 720 && (h == 480 || h == 576))
+            score += 10;
+
+        if (score > bestScore) {
+            freeMediaType(bestType);
+            bestType = mt;
+            bestScore = score;
+            bestIndex = i;
+        } else {
+            freeMediaType(mt);
+        }
+    }
+
+    bool ok = false;
+    if (bestType && bestIndex >= 0 && bestScore > 0) {
+        const QString subtype = guidToFourCC(bestType->subtype);
+        const HRESULT hrSet = streamConfig->SetFormat(bestType);
+        qDebug() << "[DShow] StreamConfig tentativa de formato idx=" << bestIndex
+                 << "subtype=" << subtype
+                 << "score=" << bestScore
+                 << "hr=" << Qt::hex << static_cast<uint>(hrSet);
+        ok = SUCCEEDED(hrSet);
+    }
+
+    freeMediaType(bestType);
+    streamConfig->Release();
+    return ok;
 }
 
 class GrabberCallback final : public ISampleGrabberCB
@@ -391,48 +537,136 @@ public:
             return S_OK;
         }
 
-        if (subtypeStr == "NV12") {
+        const bool isNv12Like = (subtypeStr == "NV12" || subtypeStr == "NV21");
+        const bool isPlanar420 = (subtypeStr == "YV12" || subtypeStr == "I420"
+                                  || subtypeStr == "IYUV" || subtypeStr == "HCW2");
+        if (isNv12Like || isPlanar420) {
             int yStride = m_width;
             if (m_height > 0) {
                 const int derived = (bufferLen * 2) / (m_height * 3);
                 if (derived >= m_width)
                     yStride = (derived / 2) * 2;
             }
-            int uvStride = yStride;
-            int needBytes = yStride * m_height + uvStride * (m_height / 2);
-            if (needBytes > bufferLen) {
-                yStride = m_width;
-                uvStride = m_width;
-                needBytes = yStride * m_height + uvStride * (m_height / 2);
-            }
-            if (needBytes > bufferLen)
-                return S_OK;
-
             QImage img(m_width, m_height, QImage::Format_RGB888);
             if (img.isNull())
                 return S_OK;
 
             auto clamp8 = [](int v) -> int { return v < 0 ? 0 : (v > 255 ? 255 : v); };
             const BYTE* yPlane = buffer;
-            const BYTE* uvPlane = buffer + yStride * m_height;
-            for (int y = 0; y < m_height; ++y) {
-                const int srcY = m_bottomUp ? (m_height - 1 - y) : y;
-                const BYTE* yRow = yPlane + srcY * yStride;
-                const BYTE* uvRow = uvPlane + (srcY / 2) * uvStride;
-                uchar* dst = img.scanLine(y);
-                for (int x = 0; x < m_width; ++x) {
-                    const int Y = yRow[x];
-                    const int uvIdx = x & ~1;
-                    const int U = uvRow[uvIdx + 0] - 128;
-                    const int V = uvRow[uvIdx + 1] - 128;
-                    const int c = Y - 16;
-                    const int r = clamp8((298 * c + 409 * V + 128) >> 8);
-                    const int g = clamp8((298 * c - 100 * U - 208 * V + 128) >> 8);
-                    const int b = clamp8((298 * c + 516 * U + 128) >> 8);
-                    const int d = x * 3;
-                    dst[d + 0] = static_cast<uchar>(r);
-                    dst[d + 1] = static_cast<uchar>(g);
-                    dst[d + 2] = static_cast<uchar>(b);
+
+            if (isNv12Like) {
+                int uvStride = yStride;
+                int needBytes = yStride * m_height + uvStride * (m_height / 2);
+                if (needBytes > bufferLen) {
+                    yStride = m_width;
+                    uvStride = m_width;
+                    needBytes = yStride * m_height + uvStride * (m_height / 2);
+                }
+                if (needBytes > bufferLen)
+                    return S_OK;
+
+                const bool nv21Order = (subtypeStr == "NV21");
+                const BYTE* uvPlane = buffer + yStride * m_height;
+                for (int y = 0; y < m_height; ++y) {
+                    const int srcY = m_bottomUp ? (m_height - 1 - y) : y;
+                    const BYTE* yRow = yPlane + srcY * yStride;
+                    const BYTE* uvRow = uvPlane + (srcY / 2) * uvStride;
+                    uchar* dst = img.scanLine(y);
+                    for (int x = 0; x < m_width; ++x) {
+                        const int Y = yRow[x];
+                        const int uvIdx = x & ~1;
+                        const int uByte = nv21Order ? uvRow[uvIdx + 1] : uvRow[uvIdx + 0];
+                        const int vByte = nv21Order ? uvRow[uvIdx + 0] : uvRow[uvIdx + 1];
+                        const int U = uByte - 128;
+                        const int V = vByte - 128;
+                        const int c = Y - 16;
+                        const int r = clamp8((298 * c + 409 * V + 128) >> 8);
+                        const int g = clamp8((298 * c - 100 * U - 208 * V + 128) >> 8);
+                        const int b = clamp8((298 * c + 516 * U + 128) >> 8);
+                        const int d = x * 3;
+                        dst[d + 0] = static_cast<uchar>(r);
+                        dst[d + 1] = static_cast<uchar>(g);
+                        dst[d + 2] = static_cast<uchar>(b);
+                    }
+                }
+            } else {
+                int cStride = yStride / 2;
+                int needBytes = yStride * m_height + cStride * (m_height / 2) * 2;
+                if (needBytes > bufferLen) {
+                    yStride = m_width;
+                    cStride = yStride / 2;
+                    needBytes = yStride * m_height + cStride * (m_height / 2) * 2;
+                }
+                if (needBytes > bufferLen)
+                    return S_OK;
+
+                const BYTE* planeA = buffer + yStride * m_height;
+                const BYTE* planeB = planeA + cStride * (m_height / 2);
+                auto renderPlanar = [&](bool yv12Order) -> QImage {
+                    QImage out(m_width, m_height, QImage::Format_RGB888);
+                    if (out.isNull())
+                        return out;
+                    const BYTE* uPlane = yv12Order ? planeB : planeA;
+                    const BYTE* vPlane = yv12Order ? planeA : planeB;
+                    for (int y = 0; y < m_height; ++y) {
+                        const int srcY = m_bottomUp ? (m_height - 1 - y) : y;
+                        const BYTE* yRow = yPlane + srcY * yStride;
+                        const BYTE* uRow = uPlane + (srcY / 2) * cStride;
+                        const BYTE* vRow = vPlane + (srcY / 2) * cStride;
+                        uchar* dst = out.scanLine(y);
+                        for (int x = 0; x < m_width; ++x) {
+                            const int Y = yRow[x];
+                            const int U = uRow[x / 2] - 128;
+                            const int V = vRow[x / 2] - 128;
+                            const int c = Y - 16;
+                            const int r = clamp8((298 * c + 409 * V + 128) >> 8);
+                            const int g = clamp8((298 * c - 100 * U - 208 * V + 128) >> 8);
+                            const int b = clamp8((298 * c + 516 * U + 128) >> 8);
+                            const int d = x * 3;
+                            dst[d + 0] = static_cast<uchar>(r);
+                            dst[d + 1] = static_cast<uchar>(g);
+                            dst[d + 2] = static_cast<uchar>(b);
+                        }
+                    }
+                    return out;
+                };
+
+                if (subtypeStr == "HCW2") {
+                    const QImage yv12Img = renderPlanar(true);
+                    const QImage i420Img = renderPlanar(false);
+                    auto stripeScore = [](const QImage& src) -> double {
+                        if (src.isNull() || src.width() < 4 || src.height() < 4)
+                            return 1e12;
+                        qint64 hDiff = 0;
+                        qint64 vDiff = 0;
+                        for (int y = 1; y < src.height(); y += 2) {
+                            const uchar* row = src.constScanLine(y);
+                            const uchar* prev = src.constScanLine(y - 1);
+                            for (int x = 1; x < src.width(); x += 2) {
+                                const int d = x * 3;
+                                const int p = (x - 1) * 3;
+                                const int lum = (77 * row[d + 0] + 150 * row[d + 1] + 29 * row[d + 2]) >> 8;
+                                const int lumLeft = (77 * row[p + 0] + 150 * row[p + 1] + 29 * row[p + 2]) >> 8;
+                                const int lumUp = (77 * prev[d + 0] + 150 * prev[d + 1] + 29 * prev[d + 2]) >> 8;
+                                hDiff += std::abs(lum - lumLeft);
+                                vDiff += std::abs(lum - lumUp);
+                            }
+                        }
+                        return static_cast<double>(vDiff + 1) / static_cast<double>(hDiff + 1);
+                    };
+                    const double sYv12 = stripeScore(yv12Img);
+                    const double sI420 = stripeScore(i420Img);
+                    const bool useYv12 = sYv12 <= sI420;
+                    if (!m_hcw2LayoutLogged.exchange(true)) {
+                        qDebug() << "[DShow] HCW2 auto-layout:"
+                                 << (useYv12 ? "YV12" : "I420")
+                                 << "scoreYV12=" << sYv12
+                                 << "scoreI420=" << sI420;
+                    }
+                    img = useYv12 ? yv12Img : i420Img;
+                } else {
+                    const bool yv12Order = (subtypeStr == "YV12");
+                    img = renderPlanar(yv12Order);
                 }
             }
             m_onFrame(img);
@@ -486,6 +720,7 @@ private:
     std::atomic<ULONG> m_refCount {1};
     std::atomic<bool>  m_firstFrameLogged {false};
     std::atomic<bool>  m_unsupportedSubtypeLogged {false};
+    std::atomic<bool>  m_hcw2LayoutLogged {false};
     std::function<void(const QImage&)> m_onFrame;
     int m_width = 0;
     int m_height = 0;
@@ -572,6 +807,7 @@ QList<DShowVideoInput> DShowCapture::enumerateInputs()
 
 bool DShowCapture::start(const QString& cameraName,
                          const QString& preferredInputType,
+                         const QString& preferredTvStandard,
                          const std::function<void(const QImage&)>& onFrame,
                          QString* errorOut)
 {
@@ -643,13 +879,42 @@ bool DShowCapture::start(const QString& cameraName,
                                                          reinterpret_cast<void**>(&m_impl->sampleGrabber));
         if (FAILED(hr) || !m_impl->sampleGrabber) break;
 
-        AM_MEDIA_TYPE mt;
-        std::memset(&mt, 0, sizeof(mt));
-        mt.majortype = MEDIATYPE_Video;
-        // No formattype constraint: allows both FORMAT_VideoInfo and FORMAT_VideoInfo2
-        // (Hauppauge HVR and similar TV tuner cards often negotiate FORMAT_VideoInfo2)
-        hr = m_impl->sampleGrabber->SetMediaType(&mt);
-        if (FAILED(hr)) break;
+        const QString camLowerForSubtype = cameraName.trimmed().toLower();
+        const bool preferUncompressed = camLowerForSubtype.contains("hauppauge")
+                                        || camLowerForSubtype.contains("hvr")
+                                        || camLowerForSubtype.contains("usb2 video capture");
+        auto trySetGrabberType = [&](const GUID* subtype, const char* label) -> HRESULT {
+            AM_MEDIA_TYPE mt;
+            std::memset(&mt, 0, sizeof(mt));
+            mt.majortype = MEDIATYPE_Video;
+            if (subtype)
+                mt.subtype = *subtype;
+            // No formattype constraint: allows FORMAT_VideoInfo and FORMAT_VideoInfo2
+            const HRESULT setHr = m_impl->sampleGrabber->SetMediaType(&mt);
+            qDebug() << "[DShow] SampleGrabber SetMediaType:" << label
+                     << "hr=" << Qt::hex << static_cast<uint>(setHr);
+            return setHr;
+        };
+
+        bool mediaTypeSet = false;
+        if (preferUncompressed) {
+            const GUID preferredSubtypes[] = {
+                MEDIASUBTYPE_YUY2,
+                MEDIASUBTYPE_UYVY,
+                MEDIASUBTYPE_NV12,
+                MEDIASUBTYPE_RGB24
+            };
+            const char* preferredLabels[] = { "YUY2", "UYVY", "NV12", "RGB24" };
+            for (int i = 0; i < 4 && !mediaTypeSet; ++i) {
+                mediaTypeSet = SUCCEEDED(trySetGrabberType(&preferredSubtypes[i], preferredLabels[i]));
+            }
+            if (!mediaTypeSet)
+                qDebug() << "[DShow] Nenhum subtype preferido aceito; fallback para ANY.";
+        }
+        if (!mediaTypeSet) {
+            mediaTypeSet = SUCCEEDED(trySetGrabberType(nullptr, "ANY"));
+        }
+        if (!mediaTypeSet) break;
 
         hr = m_impl->graph->AddFilter(m_impl->sampleGrabberFilter, L"SampleGrabber");
         if (FAILED(hr)) break;
@@ -660,6 +925,8 @@ bool DShowCapture::start(const QString& cameraName,
 
         hr = m_impl->graph->AddFilter(m_impl->nullRenderer, L"NullRenderer");
         if (FAILED(hr)) break;
+
+        tryForcePreferredCaptureSubtype(m_impl->captureBuilder, m_impl->captureFilter);
 
         const QString camLower = cameraName.trimmed().toLower();
         const bool preferPreviewFirst = camLower.contains("virtual camera")
@@ -700,7 +967,10 @@ bool DShowCapture::start(const QString& cameraName,
         // RenderStream is what adds the upstream crossbar filter to the graph. Attempting
         // FindInterface before this call returns nothing and leaves the card on its default
         // input (tuner/no signal), producing a black frame.
-        tryConfigureAnalogTvStandard(m_impl->captureBuilder, m_impl->captureFilter);
+        tryConfigureAnalogTvStandard(m_impl->captureBuilder,
+                                     m_impl->captureFilter,
+                                     cameraName,
+                                     preferredTvStandard);
 
         {
             IAMCrossbar* crossbar = tryFindCrossbar(m_impl->captureBuilder, m_impl->captureFilter);
@@ -868,7 +1138,11 @@ QList<DShowVideoInput> DShowCapture::enumerateInputs()
     return {};
 }
 
-bool DShowCapture::start(const QString&, const QString&, const std::function<void(const QImage&)>&, QString* errorOut)
+bool DShowCapture::start(const QString&,
+                         const QString&,
+                         const QString&,
+                         const std::function<void(const QImage&)>&,
+                         QString* errorOut)
 {
     if (errorOut) *errorOut = "DirectShow disponivel apenas no Windows.";
     return false;

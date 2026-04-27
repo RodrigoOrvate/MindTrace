@@ -30,6 +30,7 @@ Item {
     property string cameraId: ""      // descrição da câmera selecionada para ao_vivo
     property bool   livePreviewFrozen: false
     property int    livePreviewFrameCount: 0
+    property bool   _isDirectShowPreview: false
 
     // CA mode: hides pair selectors, uses borda/centro zone labels
     property string aparato:         "nor"
@@ -353,6 +354,7 @@ Item {
             liveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            _isDirectShowPreview = false
             arenaPreviewInference.setLivePreviewOutput(null)
             arenaPreviewInference.stopLivePreview()
             arenaCamera.active = false
@@ -377,6 +379,7 @@ Item {
             liveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            _isDirectShowPreview = true
             arenaCaptureSession.videoOutput = null
             arenaCamera.active = false
             videoPlayer.videoOutput = null
@@ -388,6 +391,7 @@ Item {
             })
             return
         }
+        _isDirectShowPreview = false
         arenaPreviewInference.setLivePreviewOutput(null)
         arenaPreviewInference.stopLivePreview()
         var devices = arenaMediaDevices.videoInputs

@@ -147,6 +147,7 @@ void InferenceController::processImageFrame(QImage img)
     // Count live frames even before modelReady so the DirectShow watchdog
     // detects camera signal correctly (avoids false "Sem sinal").
     if (m_isLiveMode) {
+        m_liveTotalFrameCount++;
         const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
         if (m_liveFpsWindowStartMs <= 0)
             m_liveFpsWindowStartMs = nowMs;
@@ -665,7 +666,9 @@ bool InferenceController::startLivePreview(const QString& cameraName)
 
     QString normalizedCameraName = cameraName;
     QString preferredAnalogInput = "Composite";
+    QString preferredTvStandard;
     QString preferredBackend;
+    int retryStage = 0;
     {
         const QStringList parts = cameraName.split("|", Qt::SkipEmptyParts);
         if (!parts.isEmpty())
@@ -675,8 +678,12 @@ bool InferenceController::startLivePreview(const QString& cameraName)
             const QString low = token.toLower();
             if (low.startsWith("input:"))
                 preferredAnalogInput = token.mid(6).trimmed();
+            else if (low.startsWith("tv:"))
+                preferredTvStandard = token.mid(3).trimmed();
             else if (low.startsWith("backend:"))
                 preferredBackend = token.mid(8).trimmed().toLower();
+            else if (low.startsWith("retry:"))
+                retryStage = token.mid(6).trimmed().toInt();
         }
     }
     const bool explicitDShow = preferredBackend == "dshow"
@@ -701,6 +708,7 @@ bool InferenceController::startLivePreview(const QString& cameraName)
     QString dsError;
     if (!m_dshowCapture->start(normalizedCameraName,
                                preferredAnalogInput,
+                               preferredTvStandard,
                                [this](const QImage& img) { onDirectShowFrame(img); },
                                &dsError)) {
         emit infoReceived("DirectShow preview falhou: " + dsError);
@@ -712,6 +720,38 @@ bool InferenceController::startLivePreview(const QString& cameraName)
 
     m_isDirectShowMode = true;
     emit infoReceived(QStringLiteral("Arena preview DirectShow: ") + normalizedCameraName);
+    const QString watchCameraName = normalizedCameraName;
+    const QString watchInput = preferredAnalogInput;
+    const QString watchTv = preferredTvStandard;
+    const int watchRetryStage = retryStage;
+    QTimer::singleShot(2200, this, [this, watchCameraName, watchInput, watchTv, watchRetryStage]() {
+        if (!m_isPreviewOnly || !m_isDirectShowMode)
+            return;
+        if (m_liveTotalFrameCount > 2)
+            return;
+
+        if (watchRetryStage == 0) {
+            const QString tvLower = watchTv.trimmed().toLower();
+            const bool usingNtsc = tvLower.contains("ntsc");
+            const QString altTv = usingNtsc ? QStringLiteral("PAL_M")
+                                            : QStringLiteral("NTSC_M");
+            emit infoReceived(QStringLiteral("Preview travado, tentando padrao TV %1...").arg(altTv));
+            stopLivePreview();
+            startLivePreview(watchCameraName + " |backend:dshow |input:" + watchInput + " |tv:" + altTv + " |retry:1");
+            return;
+        }
+
+        if (watchRetryStage == 1) {
+            const bool currentSVideo = watchInput.trimmed().toLower().contains("s-video")
+                                       || watchInput.trimmed().toLower().contains("svideo");
+            const QString altInput = currentSVideo ? QStringLiteral("Composite")
+                                                   : QStringLiteral("S-Video");
+            emit infoReceived(QStringLiteral("Preview ainda travado em %1, tentando entrada %2...")
+                              .arg(watchInput, altInput));
+            stopLivePreview();
+            startLivePreview(watchCameraName + " |backend:dshow |input:" + altInput + " |tv:" + watchTv + " |retry:2");
+        }
+    });
     return true;
 }
 
@@ -747,6 +787,7 @@ void InferenceController::stopLivePreview()
     m_isDirectShowMode = false;
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
+    m_liveTotalFrameCount = 0;
     m_loggedLiveNullFrame = false;
 }
 
@@ -805,13 +846,15 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     // FPS is measured from received frames.
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
+    m_liveTotalFrameCount = 0;
     m_loggedLiveNullFrame = false;
 
     // Prefer DirectShow for analog capture cards (e.g. Hauppauge Composite).
     QString normalizedCameraName = cameraName;
     QString preferredAnalogInput = "Composite";
+    QString preferredTvStandard;
     QString preferredBackend;
-    bool retryAttempted = false;
+    int retryStage = 0;
     {
         const QStringList parts = cameraName.split("|", Qt::SkipEmptyParts);
         if (!parts.isEmpty())
@@ -821,10 +864,12 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
             const QString low = token.toLower();
             if (low.startsWith("input:"))
                 preferredAnalogInput = token.mid(6).trimmed();
+            else if (low.startsWith("tv:"))
+                preferredTvStandard = token.mid(3).trimmed();
             else if (low.startsWith("backend:"))
                 preferredBackend = token.mid(8).trimmed().toLower();
             else if (low.startsWith("retry:"))
-                retryAttempted = true;
+                retryStage = token.mid(6).trimmed().toInt();
         }
     }
     const bool explicitDShow = preferredBackend == "dshow"
@@ -878,6 +923,7 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
     qDebug() << "[startLiveAnalysis] parsed cameraName=" << normalizedCameraName
              << "preferredBackend=" << preferredBackend
              << "preferredInput=" << preferredAnalogInput
+             << "preferredTv=" << preferredTvStandard
              << "explicitDShow=" << explicitDShow
              << "explicitQt=" << explicitQt
              << "hasQtMatchNow=" << hasQtMatchNow
@@ -889,6 +935,7 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
         QString dsError;
         if (m_dshowCapture->start(normalizedCameraName,
                                   preferredAnalogInput,
+                                  preferredTvStandard,
                                   [this](const QImage& img) { onDirectShowFrame(img); },
                                   &dsError)) {
             m_isDirectShowMode = true;
@@ -901,11 +948,13 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
             // Watchdog: if no frames arrive, auto-try alternate analog input once.
             const QString watchCameraName = normalizedCameraName;
             const QString watchInput = preferredAnalogInput;
-            const bool watchRetryAttempted = retryAttempted;
+            const QString watchTv = preferredTvStandard;
+            const int watchRetryStage = retryStage;
             QTimer::singleShot(2200, this, [this,
                                             watchCameraName,
                                             watchInput,
-                                            watchRetryAttempted,
+                                            watchTv,
+                                            watchRetryStage,
                                             modelDir,
                                             saveDirectory,
                                             preferredFileName,
@@ -914,18 +963,36 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
                                             preferredFps]() {
                 if (!m_isAnalyzing || !m_isDirectShowMode)
                     return;
-                if (m_liveFpsFrameCount > 0)
+                if (m_liveTotalFrameCount > 2)
                     return;
 
-                if (!watchRetryAttempted) {
+                if (watchRetryStage == 0) {
+                    const QString tvLower = watchTv.trimmed().toLower();
+                    const bool usingNtsc = tvLower.contains("ntsc");
+                    const QString altTv = usingNtsc ? QStringLiteral("PAL_M")
+                                                    : QStringLiteral("NTSC_M");
+                    emit infoReceived(QStringLiteral("DirectShow com stream travado, tentando padrao TV %1...")
+                                      .arg(altTv));
+                    stopAnalysis();
+                    startLiveAnalysis(watchCameraName + " |input:" + watchInput + " |tv:" + altTv + " |retry:1",
+                                      modelDir,
+                                      saveDirectory,
+                                      preferredFileName,
+                                      preferredWidth,
+                                      preferredHeight,
+                                      preferredFps);
+                    return;
+                }
+
+                if (watchRetryStage == 1) {
                     const bool currentSVideo = watchInput.trimmed().toLower().contains("s-video")
                                                || watchInput.trimmed().toLower().contains("svideo");
                     const QString altInput = currentSVideo ? QStringLiteral("Composite")
                                                            : QStringLiteral("S-Video");
-                    emit infoReceived(QStringLiteral("DirectShow sem frames em %1, tentando %2...")
+                    emit infoReceived(QStringLiteral("DirectShow ainda travado em %1, tentando entrada %2...")
                                       .arg(watchInput, altInput));
                     stopAnalysis();
-                    startLiveAnalysis(watchCameraName + " |input:" + altInput + " |retry:1",
+                    startLiveAnalysis(watchCameraName + " |input:" + altInput + " |tv:" + watchTv + " |retry:2",
                                       modelDir,
                                       saveDirectory,
                                       preferredFileName,
@@ -1164,6 +1231,7 @@ void InferenceController::stopAnalysis()
     m_isDirectShowMode = false;
     m_liveFpsWindowStartMs = 0;
     m_liveFpsFrameCount = 0;
+    m_liveTotalFrameCount = 0;
     m_loggedLiveNullFrame = false;
     setAnalyzing(false);
 }

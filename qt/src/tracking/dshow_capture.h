@@ -27,6 +27,7 @@ public:
 
     bool start(const QString& cameraName,
                const QString& preferredInputType,
+               const QString& preferredTvStandard,
                const std::function<void(const QImage&)>& onFrame,
                QString* errorOut);
     void stop();

@@ -24,6 +24,7 @@ Item {
     property string cameraId:       ""    // descrição da câmera selecionada para ao_vivo
     property bool   livePreviewFrozen: false
     property int    livePreviewFrameCount: 0
+    property bool   _isDirectShowPreview: false
     property int    numCampos:      1
     property bool   devMode:        false
     property real   videoAspectRatio: 1.5 // 720x480 padrão
@@ -275,6 +276,7 @@ Item {
             eiLiveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            _isDirectShowPreview = false
             eiArenaPreviewInference.setLivePreviewOutput(null)
             eiArenaPreviewInference.stopLivePreview()
             eiArenaCamera.active = false
@@ -299,6 +301,7 @@ Item {
             eiLiveFreezeTimer.stop()
             livePreviewFrozen = false
             livePreviewFrameCount = 0
+            _isDirectShowPreview = true
             eiArenaCaptureSession.videoOutput = null
             eiArenaCamera.active = false
             videoPlayer.videoOutput = null
@@ -310,6 +313,7 @@ Item {
             })
             return
         }
+        _isDirectShowPreview = false
         eiArenaPreviewInference.setLivePreviewOutput(null)
         eiArenaPreviewInference.stopLivePreview()
         var devices = mediaDevices.videoInputs

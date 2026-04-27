@@ -110,6 +110,7 @@ private:
     int  m_videoH      = 0;
     qint64 m_liveFpsWindowStartMs = 0;
     int    m_liveFpsFrameCount    = 0;
+    qint64 m_liveTotalFrameCount  = 0;
     bool   m_loggedLiveNullFrame  = false;
 
 };
