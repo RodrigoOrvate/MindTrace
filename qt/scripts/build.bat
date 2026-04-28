@@ -1,30 +1,68 @@
 @echo off
 cd /d "%~dp0.."
+setlocal
 
 :: ============================================================
-:: build.bat — Compila e executa o MindTrace (Qt 6.11 + CMake)
+:: build.bat — Setup + Compila + Executa MindTrace
 :: ============================================================
 ::
-:: PRÉ-REQUISITOS (instale uma vez):
-::   1. Qt 6.11.0  — https://www.qt.io/offline-installers
-::      Componente: "Qt 6.11.0 > MSVC 2022 64-bit"
-::      (QtQuick.Effects está incluso — qt5compat NÃO é necessário)
-::   2. CMake 3.25+  — https://cmake.org/download/
-::   3. Visual Studio 2022 ou superior (qualquer edição)
+:: Este script faz TUDO automaticamente (primeira vez pode levar 3+ minutos):
+::   1. Verifica Qt 6.11.0
+::   2. Verifica Visual Studio 2022+
+::   3. [AUTOMÁTICO] Baixa ONNX Runtime SDK (se necessário)
+::   4. Configura CMake
+::   5. Compila
+::   6. Copia DLLs necessárias
+::   7. Executa MindTrace
 ::
-:: GPU — coloque o SDK na raiz como onnxruntime_sdk/ (ver README.md Seção 2):
-::   NVIDIA CUDA  → onnxruntime-win-x64-gpu-1.24.4  renomeado para onnxruntime_sdk/
-::   AMD/Intel    → onnxruntime-win-x64-1.24.4       renomeado para onnxruntime_sdk/
+:: PRÉ-REQUISITOS (instale uma vez — ver SETUP_VSCODE.md):
+::   • Qt 6.11.0 em: C:\Qt\6.11.0\msvc2022_64
+::   • Visual Studio 2022 ou superior
+::   • CMake 3.25+
 ::
 :: CONFIGURAÇÃO — edite apenas esta linha:
 set QT_DIR=C:\Qt\6.11.0\msvc2022_64
 
+set MODE=FULL
+set GPU_OVERRIDE=
+
+:parse_args
+if "%~1"=="" goto args_done
+if /i "%~1"=="--deps-only" (
+    set MODE=DEPS_ONLY
+    shift
+    goto parse_args
+)
+if /i "%~1"=="--gpu" (
+    if "%~2"=="" (
+        echo [ERRO] Valor ausente para --gpu. Use DML ou CUDA.
+        exit /b 1
+    )
+    set GPU_OVERRIDE=%~2
+    shift
+    shift
+    goto parse_args
+)
+echo [ERRO] Argumento invalido: %~1
+echo Uso: build.bat [--deps-only] [--gpu DML^|CUDA]
+exit /b 1
+:args_done
+
 :: ── Valida Qt ────────────────────────────────────────────────
 if not exist "%QT_DIR%\lib\cmake\Qt6\Qt6Config.cmake" (
     echo.
+    echo ============================================================
     echo [ERRO] Qt 6 nao encontrado em: %QT_DIR%
-    echo        Edite a variavel QT_DIR neste script.
-    echo        Instale Qt 6.11.0 pelo instalador oficial: https://www.qt.io/offline-installers
+    echo ============================================================
+    echo.
+    echo 1. Instale Qt 6.11.0 (offline installer):
+    echo    https://www.qt.io/offline-installers
+    echo.
+    echo 2. Selecione: Qt 6.11.0 ^> MSVC 2022 64-bit
+    echo.
+    echo 3. OU edite QT_DIR neste script se instalou em outro local
+    echo.
+    echo Para guia completo de setup, leia: ..\SETUP_VSCODE.md
     echo.
     pause & exit /b 1
 )
@@ -69,14 +107,29 @@ if exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" goto :SDK_OK
 
 :SDK_MISSING
 echo.
-echo [AVISO] ONNX Runtime SDK nao encontrado em: %ONNX_SDK%
+echo ============================================================
+echo [PRIMEIRA VEZ] ONNX Runtime SDK nao encontrado
+echo ============================================================
 echo.
-echo Gostaria de baixar e configurar as dependencias automaticamente agora?
-echo [1] Sim, para GPU AMD ou Intel (DirectML^)
-echo [2] Sim, para GPU NVIDIA ^(CUDA^)
-echo [3] Nao, sair
+echo Este script vai baixar automaticamente. Qual sua GPU?
 echo.
-set /p CHOICE="Opcao [1-3]: "
+echo [1] AMD, Intel ou CPU (DirectML^) — RECOMENDADO
+echo [2] NVIDIA ^(CUDA 11.x/12.x^)
+echo [3] Cancelar
+echo.
+if defined GPU_OVERRIDE (
+    if /i "%GPU_OVERRIDE%"=="DML" (
+        set CHOICE=1
+    ) else if /i "%GPU_OVERRIDE%"=="CUDA" (
+        set CHOICE=2
+    ) else (
+        echo [ERRO] --gpu invalido: %GPU_OVERRIDE%. Use DML ou CUDA.
+        exit /b 1
+    )
+    echo [INFO] GPU selecionada por argumento: %GPU_OVERRIDE%
+) else (
+    set /p CHOICE="Opcao [1-3]: "
+)
 
 if "%CHOICE%"=="1" (
     powershell -ExecutionPolicy Bypass -File "%~dp0setup_onnx.ps1" -GpuType DML
@@ -100,6 +153,15 @@ if not exist "%ONNX_SDK%\include\onnxruntime_cxx_api.h" (
 )
 
 :SDK_OK
+if /i "%MODE%"=="DEPS_ONLY" (
+    echo.
+    echo ==========================================
+    echo [SUCESSO] Dependencias ONNX prontas.
+    echo Agora voce pode abrir o VSCode e usar CMake normalmente.
+    echo ==========================================
+    echo.
+    exit /b 0
+)
 :: ── Configura com CMake ───────────────────────────────────────
 echo.
 if not exist "..\build\CMakeCache.txt" (
