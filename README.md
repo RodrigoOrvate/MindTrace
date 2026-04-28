@@ -49,8 +49,6 @@ Vá em **Configurações do Windows → Aplicativos → MindTrace → Desinstala
 
 Para quem quer modificar o código, testar alterações e compilar o projeto.
 
-> ⚠️ **PRIMEIRA VEZ?** Se está baixando em um novo computador, leia: **[SETUP_VSCODE.md](SETUP_VSCODE.md)** para um guia passo-a-passo com troubleshooting.
-
 ### 1. Instalar o GitHub Desktop e clonar o repositório
 
 Baixe o **GitHub Desktop** em [desktop.github.com](https://desktop.github.com/) e instale normalmente.
@@ -140,18 +138,9 @@ Copie o arquivo `.onnx` de pose para a pasta `qt\` do repositório clonado. O no
 
 ---
 
-### 3.1 Primeira vez no VSCode (sem paradoxo de build)
-
-Antes de rodar o CMake no VSCode, execute **uma vez**:
-
-`cmd
-qt\scripts\build.bat --deps-only --gpu DML
-`
-
-> Use --gpu CUDA se a maquina for NVIDIA. Esse passo cria onnxruntime_sdk/ e evita falha de configuracao do CMake na primeira abertura.
 ### 4. Executar o build
 
-Navegue até `qt\scripts\` e dê duplo clique em **`build.bat`**.
+Na primeira vez, navegue até `qt\scripts\` e dê duplo clique em **`build.bat`**.
 
 O que acontece automaticamente:
 1. Detecta o Visual Studio instalado
