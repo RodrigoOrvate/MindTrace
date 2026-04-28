@@ -11,8 +11,8 @@
 #include <cstring>
 #include <climits>
 #include <cstdlib>
-#include <QDebug>
 #include <QByteArray>
+#include <QDebug>
 
 // qedit.h is deprecated and often missing in modern SDKs.
 // Minimal declarations for Sample Grabber interfaces/GUIDs.
@@ -59,8 +59,8 @@ static QString guidToFourCC(const GUID& g)
         '\0'
     };
     bool printable = true;
-    for (int i = 0; i < 4; ++i)
-        if (static_cast<unsigned char>(cc[i]) < 0x20) { printable = false; break; }
+    for (int charIdx = 0; charIdx < 4; ++charIdx)
+        if (static_cast<unsigned char>(cc[charIdx]) < 0x20) { printable = false; break; }
     if (printable) return QString::fromLatin1(cc);
     return QString("{%1}").arg(g.Data1, 8, 16, QChar('0'));
 }
@@ -113,12 +113,12 @@ static int findCrossbarOutputForVideo(IAMCrossbar* crossbar)
     if (FAILED(crossbar->get_PinCounts(&outPins, &inPins)))
         return -1;
 
-    for (long o = 0; o < outPins; ++o) {
+    for (long outPinIdx = 0; outPinIdx < outPins; ++outPinIdx) {
         long related = 0;
         long type = 0;
-        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(FALSE, o, &related, &type))) {
+        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(FALSE, outPinIdx, &related, &type))) {
             if (type == PhysConn_Video_VideoDecoder)
-                return static_cast<int>(o);
+                return static_cast<int>(outPinIdx);
         }
     }
     return -1;
@@ -131,12 +131,12 @@ static int findCrossbarInputForComposite(IAMCrossbar* crossbar)
     if (FAILED(crossbar->get_PinCounts(&outPins, &inPins)))
         return -1;
 
-    for (long i = 0; i < inPins; ++i) {
+    for (long inPinIdx = 0; inPinIdx < inPins; ++inPinIdx) {
         long related = 0;
         long type = 0;
-        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(TRUE, i, &related, &type))) {
+        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(TRUE, inPinIdx, &related, &type))) {
             if (type == PhysConn_Video_Composite)
-                return static_cast<int>(i);
+                return static_cast<int>(inPinIdx);
         }
     }
     return -1;
@@ -149,12 +149,12 @@ static int findCrossbarInputForSVideo(IAMCrossbar* crossbar)
     if (FAILED(crossbar->get_PinCounts(&outPins, &inPins)))
         return -1;
 
-    for (long i = 0; i < inPins; ++i) {
+    for (long inPinIdx = 0; inPinIdx < inPins; ++inPinIdx) {
         long related = 0;
         long type = 0;
-        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(TRUE, i, &related, &type))) {
+        if (SUCCEEDED(crossbar->get_CrossbarPinInfo(TRUE, inPinIdx, &related, &type))) {
             if (type == PhysConn_Video_SVideo)
-                return static_cast<int>(i);
+                return static_cast<int>(inPinIdx);
         }
     }
     return -1;
@@ -237,7 +237,7 @@ static void tryConfigureAnalogTvStandard(ICaptureGraphBuilder2* builder,
             if ((available & stdFmt) == 0)
                 return false;
             const HRESULT hr = decoder->put_TVFormat(stdFmt);
-            qDebug() << "[DShow] TV standard tentativa:" << label
+            qDebug() << "[DShow] TV standard attempt:" << label
                      << "available=" << ((available & stdFmt) != 0)
                      << "hr=" << Qt::hex << static_cast<uint>(hr);
             return SUCCEEDED(hr);
@@ -274,13 +274,13 @@ static void tryConfigureAnalogTvStandard(ICaptureGraphBuilder2* builder,
                 AnalogVideo_PAL_G
             };
             const char* labels[] = { "PAL_M", "NTSC_M", "PAL_N", "PAL_B", "PAL_G" };
-            for (int i = 0; i < 5 && !setOk; ++i)
-                setOk = trySetStandard(preferred[i], labels[i]);
+            for (int stdIdx = 0; stdIdx < 5 && !setOk; ++stdIdx)
+                setOk = trySetStandard(preferred[stdIdx], labels[stdIdx]);
         }
 
         long active = 0;
         if (SUCCEEDED(decoder->get_TVFormat(&active))) {
-            qDebug() << "[DShow] TV standard ativo(Data1)=" << Qt::hex << static_cast<uint>(active);
+            qDebug() << "[DShow] Active TV standard (Data1)=" << Qt::hex << static_cast<uint>(active);
         }
     }
     decoder->Release();
@@ -314,14 +314,14 @@ static bool tryForcePreferredCaptureSubtype(ICaptureGraphBuilder2* builder, IBas
                                     IID_IAMStreamConfig, reinterpret_cast<void**>(&streamConfig));
     }
     if (FAILED(hr) || !streamConfig) {
-        qDebug() << "[DShow] StreamConfig indisponivel (capture/preview).";
+        qDebug() << "[DShow] StreamConfig unavailable (capture/preview).";
         return false;
     }
 
     int count = 0;
     int capSize = 0;
     if (FAILED(streamConfig->GetNumberOfCapabilities(&count, &capSize)) || count <= 0 || capSize <= 0) {
-        qDebug() << "[DShow] StreamConfig sem capabilities validas.";
+        qDebug() << "[DShow] StreamConfig returned no valid capabilities.";
         streamConfig->Release();
         return false;
     }
@@ -330,9 +330,9 @@ static bool tryForcePreferredCaptureSubtype(ICaptureGraphBuilder2* builder, IBas
     int bestScore = INT_MIN;
     AM_MEDIA_TYPE* bestType = nullptr;
     std::vector<BYTE> caps(static_cast<size_t>(capSize));
-    for (int i = 0; i < count; ++i) {
+    for (int capIdx = 0; capIdx < count; ++capIdx) {
         AM_MEDIA_TYPE* mt = nullptr;
-        if (FAILED(streamConfig->GetStreamCaps(i, &mt, caps.data())) || !mt)
+        if (FAILED(streamConfig->GetStreamCaps(capIdx, &mt, caps.data())) || !mt)
             continue;
         if (!IsEqualGUID(mt->majortype, MEDIATYPE_Video)) {
             freeMediaType(mt);
@@ -348,25 +348,25 @@ static bool tryForcePreferredCaptureSubtype(ICaptureGraphBuilder2* builder, IBas
                  || guidToFourCC(mt->subtype) == "IYUV")      score = 70;
         else if (guidToFourCC(mt->subtype) == "MJPG")         score = 60;
 
-        int w = 0;
-        int h = 0;
+        int frameWidth = 0;
+        int frameHeight = 0;
         if (mt->formattype == FORMAT_VideoInfo && mt->pbFormat && mt->cbFormat >= sizeof(VIDEOINFOHEADER)) {
             const auto* vih = reinterpret_cast<const VIDEOINFOHEADER*>(mt->pbFormat);
-            w = std::abs(vih->bmiHeader.biWidth);
-            h = std::abs(vih->bmiHeader.biHeight);
+            frameWidth = std::abs(vih->bmiHeader.biWidth);
+            frameHeight = std::abs(vih->bmiHeader.biHeight);
         } else if (mt->formattype == FORMAT_VideoInfo2 && mt->pbFormat && mt->cbFormat >= sizeof(VIDEOINFOHEADER2)) {
             const auto* vih2 = reinterpret_cast<const VIDEOINFOHEADER2*>(mt->pbFormat);
-            w = std::abs(vih2->bmiHeader.biWidth);
-            h = std::abs(vih2->bmiHeader.biHeight);
+            frameWidth = std::abs(vih2->bmiHeader.biWidth);
+            frameHeight = std::abs(vih2->bmiHeader.biHeight);
         }
-        if (w == 720 && (h == 480 || h == 576))
+        if (frameWidth == 720 && (frameHeight == 480 || frameHeight == 576))
             score += 10;
 
         if (score > bestScore) {
             freeMediaType(bestType);
             bestType = mt;
             bestScore = score;
-            bestIndex = i;
+            bestIndex = capIdx;
         } else {
             freeMediaType(mt);
         }
@@ -376,7 +376,7 @@ static bool tryForcePreferredCaptureSubtype(ICaptureGraphBuilder2* builder, IBas
     if (bestType && bestIndex >= 0 && bestScore > 0) {
         const QString subtype = guidToFourCC(bestType->subtype);
         const HRESULT hrSet = streamConfig->SetFormat(bestType);
-        qDebug() << "[DShow] StreamConfig tentativa de formato idx=" << bestIndex
+        qDebug() << "[DShow] StreamConfig SetFormat idx=" << bestIndex
                  << "subtype=" << subtype
                  << "score=" << bestScore
                  << "hr=" << Qt::hex << static_cast<uint>(hrSet);
@@ -423,9 +423,9 @@ public:
 
     STDMETHODIMP_(ULONG) Release() override
     {
-        const ULONG v = --m_refCount;
-        if (v == 0) delete this;
-        return v;
+        const ULONG newRefCount = --m_refCount;
+        if (newRefCount == 0) delete this;
+        return newRefCount;
     }
 
     STDMETHODIMP SampleCB(double, IMediaSample*) override
@@ -441,7 +441,7 @@ public:
         const QString subtypeStr = guidToFourCC(m_subtype);
 
         if (!m_firstFrameLogged.exchange(true))
-            qDebug() << "[DShow] Primeiro frame recebido: subtype=" << subtypeStr
+            qDebug() << "[DShow] First frame received: subtype=" << subtypeStr
                      << "bufferLen=" << bufferLen << "w=" << m_width << "h=" << m_height;
 
         if (IsEqualGUID(m_subtype, MEDIASUBTYPE_YUY2)) {
@@ -690,7 +690,7 @@ public:
         const bool isRgb24 = IsEqualGUID(m_subtype, MEDIASUBTYPE_RGB24) || m_bitCount == 24;
         if (!isRgb32 && !isRgb24) {
             if (!m_unsupportedSubtypeLogged.exchange(true)) {
-                qDebug() << "[DShow] Subtype nao suportado no callback:" << subtypeStr
+                qDebug() << "[DShow] Unsupported subtype in callback:" << subtypeStr
                          << "bitCount=" << m_bitCount
                          << "len=" << bufferLen
                          << "res=" << m_width << "x" << m_height;
@@ -817,7 +817,7 @@ bool DShowCapture::start(const QString& cameraName,
     const bool needUninit = SUCCEEDED(hr);
     m_impl->comInitialized = needUninit;
     if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
-        if (errorOut) *errorOut = "DirectShow: falha ao inicializar COM.";
+        if (errorOut) *errorOut = "DirectShow: failed to initialize COM.";
         return false;
     }
 
@@ -862,11 +862,11 @@ bool DShowCapture::start(const QString& cameraName,
         hr = selectedMoniker->BindToObject(nullptr, nullptr, IID_IBaseFilter,
                                            reinterpret_cast<void**>(&m_impl->captureFilter));
         if (FAILED(hr) || !m_impl->captureFilter) {
-            qDebug() << "[DShow] BindToObject falhou para:" << cameraName << "hr=" << Qt::hex << (uint)hr;
+            qDebug() << "[DShow] BindToObject failed for:" << cameraName << "hr=" << Qt::hex << (uint)hr;
             break;
         }
 
-        qDebug() << "[DShow] Capture filter vinculado:" << cameraName;
+        qDebug() << "[DShow] Capture filter bound:" << cameraName;
 
         hr = m_impl->graph->AddFilter(m_impl->captureFilter, L"Capture");
         if (FAILED(hr)) break;
@@ -909,7 +909,7 @@ bool DShowCapture::start(const QString& cameraName,
                 mediaTypeSet = SUCCEEDED(trySetGrabberType(&preferredSubtypes[i], preferredLabels[i]));
             }
             if (!mediaTypeSet)
-                qDebug() << "[DShow] Nenhum subtype preferido aceito; fallback para ANY.";
+                qDebug() << "[DShow] No preferred subtype accepted; falling back to ANY.";
         }
         if (!mediaTypeSet) {
             mediaTypeSet = SUCCEEDED(trySetGrabberType(nullptr, "ANY"));
@@ -932,13 +932,13 @@ bool DShowCapture::start(const QString& cameraName,
         const bool preferPreviewFirst = camLower.contains("virtual camera")
                                         || camLower.contains("obs virtual");
         if (preferPreviewFirst) {
-            qDebug() << "[DShow] Virtual camera detectada, tentando PREVIEW primeiro...";
+            qDebug() << "[DShow] Virtual camera detected — trying PREVIEW pin first...";
             hr = m_impl->captureBuilder->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video,
                                                       m_impl->captureFilter,
                                                       m_impl->sampleGrabberFilter,
                                                       m_impl->nullRenderer);
             if (FAILED(hr)) {
-                qDebug() << "[DShow] RenderStream PREVIEW falhou (hr=" << Qt::hex << (uint)hr << "), tentando CAPTURE...";
+                qDebug() << "[DShow] RenderStream PREVIEW failed (hr=" << Qt::hex << (uint)hr << "), trying CAPTURE...";
                 hr = m_impl->captureBuilder->RenderStream(&PIN_CATEGORY_CAPTURE, &MEDIATYPE_Video,
                                                           m_impl->captureFilter,
                                                           m_impl->sampleGrabberFilter,
@@ -950,7 +950,7 @@ bool DShowCapture::start(const QString& cameraName,
                                                       m_impl->sampleGrabberFilter,
                                                       m_impl->nullRenderer);
             if (FAILED(hr)) {
-                qDebug() << "[DShow] RenderStream CAPTURE falhou (hr=" << Qt::hex << (uint)hr << "), tentando PREVIEW...";
+                qDebug() << "[DShow] RenderStream CAPTURE failed (hr=" << Qt::hex << (uint)hr << "), trying PREVIEW...";
                 hr = m_impl->captureBuilder->RenderStream(&PIN_CATEGORY_PREVIEW, &MEDIATYPE_Video,
                                                           m_impl->captureFilter,
                                                           m_impl->sampleGrabberFilter,
@@ -958,7 +958,7 @@ bool DShowCapture::start(const QString& cameraName,
             }
         }
         if (FAILED(hr)) {
-            qDebug() << "[DShow] RenderStream falhou completamente hr=" << Qt::hex << (uint)hr;
+            qDebug() << "[DShow] RenderStream failed completely hr=" << Qt::hex << (uint)hr;
             break;
         }
         qDebug() << "[DShow] RenderStream OK";
@@ -975,7 +975,7 @@ bool DShowCapture::start(const QString& cameraName,
         {
             IAMCrossbar* crossbar = tryFindCrossbar(m_impl->captureBuilder, m_impl->captureFilter);
             if (!crossbar) {
-                qDebug() << "[DShow] tryFindCrossbar nulo, tentando QueryInterface direto no captureFilter...";
+                qDebug() << "[DShow] tryFindCrossbar returned null, trying QueryInterface directly on captureFilter...";
                 m_impl->captureFilter->QueryInterface(IID_IAMCrossbar,
                                                       reinterpret_cast<void**>(&crossbar));
             }
@@ -991,17 +991,17 @@ bool DShowCapture::start(const QString& cameraName,
                     inPin = findCrossbarInputForComposite(crossbar);
                 if (inPin < 0)
                     inPin = findCrossbarInputForSVideo(crossbar);
-                qDebug() << "[DShow] Crossbar encontrado — outPin=" << outPin << "inPin=" << inPin
-                         << "preferido=" << preferredInputType;
+                qDebug() << "[DShow] Crossbar found — outPin=" << outPin << "inPin=" << inPin
+                         << "preferred=" << preferredInputType;
                 if (outPin >= 0 && inPin >= 0) {
                     HRESULT hrRoute = crossbar->Route(outPin, inPin);
                     qDebug() << "[DShow] Crossbar Route hr=" << Qt::hex << (uint)hrRoute;
                 } else {
-                    qDebug() << "[DShow] Crossbar: pinos invalidos, roteamento nao aplicado";
+                    qDebug() << "[DShow] Crossbar: invalid pins, routing not applied";
                 }
                 crossbar->Release();
             } else {
-                qDebug() << "[DShow] Crossbar NAO encontrado — card pode nao ter IAMCrossbar";
+                qDebug() << "[DShow] Crossbar NOT found — card may not expose IAMCrossbar";
             }
         }
 
@@ -1047,8 +1047,8 @@ bool DShowCapture::start(const QString& cameraName,
                  << "bitCount=" << bitCount << "bottomUp=" << bottomUp;
 
         if (width <= 0 || height <= 0) {
-            qDebug() << "[DShow] Dimensoes invalidas — RenderStream negociou formato desconhecido";
-            if (errorOut) *errorOut = "DirectShow: formato de video invalido.";
+            qDebug() << "[DShow] Invalid dimensions — RenderStream negotiated an unknown format";
+            if (errorOut) *errorOut = "DirectShow: invalid video format.";
             break;
         }
 
@@ -1089,7 +1089,7 @@ bool DShowCapture::start(const QString& cameraName,
     safeRelease(devEnum);
     stop();
     if (errorOut && errorOut->isEmpty())
-        *errorOut = "DirectShow: falha ao iniciar captura.";
+        *errorOut = "DirectShow: failed to start capture.";
     return false;
 }
 
@@ -1144,7 +1144,7 @@ bool DShowCapture::start(const QString&,
                          const std::function<void(const QImage&)>&,
                          QString* errorOut)
 {
-    if (errorOut) *errorOut = "DirectShow disponivel apenas no Windows.";
+    if (errorOut) *errorOut = "DirectShow is only available on Windows.";
     return false;
 }
 

@@ -1,5 +1,5 @@
 ﻿// qml/cc/CCDashboard.qml
-// Dashboard Comportamento Complexo: sidebar + Arena + Gravação + Classificação + Dados.
+// Complex Behavior dashboard: sidebar + Arena + Recording + Classification + Data.
 
 import QtQuick
 import QtQuick.Controls
@@ -86,20 +86,20 @@ Item {
             _resetSelectionState()
     }
 
-    // â"€â"€ B-SOiD â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── B-SOiD ────────────────────────────────────────────────────────────────────────────
     property bool   bsoidRunning:   false
     property int    bsoidProgress:  0
     property var    bsoidGroups:    []   // lista de {clusterId, frameCount, percentage, ...}
-    property var    bsoidGroupNames: []  // nomes personalizados dos clusters (editáveis)
+    property var    bsoidGroupNames: []  // user-editable cluster names
     property string bsoidError:     ""
     property bool   bsoidDone:      false
     property double bsoidFps:       30.0
     property string bsoidVideoPath: ""
-    property int    bsoidCampo:     0    // campo selecionado para análise (0=C1, 1=C2, 2=C3)
-    property int    _boutCampo:    0    // campo selecionado para revisão de bouts
+    property int    bsoidCampo:     0    // field selected for analysis (0=F1, 1=F2, 2=F3)
+    property int    _boutCampo:    0    // field selected for bout review
     property bool   showBoutReview: false
 
-    // â”€â”€ Estatísticas e alinhamento Rules vs B-SOiD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Stats and alignment: Rules vs B-SOiD ───────────────────────────────
     property var    behaviorStats:      []   // [{name, bouts, color}]
     property var    bsoidBehaviorStats: []   // [{name, bouts, color}]
     property var    bsoidMappingRaw:    []   // getFrameMapping()
@@ -852,7 +852,7 @@ Item {
         }
     }
 
-    // â"€â"€ Snippets â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Snippets ──────────────────────────────────────────────────────────────────────────
     property bool   snippetsRunning:  false
     property int    snippetsProgress: 0
     property bool   snippetsComplete: false
@@ -901,7 +901,7 @@ Item {
                 root.bsoidComparedFrames = 0
             }
 
-            // Computa estatísticas por comportamento
+            // Compute per-behavior statistics
             root.behaviorStats = root.computeBehaviorStats(root.bsoidFps)
             root.bsoidBehaviorStats = []
             root.rebuildAgreementMatrixView()
@@ -928,7 +928,7 @@ Item {
         }
     }
 
-    // Cores dos clusters B-SOiD â€" família vermelhos/amarelos/violetas,
+    // B-SOiD cluster colors — red/yellow/violet family,
     // deliberadamente distintas das regras nativas:
     // Walking=#10b981(verde), Sniffing=#3b82f6(azul), Grooming=#ec4899(rosa),
     // Resting=#6b7280(cinza), Rearing=#f97316(laranja)
@@ -936,15 +936,15 @@ Item {
         "#ef4444",  // vermelho      G1
         "#eab308",  // amarelo       G2
         "#8b5cf6",  // violeta       G3
-        "#d946ef",  // fúcsia        G4
-        "#6366f1",  // índigo        G5
+        "#d946ef",  // fuchsia       G4
+        "#6366f1",  // indigo        G5
         "#dc2626",  // vermelho esc  G6
         "#ca8a04",  // ouro          G7
         "#7c3aed",  // violeta esc   G8
         "#c026d3",  // magenta       G9
         "#be123c",  // carmim        G10
         "#a21caf",  // magenta esc   G11
-        "#4f46e5"   // índigo esc    G12
+        "#4f46e5"   // dark indigo   G12
     ]
 
     function bsoidRuleName(ruleId) {
@@ -959,9 +959,9 @@ Item {
         var csvPath = liveRecordingTab.behaviorCachePath(sessionPath, campo)
         var ok = liveRecordingTab.exportBehaviorFeatures(csvPath, campo)
         if (!ok) ok = liveRecordingTab.behaviorCacheExists(sessionPath, campo)
-        if (!ok) { root.bsoidError = LanguageManager.tr3("Nenhum dado de features disponivel. Execute uma analise primeiro.", "No feature data available. Run an analysis first.", "No hay datos de features disponibles. Ejecute un analisis primero."); return }
+        if (!ok) { root.bsoidError = LanguageManager.tr3("Nenhum dado de features disponível. Execute uma analise primeiro.", "No feature data available. Run an analysis first.", "No hay datos de features disponibles. Ejecute un analisis primero."); return }
         root.bsoidStep2DataReady = true
-        // Captura FPS e caminho do vídeo para timeline e snippets
+        // Capture FPS and video path for timeline and snippets
         root.bsoidFps       = (liveRecordingTab.dlcFps > 0) ? liveRecordingTab.dlcFps : 30.0
         root.bsoidVideoPath = liveRecordingTab.videoPath
         root.bsoidFlowStage = 1
@@ -1256,7 +1256,7 @@ Item {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
                 successToast.show(LanguageManager.tr3("Session saved!", "Session saved!", "Sesion guardada!"))
-                innerTabs.currentIndex = 2  // aba Classificação
+                innerTabs.currentIndex = 2  // Classification tab
             }
         }
     }
@@ -1271,7 +1271,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Top bar ──────────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -1316,13 +1316,13 @@ Item {
             }
         }
 
-        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Body ─────────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Sidebar ──────────────────────────────────────────────────────
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -1443,7 +1443,7 @@ Item {
                 }
             }
 
-            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Work area ────────────────────────────────────────────────────
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -1490,11 +1490,11 @@ Item {
                         ArenaConfigModel.loadConfigFromPath(path)
                     }
 
-                    // Propaga pontos de arena para aba Gravação
+                    // Propagate arena points to Recording tab
                     liveRecordingTab.arenaPoints = JSON.parse(ArenaConfigModel.getArenaPoints() || "[]")
                     liveRecordingTab.floorPoints = JSON.parse(ArenaConfigModel.getFloorPoints() || "[]")
                     
-                    // Propaga zonas se hasObjectZones; limpa explicitamente se não
+                    // Propagate zones if hasObjectZones; explicitly clear otherwise
                     if (workArea.hasObjectZones) {
                         var src = ArenaConfigModel.zones || []
                         if (src.length > 0) {
@@ -1524,7 +1524,7 @@ Item {
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Índice 0: placeholder "selecione um experimento"
+                    // Index 0: placeholder "select an experiment"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
@@ -1538,11 +1538,11 @@ Item {
                         }
                     }
 
-                    // Índice 1: painel com abas
+                    // Index 1: panel with tabs
                     ColumnLayout {
                         spacing: 0
 
-                        // â"€â"€ Barra de abas interna â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                        // ── Inner tab bar ─────────────────────────────────────────────────
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -1560,7 +1560,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "🧠 " + LanguageManager.tr3("Classificacao", "Behavior", "Clasificacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravação", "Recording", "Grabacion"), "🧠 " + LanguageManager.tr3("Classificação", "Behavior", "Clasificacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -1610,9 +1610,9 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // â"€â"€ Tab 0: Arena â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 0: Arena ──────────────────────────────────────────────
                             Item {
-                                // ArenaSetup padrão â€" 2 ou 3 campos
+                                // Standard ArenaSetup — 2 or 3 fields
                                 ArenaSetup {
                                     id: tabArenaSetup
                                     anchors.fill: parent
@@ -1639,7 +1639,7 @@ Item {
                                     }
                                 }
 
-                                // EIArenaSetup â€" 1 campo (arena EI adaptada para CC)
+                                // EIArenaSetup — 1 field (EI arena adapted for CC)
                                 EIArenaSetup {
                                     id: eiArenaSetupCC
                                     anchors.fill: parent
@@ -1662,7 +1662,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 1: Gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 1: Recording ──────────────────────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCC.videoPath : tabArenaSetup.videoPath
@@ -1690,7 +1690,7 @@ Item {
                                 }
 
                                 onSessionEnded: {
-                                    // Persiste cache de features para Classificação pós-sessão
+                                    // Persist feature cache for post-session Classification
                                     if (workArea.selectedPath !== "") {
                                         for (var c = 0; c < workArea.activeNumCampos; c++)
                                             liveRecordingTab.saveBehaviorCache(workArea.selectedPath, c)
@@ -1724,7 +1724,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 2: Classificação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 2: Classification ─────────────────────────────────────
                             Item {
                                 id: classificationTab
 
@@ -1745,7 +1745,7 @@ Item {
                                             anchors.topMargin: 28
                                             spacing: 20
 
-                                            // Título
+                                            // Title
                                             RowLayout {
                                                 Layout.alignment: Qt.AlignHCenter
                                                 spacing: 12
@@ -1760,7 +1760,7 @@ Item {
                                                     }
                                                     Text {
                                                         text: LanguageManager.tr3(
-                                                                  "Classificacao por regras em tempo real · B-SOiD disponivel pos-sessao",
+                                                                  "Classificação por regras em tempo real · B-SOiD disponível pós-sessão",
                                                                   "Real-time rule-based classification · B-SOiD available after session",
                                                                   "Clasificacion por reglas en tiempo real · B-SOiD disponible despues de la sesion"
                                                               )
@@ -1904,7 +1904,7 @@ Item {
                                                 Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
                                             }
 
-                                            // Card B-SOiD (pós-sessão â€" interativo)
+                                            // B-SOiD card (post-session — interactive)
                                             Rectangle {
                                                 Layout.fillWidth: true; radius: 12
                                                 color: ThemeManager.surfaceDim
@@ -2113,10 +2113,10 @@ Item {
                                                         wrapMode: Text.WordWrap; Layout.fillWidth: true
                                                     }
 
-                                                    // Texto de ajuda (apenas antes da análise)
+                                                    // Help text (shown only before analysis)
                                                     Text {
                                                         visible: !root.bsoidDone && !root.bsoidRunning && root.bsoidError === ""
-                                                        text: LanguageManager.tr3("Clique em Analisar apos finalizar a gravacao. O algoritmo analisa os dados de trajetoria coletados e descobre grupos comportamentais adicionais as regras nativas.", "Click Analyze after recording ends. The algorithm analyzes trajectory data and discovers behavioral groups in addition to native rules.", "Haga clic en Analizar despues de finalizar la grabacion. El algoritmo analiza los datos de trayectoria y descubre grupos conductuales adicionales a las reglas nativas.")
+                                                        text: LanguageManager.tr3("Clique em Analisar apos finalizar a gravacao. O algoritmo analisa os dados de trajetória coletados e descobre grupos comportamentais adicionais as regras nativas.", "Click Analyze after recording ends. The algorithm analyzes trajectory data and discovers behavioral groups in addition to native rules.", "Haga clic en Analizar despues de finalizar la grabacion. El algoritmo analiza los datos de trayectoria y descubre grupos conductuales adicionales a las reglas nativas.")
                                                         color: ThemeManager.textTertiary; font.pixelSize: 11
                                                         wrapMode: Text.WordWrap; Layout.fillWidth: true
                                                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -2295,7 +2295,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // â"€â"€ Estatísticas por comportamento (pós B-SOiD) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                                                    // ── Per-behavior statistics (post B-SOiD) ──────────────────────────────────────────────
                                                     ColumnLayout {
                                                         visible: root.bsoidDone && root.behaviorStats.length > 0
                                                         Layout.fillWidth: true; spacing: 6
@@ -2309,7 +2309,7 @@ Item {
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // Cabeçalho tabela
+                                                        // Table header
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 0
                                                             Text { text: LanguageManager.tr3("Comportamento", "Behavior", "Comportamiento"); width: 120; color: ThemeManager.textTertiary; font.pixelSize: 10; font.weight: Font.Bold }
@@ -2577,7 +2577,7 @@ Item {
                                                                         }
                                                                     }
 
-                                                                    // Campo de nomeação do grupo
+                                                                    // Group naming field
                                                                     RowLayout {
                                                                         spacing: 6
                                                                         Text {
@@ -2588,7 +2588,7 @@ Item {
                                                                         TextField {
                                                                             id: groupNameField
                                                                             Layout.fillWidth: true; height: 26
-                                                                            // Sem binding reativo â€" inicializa uma vez; onTextEdited atualiza o array
+                                                                            // No reactive binding — initializes once; onTextEdited updates the array
                                                                             Component.onCompleted: {
                                                                                 text = (root.bsoidGroupNames && root.bsoidGroupNames.length > grpIdx)
                                                                                        ? (root.bsoidGroupNames[grpIdx] || "") : ""
@@ -2648,7 +2648,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // â"€â"€ Timeline Dupla â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                                                    // ── Dual Timeline ──────────────────────────────────────────────────────────────────────
                                                     ColumnLayout {
                                                         id: timelineReportCard
                                                         visible: root.bsoidDone && root.bsoidFinalComparisonUnlocked
@@ -2681,7 +2681,7 @@ Item {
                                                             Behavior on color { ColorAnimation { duration: 150 } }
                                                         }
 
-                                                        // Linha 1 â€" Regras nativas
+                                                        // Row 1 — native rules
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
@@ -2697,7 +2697,7 @@ Item {
                                                             }
                                                         }
 
-                                                        // Linha 2 â€" Clusters B-SOiD
+                                                        // Row 2 — B-SOiD clusters
                                                         RowLayout {
                                                             Layout.fillWidth: true; spacing: 6
                                                             Text {
@@ -2744,7 +2744,7 @@ Item {
 
                                                     }
 
-                                                    // Matriz de concordância visual: Rules x B-SOiD
+                                                    // Concordance matrix: Rules x B-SOiD
                                                     ColumnLayout {
                                                         id: matrixReportCard
                                                         visible: root.bsoidDone && root.bsoidFinalComparisonUnlocked && root.bsoidConfusionRows.length > 0
@@ -2877,7 +2877,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // Política final de rótulos (segurança)
+                                                    // Final label policy
                                                     ColumnLayout {
                                                         visible: root.bsoidDone && root.bsoidFinalComparisonUnlocked
                                                         Layout.fillWidth: true; spacing: 6
@@ -3011,7 +3011,7 @@ Item {
                                                         }
                                                     }
 
-                                                    // â"€â"€ Extração de Clips de Vídeo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                                                    // ── Video Clip Extraction ───────────────────────────────────────────────────────────────
                                                     ColumnLayout {
                                                         visible: false
                                                         Layout.fillWidth: true; spacing: 6
@@ -3086,7 +3086,7 @@ Item {
                                                 }
                                             }
 
-                                            // ── Revisão de Bouts ──────────────────────────────────────────────────
+                                            // ── Bout Review ──────────────────────────────────────────────────
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 spacing: 8
@@ -3135,7 +3135,7 @@ Item {
                                                     anchors { fill: parent; margins: 12 }
                                                     spacing: 10
 
-                                                    // Cabeçalho
+                                                    // Header
                                                     RowLayout {
                                                         Layout.fillWidth: true
                                                         Text { text: "✎"; font.pixelSize: 20 }
@@ -3183,7 +3183,7 @@ Item {
                                                             }
                                                         }
 
-                                                        // Botão carregar
+                                                        // Load button
                                                         Rectangle {
                                                             width: boutLoadText.implicitWidth + 24; height: 28; radius: 6
                                                             color: boutLoadMa.containsMouse ? "#5c2d8a" : "#4a1d7a"
@@ -3240,7 +3240,7 @@ Item {
                                 }
                             }
 
-                            // ── Tab 3: Dados — Layout aparato-específico
+                            // ── Tab 3: Data — apparatus-specific layout
                             DataView {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -3254,7 +3254,7 @@ Item {
         }
     }
 
-    // â"€â"€ Diálogo de resultado CC â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── CC result dialog ──────────────────────────────────────────────────────────────────
     CCMetadataDialog {
         id: ccResultDialog
         parent: Overlay.overlay
@@ -3262,11 +3262,11 @@ Item {
         contextPatterns: workArea.contextPatterns
     }
 
-    // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Toasts ─────────────────────────────────────────────────────────────────────────────
     Toast { id: successToast; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 
-    // â"€â"€ Popup delete â€" Passo 1 â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Delete popup — Step 1 ──────────────────────────────────────────────────────────────
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400
@@ -3286,7 +3286,7 @@ Item {
                           "Are you sure you want to delete\n\"",
                           "Seguro que desea eliminar\n\""
                       ) + root.pendingDeleteName + LanguageManager.tr3(
-                          "\"?\n\nEsta acao e irreversivel.",
+                          "\"?\n\nEsta ação e irreversivel.",
                           "\"?\n\nThis action is irreversible.",
                           "\"?\n\nEsta accion es irreversible."
                       )
@@ -3306,7 +3306,7 @@ Item {
         }
     }
 
-    // â"€â"€ Popup delete â€" Passo 2 â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Delete popup — Step 2 ──────────────────────────────────────────────────────────────
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent; width: 420
@@ -3319,7 +3319,7 @@ Item {
             id: step2Layout
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
-            Text { text: LanguageManager.tr3("Confirmacao Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
+            Text { text: LanguageManager.tr3("Confirmação Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold }
             Text { Layout.fillWidth: true; text: LanguageManager.tr3("Para confirmar, digite o nome do experimento:", "To confirm, type the experiment name:", "Para confirmar, escriba el nombre del experimento:"); color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap }
             Rectangle {
                 Layout.fillWidth: true; height: nameLabel.implicitHeight + 10; radius: 5

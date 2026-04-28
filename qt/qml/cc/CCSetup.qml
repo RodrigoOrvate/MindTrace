@@ -1,5 +1,5 @@
 ﻿// qml/cc/CCSetup.qml
-// Passo 3 do fluxo CC: nome do experimento, duração, diretório e criação.
+// CC flow step 3: experiment name, duration, directory and creation.
 
 import QtQuick
 import QtQuick.Controls
@@ -20,7 +20,7 @@ Item {
     property string selectedPath: ""
     property int    sessionMinutes: 5    // 5 ou 20
 
-    // name, cols, includeDrug, sessionMinutes, hasObjectZones, responsavel, dayNames, savePath
+    // name, cols, includeDrug, sessionMinutes, hasObjectZones, responsável, dayNames, savePath
     signal experimentReady(string name, var cols, bool includeDrug, int sessionMinutes, bool hasObjectZones, string responsibleUsername, var dayNames, string savePath)
     signal backRequested()
     property string responsibleUsername: ""
@@ -75,12 +75,12 @@ Item {
 
     function doCreate() {
         var cols = [
-            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Diretório do Video", "Video Directory", "Directorio del Video"),
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
             LanguageManager.tr3("Contexto", "Context", "Contexto"),
-            LanguageManager.tr3("Duracao (min)", "Duration (min)", "Duracion (min)"),
+            LanguageManager.tr3("Duração (min)", "Duration (min)", "Duracion (min)"),
             LanguageManager.tr3("Distancia Total (m)", "Total Distance (m)", "Distancia Total (m)"),
             LanguageManager.tr3("Velocidade Media (m/s)", "Average Speed (m/s)", "Velocidad Media (m/s)"),
             "Walking", "Sniffing", "Grooming", "Resting", "Rearing"
@@ -127,7 +127,7 @@ Item {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
+                    text: LanguageManager.tr3("Configuração do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -147,13 +147,13 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Formulário ───────────────────────────────────────────────────
+        // ── Form ─────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             spacing: 24
 
-            // Nome + Diretório
+            // Name + Directory
             RowLayout {
                 Layout.fillWidth: true; spacing: 16
 
@@ -342,7 +342,7 @@ Item {
                             }
                         }
                         Text {
-                            text: "Recomendado: informe um responsavel sempre que houver usuario disponivel."
+                            text: "Recomendado: informe um responsável sempre que houver usuário disponível."
                             color: "#d8c26a"; font.pixelSize: 11
                             wrapMode: Text.Wrap
                         }
@@ -352,7 +352,7 @@ Item {
                     text: root.responsibleUnknown
                           ? "Responsavel sera salvo como \"desconhecido\"."
                           : (ExperimentManager.researcherUsers.length === 0
-                             ? "Nenhum pesquisador disponivel. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuarios nao-admin ativos."
+                             ? "Nenhum pesquisador disponível. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuários não-admin ativos."
                              : "Responsavel registrado no metadata e sincronizado no historico.")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
@@ -360,7 +360,7 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Duração da sessão ─────────────────────────────────────────
+            // ── Session duration ───────────────────────────────────────
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 12
 
@@ -377,12 +377,12 @@ Item {
                             {
                                 min: 5,
                                 label: LanguageManager.tr3("5 minutos", "5 minutes", "5 minutos"),
-                                desc: LanguageManager.tr3("Protocolos curtos e habituacao", "Short protocols and habituation", "Protocolos cortos y habituacion")
+                                desc: LanguageManager.tr3("Protocolos curtos e habituação", "Short protocols and habituation", "Protocolos cortos y habituacion")
                             },
                             {
                                 min: 20,
                                 label: LanguageManager.tr3("20 minutos", "20 minutes", "20 minutos"),
-                                desc: LanguageManager.tr3("Labirinto, sociabilidade e exploracao prolongada", "Maze, sociability, and extended exploration", "Laberinto, sociabilidad y exploracion prolongada")
+                                desc: LanguageManager.tr3("Labirinto, sociabilidade e exploração prolongada", "Maze, sociability, and extended exploration", "Laberinto, sociabilidad y exploracion prolongada")
                             }
                         ]
                         delegate: Rectangle {
@@ -519,7 +519,7 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Informação de layout ──────────────────────────────────────
+            // ── Layout information ────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true; height: 48; radius: 10
                 color: ThemeManager.surfaceDim
@@ -538,7 +538,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
                         Text {
-                    text: LanguageManager.tr3("Metricas: distancia percorrida e velocidade", "Metrics: traveled distance and speed", "Metricas: distancia recorrida y velocidad")
+                    text: LanguageManager.tr3("Métricas: distância percorrida e velocidade", "Metrics: traveled distance and speed", "Métricas: distância recorrida y velocidad")
                             color: ThemeManager.textTertiary; font.pixelSize: 11
                         }
                     }
@@ -547,7 +547,7 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Opções ────────────────────────────────────────────────────
+            // ── Options ───────────────────────────────────────────────
             RowLayout {
                 spacing: 30
 
@@ -572,7 +572,7 @@ Item {
                     }
                 }
 
-                // Zonas de Objetos — oculto para 1 campo (arena EI não tem objetos)
+                // Object zones — hidden for 1-field (EI arena has no objects)
                 RowLayout {
                     visible: root.numCampos > 1
                     spacing: 12
@@ -598,7 +598,7 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Rodapé ────────────────────────────────────────────────────────
+        // ── Footer ────────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 

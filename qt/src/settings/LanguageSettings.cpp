@@ -14,8 +14,8 @@ LanguageSettings::LanguageSettings(QObject* parent)
 QString LanguageSettings::currentLanguage() const
 {
     const QJsonObject settings = ThemeSettings::loadSettingsFile();
-    const QString raw = settings.value(kLanguageKey).toString(QString::fromLatin1(kDefaultLanguage));
-    return sanitizeLanguageCode(raw);
+    const QString rawLanguage = settings.value(kLanguageKey).toString(QString::fromLatin1(kDefaultLanguage));
+    return sanitizeLanguageCode(rawLanguage);
 }
 
 void LanguageSettings::setCurrentLanguage(const QString& languageCode)

@@ -1,6 +1,4 @@
 ﻿// qml/shared/DataView.qml
-// Visualizador de dados aparato-específico com layout e cores personalizadas.
-// Detecta o aparato pelos headers do CSV e renderiza o componente apropriado.
 
 import QtQuick
 import QtQuick.Controls
@@ -15,7 +13,7 @@ Item {
     property alias tableModel: placeholder.model
     property alias workArea: placeholder.workArea
 
-    // Detecta aparato a partir do modelo â€" reativo às mudanças de colunas/headers
+    // Reactive to model changes (columns/headers)
     property string aparato: "generic"
 
     Connections {
@@ -28,31 +26,31 @@ Item {
 
     onTableModelChanged: { root.aparato = root.detectAparato() }
 
-    function normalizeHeaderText(s) {
-        var t = String(s || "").toLowerCase()
-        t = t.replace(/[áàâãä]/g, "a")
-        t = t.replace(/[éèêë]/g, "e")
-        t = t.replace(/[íìîï]/g, "i")
-        t = t.replace(/[óòôõö]/g, "o")
-        t = t.replace(/[úùûü]/g, "u")
-        t = t.replace(/ç/g, "c")
-        return t
+    function normalizeHeaderText(rawHeader) {
+        var normalized = String(rawHeader || "").toLowerCase()
+        normalized = normalized.replace(/[áàâãä]/g, "a")
+        normalized = normalized.replace(/[éèêë]/g, "e")
+        normalized = normalized.replace(/[íìîï]/g, "i")
+        normalized = normalized.replace(/[óòôõö]/g, "o")
+        normalized = normalized.replace(/[úùûü]/g, "u")
+        normalized = normalized.replace(/ç/g, "c")
+        return normalized
     }
 
     function detectAparato() {
         if (!tableModel || tableModel.columnCount() === 0) return ""
 
         var headers = []
-        for (var i = 0; i < tableModel.columnCount(); i++) {
-            var h = tableModel.headerData(i, Qt.Horizontal, Qt.DisplayRole)
-            headers.push(normalizeHeaderText(h))
+        for (var colIdx = 0; colIdx < tableModel.columnCount(); colIdx++) {
+            var headerText = tableModel.headerData(colIdx, Qt.Horizontal, Qt.DisplayRole)
+            headers.push(normalizeHeaderText(headerText))
         }
 
         var headersStr = headers.join(",")
         if (headersStr.includes("par de objetos") || headersStr.includes("object pair")) return "nor"
         if (headersStr.includes("latencia") || headersStr.includes("tempo plataforma") || headersStr.includes("platform time") || headersStr.includes("tiempo plataforma")) return "ei"
         if (headersStr.includes("duracao (min)") || headersStr.includes("duration (min)") || headersStr.includes("duracion (min)") || headersStr.includes("walking") || headersStr.includes("grooming")) return "cc"
-        if (headersStr.includes("distancia total") || headersStr.includes("total distance") || headersStr.includes("tempo no centro") || headersStr.includes("time in center") || headersStr.includes("tiempo en centro")) return "ca"
+        if (headersStr.includes("distância total") || headersStr.includes("total distance") || headersStr.includes("tempo no centro") || headersStr.includes("time in center") || headersStr.includes("tiempo en centro")) return "ca"
 
         return "generic"
     }
@@ -61,7 +59,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // â"€â"€ Barra superior com informações do aparato â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // Apparatus info bar
         Rectangle {
             Layout.fillWidth: true
             height: 56
@@ -138,12 +136,12 @@ Item {
             }
         }
 
-        // â"€â"€ Conteúdo dinâmico por aparato â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // Dynamic apparatus content
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // NOR - Reconhecimento de Objetos
+            // NOR - Object Recognition
             NORDataView {
                 id: norView
                 anchors.fill: parent
@@ -152,7 +150,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // CA - Campo Aberto
+            // CA - Open Field
             CADataView {
                 id: caView
                 anchors.fill: parent
@@ -161,7 +159,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // CC - Comportamento Complexo
+            // CC - Complex Behavior
             CCDataView {
                 id: ccView
                 anchors.fill: parent
@@ -170,7 +168,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // EI - Esquiva Inibitória
+            // EI - Inhibitory Avoidance
             EIDataView {
                 id: eiView
                 anchors.fill: parent
@@ -179,7 +177,7 @@ Item {
                 workArea: root.workArea
             }
 
-            // Genérico/Fallback
+            // Fallback / generic
             GenericDataView {
                 anchors.fill: parent
                 visible: root.aparato === "generic" || root.aparato === ""
@@ -189,7 +187,7 @@ Item {
         }
     }
 
-    // â"€â"€ Helper functions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // Helper functions
     function getAparatoIcon() {
         switch (root.aparato) {
             case "nor": return "\uD83E\uDDE0"
@@ -212,8 +210,8 @@ Item {
 
     function getAparatoSubtitle() {
         switch (root.aparato) {
-            case "nor": return LanguageManager.tr3("Exploracao e discriminacao de objetos", "Object exploration and discrimination", "Exploracion y discriminacion de objetos")
-            case "ca": return LanguageManager.tr3("Exploracao em arena aberta", "Open arena exploration", "Exploracion en arena abierta")
+            case "nor": return LanguageManager.tr3("Exploração e discriminacao de objetos", "Object exploration and discrimination", "Exploracion y discriminacion de objetos")
+            case "ca": return LanguageManager.tr3("Exploração em arena aberta", "Open arena exploration", "Exploracion en arena abierta")
             case "cc": return LanguageManager.tr3("Analise comportamental complexa", "Complex behavioral analysis", "Analisis conductual complejo")
             case "ei": return LanguageManager.tr3("Memoria aversiva passiva", "Passive aversive memory", "Memoria aversiva pasiva")
             default: return LanguageManager.tr3("Planilha de resultados", "Results sheet", "Hoja de resultados")
@@ -260,7 +258,7 @@ Item {
         }
     }
 
-    // Toast â€" centralizado na parte inferior
+    // Toast feedback
     Toast {
         id: exportFeedback
         anchors.horizontalCenter: parent.horizontalCenter

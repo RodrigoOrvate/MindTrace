@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
@@ -6,10 +6,10 @@ import "../core"
 import "../core/Theme"
 
 // ── BoutEditorPanel ───────────────────────────────────────────────────────────
-// Painel de revisão e auditoria de bouts comportamentais.
-// Recebe frameData (array de {frameIdx, ruleLabel, movNose, movBody, movMean})
-// e fps, computa bouts, permite filtrar, editar labels, deletar, split/merge e
-// exportar CSV/JSON com histórico original vs editado.
+// Post-session bout review and audit panel.
+// Receives frameData (array of {frameIdx, ruleLabel, movNose, movBody, movMean})
+// and fps, computes bouts, allows filtering, label editing, deletion, split/merge and
+// exporting CSV/JSON with original vs edited history.
 Rectangle {
     id: root
 
@@ -21,17 +21,17 @@ Rectangle {
 
     color: "transparent"
 
-    // ── Nomenclatura ──────────────────────────────────────────────────────────
+    // ── Naming ────────────────────────────────────────────────────────────────
     readonly property var behaviorNames:  ["Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
     readonly property var behaviorColors: ["#4caf50", "#2196f3", "#ff9800", "#9c27b0", "#f44336"]
     readonly property int labelDeleted: 99
 
-    // ── Estado interno ────────────────────────────────────────────────────────
+    // ── Internal state ─────────────────────────────────────────────────────────
     property var _bouts:         []   // array de bout objects (estado atual)
-    property var _originalBouts: []   // snapshot imutável ao carregar
+    property var _originalBouts: []   // immutable snapshot on load
     property var _undoStack:     []   // array de snapshots para undo
-    property int _selectedIdx:   -1   // índice do bout selecionado na lista filtrada
-    property var _filteredBouts: []   // subconjunto de _bouts após filtros
+    property int _selectedIdx:   -1   // index of the selected bout in the filtered list
+    property var _filteredBouts: []   // subset of _bouts after applying filters
 
     // Filtros
     property int    _filterLabel:     -1   // -1 = todos
@@ -39,7 +39,7 @@ Rectangle {
     property double _filterTimeEnd:   -1
     property string _filterText:      ""
 
-    // ── Carrega e computa bouts ao receber frameData ──────────────────────────
+    // ── Load and compute bouts when frameData is received ─────────────────────
     onFrameDataChanged: {
         if (frameData && frameData.length > 0)
             _loadBouts()
@@ -48,7 +48,7 @@ Rectangle {
     function _loadBouts() {
         var computed = _computeBouts(frameData)
         _bouts = computed
-        // Deep copy para preservar original
+        // Deep copy to preserve the original
         _originalBouts = JSON.parse(JSON.stringify(computed))
         _undoStack = []
         _selectedIdx = -1
@@ -58,28 +58,28 @@ Rectangle {
     function _computeBouts(frames) {
         if (!frames || frames.length === 0) return []
         var bouts = []
-        var id = 0
-        var f0 = frames[0]
-        var cur = { label: f0.ruleLabel, startFrame: f0.frameIdx,
-                    endFrame: f0.frameIdx, movNoseSum: f0.movNose,
-                    movBodySum: f0.movBody, movMeanSum: f0.movMean, count: 1 }
+        var boutId = 0
+        var firstFrame = frames[0]
+        var current = { label: firstFrame.ruleLabel, startFrame: firstFrame.frameIdx,
+                        endFrame: firstFrame.frameIdx, movNoseSum: firstFrame.movNose,
+                        movBodySum: firstFrame.movBody, movMeanSum: firstFrame.movMean, count: 1 }
 
-        for (var i = 1; i < frames.length; i++) {
-            var f = frames[i]
-            if (f.ruleLabel !== cur.label) {
-                bouts.push(_makeBout(id++, cur))
-                cur = { label: f.ruleLabel, startFrame: f.frameIdx,
-                        endFrame: f.frameIdx, movNoseSum: f.movNose,
-                        movBodySum: f.movBody, movMeanSum: f.movMean, count: 1 }
+        for (var frameIdx = 1; frameIdx < frames.length; frameIdx++) {
+            var frame = frames[frameIdx]
+            if (frame.ruleLabel !== current.label) {
+                bouts.push(_makeBout(boutId++, current))
+                current = { label: frame.ruleLabel, startFrame: frame.frameIdx,
+                            endFrame: frame.frameIdx, movNoseSum: frame.movNose,
+                            movBodySum: frame.movBody, movMeanSum: frame.movMean, count: 1 }
             } else {
-                cur.endFrame    = f.frameIdx
-                cur.movNoseSum += f.movNose
-                cur.movBodySum += f.movBody
-                cur.movMeanSum += f.movMean
-                cur.count++
+                current.endFrame    = frame.frameIdx
+                current.movNoseSum += frame.movNose
+                current.movBodySum += frame.movBody
+                current.movMeanSum += frame.movMean
+                current.count++
             }
         }
-        bouts.push(_makeBout(id, cur))
+        bouts.push(_makeBout(boutId, current))
         return bouts
     }
 
@@ -105,24 +105,24 @@ Rectangle {
 
     function _applyFilters() {
         var result = []
-        for (var i = 0; i < _bouts.length; i++) {
-            var b = _bouts[i]
-            if (b.deleted) continue
-            if (_filterLabel !== -1 && b.currentLabel !== _filterLabel) continue
-            if (_filterTimeStart >= 0 && b.endSec < _filterTimeStart) continue
-            if (_filterTimeEnd >= 0 && b.startSec > _filterTimeEnd) continue
+        for (var boutIdx = 0; boutIdx < _bouts.length; boutIdx++) {
+            var bout = _bouts[boutIdx]
+            if (bout.deleted) continue
+            if (_filterLabel !== -1 && bout.currentLabel !== _filterLabel) continue
+            if (_filterTimeStart >= 0 && bout.endSec < _filterTimeStart) continue
+            if (_filterTimeEnd >= 0 && bout.startSec > _filterTimeEnd) continue
             if (_filterText !== "") {
-                var name = _labelName(b.currentLabel).toLowerCase()
+                var name = _labelName(bout.currentLabel).toLowerCase()
                 if (name.indexOf(_filterText.toLowerCase()) < 0) continue
             }
-            result.push(b)
+            result.push(bout)
         }
         _filteredBouts = result
         _selectedIdx = -1
     }
 
     function _labelName(label) {
-        if (label === labelDeleted) return "Deletado"
+        if (label === labelDeleted) return "Deleted"
         if (label >= 0 && label < behaviorNames.length) return behaviorNames[label]
         return "?"
     }
@@ -131,7 +131,7 @@ Rectangle {
         return "#888"
     }
 
-    // ── Operações de edição ───────────────────────────────────────────────────
+    // ── Edit operations ────────────────────────────────────────────────────
 
     function _pushUndo() {
         var stack = _undoStack.slice()
@@ -143,12 +143,12 @@ Rectangle {
     function editLabel(boutId, newLabel) {
         _pushUndo()
         var arr = _bouts.slice()
-        for (var i = 0; i < arr.length; i++) {
-            if (arr[i].id === boutId) {
-                var b = Object.assign({}, arr[i])
-                b.currentLabel = newLabel
-                b.editedAt     = new Date().toISOString()
-                arr[i] = b
+        for (var boutIdx = 0; boutIdx < arr.length; boutIdx++) {
+            if (arr[boutIdx].id === boutId) {
+                var boutCopy = Object.assign({}, arr[boutIdx])
+                boutCopy.currentLabel = newLabel
+                boutCopy.editedAt     = new Date().toISOString()
+                arr[boutIdx] = boutCopy
                 break
             }
         }
@@ -159,12 +159,12 @@ Rectangle {
     function deleteBout(boutId) {
         _pushUndo()
         var arr = _bouts.slice()
-        for (var i = 0; i < arr.length; i++) {
-            if (arr[i].id === boutId) {
-                var b = Object.assign({}, arr[i])
-                b.deleted  = true
-                b.editedAt = new Date().toISOString()
-                arr[i] = b
+        for (var boutIdx = 0; boutIdx < arr.length; boutIdx++) {
+            if (arr[boutIdx].id === boutId) {
+                var boutCopy = Object.assign({}, arr[boutIdx])
+                boutCopy.deleted  = true
+                boutCopy.editedAt = new Date().toISOString()
+                arr[boutIdx] = boutCopy
                 break
             }
         }
@@ -176,25 +176,25 @@ Rectangle {
         _pushUndo()
         var arr   = _bouts.slice()
         var idx   = -1
-        for (var i = 0; i < arr.length; i++) { if (arr[i].id === boutId) { idx = i; break } }
+        for (var boutIdx = 0; boutIdx < arr.length; boutIdx++) { if (arr[boutIdx].id === boutId) { idx = boutIdx; break } }
         if (idx < 0) return
-        var b = arr[idx]
-        if (b.endFrame - b.startFrame < 2) return   // muito curto para dividir
+        var bout = arr[idx]
+        if (bout.endFrame - bout.startFrame < 2) return   // too short to split
 
-        var midFrame = Math.floor((b.startFrame + b.endFrame) / 2)
+        var midFrame = Math.floor((bout.startFrame + bout.endFrame) / 2)
         var midSec   = (midFrame + 1) / fps
         var maxId    = 0
-        for (var j = 0; j < arr.length; j++) maxId = Math.max(maxId, arr[j].id)
+        for (var scanIdx = 0; scanIdx < arr.length; scanIdx++) maxId = Math.max(maxId, arr[scanIdx].id)
 
-        var b1 = Object.assign({}, b, {
+        var boutA = Object.assign({}, bout, {
             endFrame: midFrame, endSec: midSec,
-            durationSec: midSec - b.startSec, editedAt: new Date().toISOString()
+            durationSec: midSec - bout.startSec, editedAt: new Date().toISOString()
         })
-        var b2 = Object.assign({}, b, {
+        var boutB = Object.assign({}, bout, {
             id: maxId + 1, startFrame: midFrame + 1,
-            startSec: midSec, durationSec: b.endSec - midSec, editedAt: new Date().toISOString()
+            startSec: midSec, durationSec: bout.endSec - midSec, editedAt: new Date().toISOString()
         })
-        arr.splice(idx, 1, b1, b2)
+        arr.splice(idx, 1, boutA, boutB)
         _bouts = arr
         _applyFilters()
     }
@@ -202,31 +202,31 @@ Rectangle {
     function mergeWithNext(boutId) {
         _pushUndo()
         var arr = _bouts.slice()
-        // Encontra bout e o próximo não-deletado
+        // Find bout and the next non-deleted bout
         var idxA = -1, idxB = -1
-        for (var i = 0; i < arr.length; i++) {
-            if (arr[i].id === boutId && !arr[i].deleted) { idxA = i; break }
+        for (var boutIdx = 0; boutIdx < arr.length; boutIdx++) {
+            if (arr[boutIdx].id === boutId && !arr[boutIdx].deleted) { idxA = boutIdx; break }
         }
         if (idxA < 0) return
-        for (var j = idxA + 1; j < arr.length; j++) {
-            if (!arr[j].deleted) { idxB = j; break }
+        for (var searchIdx = idxA + 1; searchIdx < arr.length; searchIdx++) {
+            if (!arr[searchIdx].deleted) { idxB = searchIdx; break }
         }
         if (idxB < 0) return
 
-        var a = arr[idxA], bv = arr[idxB]
-        var totalFrames = (a.endFrame - a.startFrame + 1) + (bv.endFrame - bv.startFrame + 1)
-        var merged = Object.assign({}, a, {
-            endFrame:   bv.endFrame,
-            endSec:     bv.endSec,
-            durationSec: bv.endSec - a.startSec,
-            avgMovBody: (a.avgMovBody * (a.endFrame - a.startFrame + 1)
-                         + bv.avgMovBody * (bv.endFrame - bv.startFrame + 1)) / totalFrames,
-            avgMovNose: (a.avgMovNose * (a.endFrame - a.startFrame + 1)
-                         + bv.avgMovNose * (bv.endFrame - bv.startFrame + 1)) / totalFrames,
+        var boutA = arr[idxA], boutB = arr[idxB]
+        var totalFrames = (boutA.endFrame - boutA.startFrame + 1) + (boutB.endFrame - boutB.startFrame + 1)
+        var merged = Object.assign({}, boutA, {
+            endFrame:   boutB.endFrame,
+            endSec:     boutB.endSec,
+            durationSec: boutB.endSec - boutA.startSec,
+            avgMovBody: (boutA.avgMovBody * (boutA.endFrame - boutA.startFrame + 1)
+                         + boutB.avgMovBody * (boutB.endFrame - boutB.startFrame + 1)) / totalFrames,
+            avgMovNose: (boutA.avgMovNose * (boutA.endFrame - boutA.startFrame + 1)
+                         + boutB.avgMovNose * (boutB.endFrame - boutB.startFrame + 1)) / totalFrames,
             editedAt: new Date().toISOString()
         })
         arr.splice(idxA, 1, merged)
-        arr.splice(idxB > idxA ? idxB : idxB, 1)  // remove o segundo
+        arr.splice(idxB > idxA ? idxB : idxB, 1)  // remove the second bout
         _bouts = arr
         _applyFilters()
     }
@@ -240,24 +240,24 @@ Rectangle {
         _applyFilters()
     }
 
-    // ── Exportação ────────────────────────────────────────────────────────────
+    // ── Export ────────────────────────────────────────────────────────────
 
     function exportReviewCsv(path) {
         var lines = ["\xEF\xBB\xBF" +
             "bout_id,start_frame,end_frame,start_s,end_s,duration_s," +
             "original_label,edited_label,edited_at,avg_mov_body,avg_mov_nose"]
-        for (var i = 0; i < _bouts.length; i++) {
-            var b = _bouts[i]
-            var origName = b.originalLabel >= 0 && b.originalLabel < behaviorNames.length
-                           ? behaviorNames[b.originalLabel] : "?"
-            var curName  = b.deleted ? "Deleted"
-                           : (b.currentLabel >= 0 && b.currentLabel < behaviorNames.length
-                              ? behaviorNames[b.currentLabel] : "?")
+        for (var boutIdx = 0; boutIdx < _bouts.length; boutIdx++) {
+            var bout = _bouts[boutIdx]
+            var origName = bout.originalLabel >= 0 && bout.originalLabel < behaviorNames.length
+                           ? behaviorNames[bout.originalLabel] : "?"
+            var curName  = bout.deleted ? "Deleted"
+                           : (bout.currentLabel >= 0 && bout.currentLabel < behaviorNames.length
+                              ? behaviorNames[bout.currentLabel] : "?")
             lines.push([
-                b.id, b.startFrame, b.endFrame,
-                b.startSec.toFixed(3), b.endSec.toFixed(3), b.durationSec.toFixed(3),
-                origName, curName, b.editedAt,
-                b.avgMovBody.toFixed(3), b.avgMovNose.toFixed(3)
+                bout.id, bout.startFrame, bout.endFrame,
+                bout.startSec.toFixed(3), bout.endSec.toFixed(3), bout.durationSec.toFixed(3),
+                origName, curName, bout.editedAt,
+                bout.avgMovBody.toFixed(3), bout.avgMovNose.toFixed(3)
             ].join(","))
         }
         return lines.join("\n")
@@ -265,24 +265,24 @@ Rectangle {
 
     function exportReviewJson() {
         var bouts = []
-        for (var i = 0; i < _bouts.length; i++) {
-            var b = _bouts[i]
+        for (var boutIdx = 0; boutIdx < _bouts.length; boutIdx++) {
+            var bout = _bouts[boutIdx]
             bouts.push({
-                bout_id:        b.id,
-                start_frame:    b.startFrame,
-                end_frame:      b.endFrame,
-                start_s:        parseFloat(b.startSec.toFixed(3)),
-                end_s:          parseFloat(b.endSec.toFixed(3)),
-                duration_s:     parseFloat(b.durationSec.toFixed(3)),
-                original_label: b.originalLabel >= 0 && b.originalLabel < behaviorNames.length
-                                 ? behaviorNames[b.originalLabel] : "?",
-                edited_label:   b.deleted ? "Deleted"
-                                 : (b.currentLabel >= 0 && b.currentLabel < behaviorNames.length
-                                    ? behaviorNames[b.currentLabel] : "?"),
-                edited:         b.editedAt !== "" || b.deleted,
-                edited_at:      b.editedAt || null,
-                avg_mov_body:   parseFloat(b.avgMovBody.toFixed(3)),
-                avg_mov_nose:   parseFloat(b.avgMovNose.toFixed(3))
+                bout_id:        bout.id,
+                start_frame:    bout.startFrame,
+                end_frame:      bout.endFrame,
+                start_s:        parseFloat(bout.startSec.toFixed(3)),
+                end_s:          parseFloat(bout.endSec.toFixed(3)),
+                duration_s:     parseFloat(bout.durationSec.toFixed(3)),
+                original_label: bout.originalLabel >= 0 && bout.originalLabel < behaviorNames.length
+                                 ? behaviorNames[bout.originalLabel] : "?",
+                edited_label:   bout.deleted ? "Deleted"
+                                 : (bout.currentLabel >= 0 && bout.currentLabel < behaviorNames.length
+                                    ? behaviorNames[bout.currentLabel] : "?"),
+                edited:         bout.editedAt !== "" || bout.deleted,
+                edited_at:      bout.editedAt || null,
+                avg_mov_body:   parseFloat(bout.avgMovBody.toFixed(3)),
+                avg_mov_nose:   parseFloat(bout.avgMovNose.toFixed(3))
             })
         }
         return JSON.stringify({
@@ -294,23 +294,23 @@ Rectangle {
         }, null, 2)
     }
 
-    // Salva string em arquivo via FileDialog path
+    // Saves string to file using FileDialog path
     function _saveText(path, content) {
         var xhr = new XMLHttpRequest()
-        // Usa Qt.openUrlExternally como fallback; escrita real precisa de ExperimentManager
-        // Emite sinal para o Dashboard lidar com a escrita
+        // ExperimentManager handles actual file writing; emit signal for the dashboard
+        // (fire-and-forget; write is performed by the parent dashboard)
         exportReady(path, content)
     }
 
     signal exportReady(string path, string content)
 
-    // ── UI ────────────────────────────────────────────────────────────────────
+    // ── UI ─────────────────────────────────────────────────────────────────
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 8
 
-        // ── Barra de filtros ─────────────────────────────────────────────────
+        // ── Filter bar ──────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             height: 44
@@ -327,7 +327,7 @@ Rectangle {
                     color: ThemeManager.textSecondary; font.pixelSize: 11
                 }
 
-                // Botões de label
+                // Label filter buttons
                 Repeater {
                     model: behaviorNames.length + 1   // +1 para "Todos"
                     delegate: Rectangle {
@@ -360,13 +360,13 @@ Rectangle {
 
                 Item { Layout.fillWidth: true }
 
-                // Contador
+                // Counter
                 Text {
                     text: root._filteredBouts.length + " bouts"
                     color: ThemeManager.textSecondary; font.pixelSize: 11
                 }
 
-                // Undo
+                // Undo button
                 Rectangle {
                     width: 28; height: 28; radius: 6
                     color: undoMa.containsMouse && root._undoStack.length > 0
@@ -387,13 +387,13 @@ Rectangle {
             }
         }
 
-        // ── Layout principal: tabela + detalhe ───────────────────────────────
+        // ── Main layout: table + detail ─────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 8
 
-            // ── Tabela de bouts ──────────────────────────────────────────────
+            // ── Bout table ──────────────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -406,12 +406,12 @@ Rectangle {
                     anchors.fill: parent
                     spacing: 0
 
-                    // Cabeçalho
+                    // Header
                     Rectangle {
                         Layout.fillWidth: true; height: 32
                         color: ThemeManager.surface
                         radius: 8
-                        // Cobre parte inferior do radius
+                        // Covers the bottom of the border radius
                         Rectangle {
                             anchors {
                                 bottom: parent.bottom
@@ -434,7 +434,7 @@ Rectangle {
                         }
                     }
 
-                    // Lista
+                    // List
                     ListView {
                         id: boutList
                         Layout.fillWidth: true
@@ -443,7 +443,7 @@ Rectangle {
                         model: root._filteredBouts
                         ScrollBar.vertical: ScrollBar {}
 
-                        // Mensagem vazia
+                        // Empty message
                         Text {
                             anchors.centerIn: parent
                             visible: boutList.count === 0
@@ -469,14 +469,14 @@ Rectangle {
                                 anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
                                 spacing: 0
 
-                                // #
+                                // Bout ID
                                 Text {
                                     text: bout.id
                                     color: ThemeManager.textSecondary; font.pixelSize: 10
                                     Layout.preferredWidth: 28
                                 }
 
-                                // Label colorido
+                                // Colored label
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 5
                                     Rectangle {
@@ -493,14 +493,14 @@ Rectangle {
                                     }
                                 }
 
-                                // Início
+                                // Start
                                 Text {
                                     text: bout.startSec.toFixed(1)
                                     color: ThemeManager.textSecondary; font.pixelSize: 10
                                     Layout.preferredWidth: 62; horizontalAlignment: Text.AlignRight
                                 }
 
-                                // Duração
+                                // Duration
                                 Text {
                                     text: bout.durationSec.toFixed(2)
                                     color: ThemeManager.textSecondary; font.pixelSize: 10
@@ -514,11 +514,11 @@ Rectangle {
                                     Layout.preferredWidth: 60; horizontalAlignment: Text.AlignRight
                                 }
 
-                                // Ações
+                                // Actions
                                 RowLayout {
                                     Layout.preferredWidth: 80; spacing: 3
 
-                                    // Editar label
+                                    // Edit label
                                     Rectangle {
                                         width: 22; height: 22; radius: 4
                                         color: editMa.containsMouse ? ThemeManager.surfaceAlt : "transparent"
@@ -548,7 +548,7 @@ Rectangle {
                                         }
                                     }
 
-                                    // Merge com próximo
+                                    // Merge with next
                                     Rectangle {
                                         width: 22; height: 22; radius: 4
                                         color: mergeMa.containsMouse ? ThemeManager.surfaceAlt : "transparent"
@@ -560,7 +560,7 @@ Rectangle {
                                         }
                                     }
 
-                                    // Deletar
+                                    // Delete
                                     Rectangle {
                                         width: 22; height: 22; radius: 4
                                         color: delMa.containsMouse ? "#3d1515" : "transparent"
@@ -584,7 +584,7 @@ Rectangle {
                 }
             }
 
-            // ── Painel de detalhe ────────────────────────────────────────────
+            // ── Detail panel ──────────────────────────────────────────────
             Rectangle {
                 Layout.preferredWidth: 190
                 Layout.fillHeight: true
@@ -604,7 +604,7 @@ Rectangle {
                         color: ThemeManager.textSecondary; font.pixelSize: 11; font.weight: Font.Bold
                     }
 
-                    // Nenhum selecionado
+                    // Nothing selected
                     Text {
                         visible: parent.parent.selBout === null
                         Layout.fillWidth: true
@@ -613,7 +613,7 @@ Rectangle {
                         wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter
                     }
 
-                    // Conteúdo do bout selecionado
+                    // Selected bout content
                     ColumnLayout {
                         id: detailColumn
                         visible: parent.parent.selBout !== null
@@ -622,7 +622,7 @@ Rectangle {
 
                         property var selectedBout: parent.parent.selBout
 
-                        // Label colorida
+                        // Colored label
                         Rectangle {
                             Layout.fillWidth: true; height: 32; radius: 6
                             color: detailColumn.selectedBout ? root._labelColor(detailColumn.selectedBout.currentLabel) : "transparent"
@@ -633,7 +633,7 @@ Rectangle {
                             }
                         }
 
-                        // Label original
+                        // Original label
                         RowLayout {
                             visible: detailColumn.selectedBout && detailColumn.selectedBout.currentLabel !== detailColumn.selectedBout.originalLabel
                             Layout.fillWidth: true
@@ -647,7 +647,7 @@ Rectangle {
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
-                        // Métricas
+                        // Metrics
                         Repeater {
                             model: [
                                 { label: LanguageManager.tr3("Início", "Start", "Inicio"),   value: detailColumn.selectedBout ? detailColumn.selectedBout.startSec.toFixed(2) + " s" : "" },
@@ -666,7 +666,7 @@ Rectangle {
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
-                        // Regra disparada
+                        // Rule triggered
                         Text {
                             text: LanguageManager.tr3("Regra disparada:", "Rule fired:", "Regla disparada:")
                             color: ThemeManager.textSecondary; font.pixelSize: 10
@@ -689,7 +689,7 @@ Rectangle {
                             }
                         }
 
-                        // Editado em
+                        // Edited at
                         Text {
                             visible: detailColumn.selectedBout && detailColumn.selectedBout.editedAt !== ""
                             Layout.fillWidth: true
@@ -703,7 +703,7 @@ Rectangle {
 
                     Item { Layout.fillHeight: true }
 
-                    // Botões de exportação
+                    // Export buttons
                     Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
                     Text {
@@ -741,7 +741,7 @@ Rectangle {
         }
     }
 
-    // ── Popup de seleção de novo label ────────────────────────────────────────
+    // ── Label selection popup ─────────────────────────────────────────────
     Popup {
         id: labelPopup
         parent: Overlay.overlay
@@ -796,7 +796,7 @@ Rectangle {
         }
     }
 
-    // ── Diálogos de salvar ────────────────────────────────────────────────────
+    // ── Save dialogs ───────────────────────────────────────────────────────
     FileDialog {
         id: csvSaveDialog
         title: LanguageManager.tr3("Salvar revisão CSV", "Save review CSV", "Guardar revisión CSV")

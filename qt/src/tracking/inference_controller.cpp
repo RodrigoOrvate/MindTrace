@@ -1,35 +1,56 @@
 ﻿#include "inference_controller.h"
-#include <QCoreApplication>
-#include <QDir>
 
-// Retorna o primeiro .onnx encontrado no diretório (exclui subpastas).
-// Usado para carregar o modelo de pose independente do nome do arquivo.
-static QString findPoseModel(const QString &dir)
+#include <QCameraFormat>
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QImage>
+#include <QMediaFormat>
+#include <QMediaMetaData>
+#include <QMetaObject>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QPainter>
+#include <QPdfWriter>
+#include <QRegularExpression>
+#include <QStandardPaths>
+#include <QTextStream>
+#include <QTimer>
+#include <QVideoFrameFormat>
+
+#include <algorithm>
+#include <climits>
+
+// Returns the first .onnx file found in *dir* (top-level only, no subdirectories).
+// Allows loading the pose model regardless of its filename.
+static QString findPoseModel(const QString& dir)
 {
     const QStringList entries = QDir(dir).entryList({"*.onnx"}, QDir::Files);
     return entries.isEmpty() ? QString() : dir + "/" + entries.first();
 }
-#include <QStandardPaths>
-#include <QFile>
-#include <QFileInfo>
-#include <QDir>
-#include <QImage>
-#include <QMetaObject>
-#include <QMediaMetaData>
-#include <QTextStream>
-#include <QDebug>
-#include <QDateTime>
-#include <QMediaFormat>
-#include <QCameraFormat>
-#include <QVideoFrameFormat>
-#include <QPdfWriter>
-#include <QPainter>
-#include <QPageSize>
-#include <QPageLayout>
-#include <climits>
-#include <QRegularExpression>
-#include <QTimer>
-#include <algorithm>
+
+// Maps a QVideoFrameFormat::PixelFormat to a short human-readable label.
+// Used in diagnostic messages on the first live frame and on null-frame errors.
+static QString pixelFormatName(QVideoFrameFormat::PixelFormat pixelFormat)
+{
+    switch (pixelFormat) {
+        case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
+        case QVideoFrameFormat::Format_NV12:    return "NV12";
+        case QVideoFrameFormat::Format_NV21:    return "NV21";
+        case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
+        case QVideoFrameFormat::Format_YUYV:    return "YUYV";
+        case QVideoFrameFormat::Format_UYVY:    return "UYVY";
+        case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
+        case QVideoFrameFormat::Format_BGRX8888:return "BGRX8888";
+        case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
+        case QVideoFrameFormat::Format_RGBX8888:return "RGBX8888";
+        case QVideoFrameFormat::Format_Invalid: return "Invalid";
+        default: return QString("Unknown(%1)").arg(static_cast<int>(pixelFormat));
+    }
+}
 
 InferenceController::InferenceController(QObject* parent)
     : QObject(parent)
@@ -61,18 +82,18 @@ InferenceController::InferenceController(QObject* parent)
     }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::trackResult, this,
-            [this](int c, float x, float y, float p) {
-                emit trackReceived(c, x, y, p);
+            [this](int fieldIndex, float x, float y, float likelihood) {
+                emit trackReceived(fieldIndex, x, y, likelihood);
             }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::bodyResult, this,
-            [this](int c, float x, float y, float p) {
-                emit bodyReceived(c, x, y, p);
+            [this](int fieldIndex, float x, float y, float likelihood) {
+                emit bodyReceived(fieldIndex, x, y, likelihood);
             }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::behaviorResult, this,
-            [this](int campo, int labelId) {
-                emit behaviorReceived(campo, labelId);
+            [this](int fieldIndex, int labelId) {
+                emit behaviorReceived(fieldIndex, labelId);
             }, Qt::QueuedConnection);
 
     connect(m_engine, &InferenceEngine::errorMsg, this,
@@ -135,9 +156,9 @@ QString InferenceController::defaultModelDir() const
            + "/MindTrace_Data/DLC_Model";
 }
 
-void InferenceController::setAnalyzing(bool v)
+void InferenceController::setAnalyzing(bool analyzing)
 {
-    if (m_isAnalyzing != v) { m_isAnalyzing = v; emit analyzingChanged(); }
+    if (m_isAnalyzing != analyzing) { m_isAnalyzing = analyzing; emit analyzingChanged(); }
 }
 
 void InferenceController::processImageFrame(QImage img)
@@ -206,35 +227,40 @@ void InferenceController::loadBehaviorModel(const QString& path)
     m_engine->loadBehaviorModel(path);
 }
 
-void InferenceController::setZones(int campo, const QList<QVariant>& zones) {
+void InferenceController::setZones(int fieldIndex, const QList<QVariant>& zones)
+{
     std::vector<Zone> converted;
     converted.reserve(zones.size());
-    for (const auto& z : zones) {
-        QVariantMap m = z.toMap();
+    for (const auto& zoneVariant : zones) {
+        const QVariantMap zoneMap = zoneVariant.toMap();
         Zone zone;
-        zone.x = m.value("x", 0.0).toFloat();
-        zone.y = m.value("y", 0.0).toFloat();
-        zone.r = m.value("r", 0.0).toFloat();
+        zone.x = zoneMap.value("x", 0.0).toFloat();
+        zone.y = zoneMap.value("y", 0.0).toFloat();
+        zone.r = zoneMap.value("r", 0.0).toFloat();
         converted.push_back(zone);
     }
-    m_engine->setZones(campo, converted);
+    m_engine->setZones(fieldIndex, converted);
 }
 
-void InferenceController::setFloorPolygon(int campo, const QList<QVariant>& points) {
-    std::vector<std::pair<float,float>> poly;
+void InferenceController::setFloorPolygon(int fieldIndex, const QList<QVariant>& points)
+{
+    std::vector<std::pair<float, float>> poly;
     poly.reserve(points.size());
-    for (const auto& p : points) {
-        QVariantMap m = p.toMap();
-        poly.push_back({ m.value("x", 0.0).toFloat(), m.value("y", 0.0).toFloat() });
+    for (const auto& pointVariant : points) {
+        const QVariantMap pointMap = pointVariant.toMap();
+        poly.push_back({pointMap.value("x", 0.0).toFloat(),
+                        pointMap.value("y", 0.0).toFloat()});
     }
-    m_engine->setFloorPolygon(campo, poly);
+    m_engine->setFloorPolygon(fieldIndex, poly);
 }
 
-void InferenceController::setVelocity(int campo, float velocity) {
-    m_engine->setVelocity(campo, velocity);
+void InferenceController::setVelocity(int fieldIndex, float velocity)
+{
+    m_engine->setVelocity(fieldIndex, velocity);
 }
 
-void InferenceController::setFullFrameMode(bool enabled) {
+void InferenceController::setFullFrameMode(bool enabled)
+{
     m_engine->setFullFrameMode(enabled);
 }
 
@@ -285,129 +311,128 @@ void InferenceController::setLivePreviewOutput(QObject* videoOutput) {
             Qt::DirectConnection);
 }
 
-QVariantList InferenceController::getBehaviorFrames(int campo) const
+QVariantList InferenceController::getBehaviorFrames(int fieldIndex) const
 {
-    if (campo < 0 || campo >= 3) return {};
-    const auto& history = m_engine->getScannerHistory(campo);
+    if (fieldIndex < 0 || fieldIndex >= 3) return {};
+    const auto& history = m_engine->getScannerHistory(fieldIndex);
     QVariantList result;
     result.reserve(static_cast<int>(history.size()));
     for (const auto& rec : history) {
-        QVariantMap m;
-        m["frameIdx"]  = rec.frameIdx;
-        m["ruleLabel"] = rec.ruleLabel;
-        m["movNose"]   = static_cast<double>(rec.features[0]);
-        m["movBody"]   = static_cast<double>(rec.features[1]);
-        m["movMean"]   = static_cast<double>(rec.features[3]);
-        result.append(m);
+        QVariantMap entry;
+        entry["frameIdx"]  = rec.frameIdx;
+        entry["ruleLabel"] = rec.ruleLabel;
+        entry["movNose"]   = static_cast<double>(rec.features[0]);
+        entry["movBody"]   = static_cast<double>(rec.features[1]);
+        entry["movMean"]   = static_cast<double>(rec.features[3]);
+        result.append(entry);
     }
     return result;
 }
 
-QString InferenceController::behaviorCachePath(const QString& experimentPath, int campo) const
+QString InferenceController::behaviorCachePath(const QString& experimentPath, int fieldIndex) const
 {
-    if (campo < 0 || campo >= 3) return QString();
-    QString base = experimentPath.trimmed();
-    if (base.startsWith("file:///")) base = base.mid(8);
-    if (base.isEmpty()) return QString();
-    return QDir(base).filePath(QStringLiteral("analysis_cache/behavior_features_campo%1.csv")
-                               .arg(campo + 1));
+    if (fieldIndex < 0 || fieldIndex >= 3) return QString();
+    QString cleanPath = experimentPath.trimmed();
+    if (cleanPath.startsWith("file:///")) cleanPath = cleanPath.mid(8);
+    if (cleanPath.isEmpty()) return QString();
+    return QDir(cleanPath).filePath(
+        QStringLiteral("analysis_cache/behavior_features_campo%1.csv").arg(fieldIndex + 1));
 }
 
-bool InferenceController::behaviorCacheExists(const QString& experimentPath, int campo) const
+bool InferenceController::behaviorCacheExists(const QString& experimentPath, int fieldIndex) const
 {
-    const QString path = behaviorCachePath(experimentPath, campo);
-    return !path.isEmpty() && QFile::exists(path);
+    const QString cachePath = behaviorCachePath(experimentPath, fieldIndex);
+    return !cachePath.isEmpty() && QFile::exists(cachePath);
 }
 
-bool InferenceController::saveBehaviorCache(const QString& experimentPath, int campo)
+bool InferenceController::saveBehaviorCache(const QString& experimentPath, int fieldIndex)
 {
-    const QString path = behaviorCachePath(experimentPath, campo);
-    if (path.isEmpty()) return false;
-    QFileInfo fi(path);
-    QDir().mkpath(fi.absolutePath());
-    return exportBehaviorFeatures(path, campo);
+    const QString cachePath = behaviorCachePath(experimentPath, fieldIndex);
+    if (cachePath.isEmpty()) return false;
+    QDir().mkpath(QFileInfo(cachePath).absolutePath());
+    return exportBehaviorFeatures(cachePath, fieldIndex);
 }
 
-QVariantList InferenceController::getBehaviorFramesFromCache(const QString& experimentPath, int campo) const
+QVariantList InferenceController::getBehaviorFramesFromCache(const QString& experimentPath,
+                                                             int fieldIndex) const
 {
     QVariantList result;
-    if (campo < 0 || campo >= 3) return result;
+    if (fieldIndex < 0 || fieldIndex >= 3) return result;
 
-    const QString path = behaviorCachePath(experimentPath, campo);
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    const QString cachePath = behaviorCachePath(experimentPath, fieldIndex);
+    QFile cacheFile(cachePath);
+    if (!cacheFile.open(QIODevice::ReadOnly | QIODevice::Text))
         return result;
 
-    QTextStream in(&file);
-    QString header = in.readLine();
-    Q_UNUSED(header)
+    QTextStream csvStream(&cacheFile);
+    Q_UNUSED(csvStream.readLine())  // skip header
 
-    while (!in.atEnd()) {
-        const QString line = in.readLine().trimmed();
-        if (line.isEmpty()) continue;
-        const QStringList cols = line.split(',');
-        // frame + 21 features + rule_label = 23
-        if (cols.size() < 23) continue;
+    while (!csvStream.atEnd()) {
+        const QString dataLine = csvStream.readLine().trimmed();
+        if (dataLine.isEmpty()) continue;
+        const QStringList fields = dataLine.split(',');
+        // frame + 21 features + rule_label = 23 columns
+        if (fields.size() < 23) continue;
 
         bool okFrame = false, okRule = false, okNose = false, okBody = false, okMean = false;
-        const int frameIdx = cols[0].toInt(&okFrame);
-        const double movNose = cols[1].toDouble(&okNose);
-        const double movBody = cols[2].toDouble(&okBody);
-        const double movMean = cols[4].toDouble(&okMean);   // bp_mean
-        const int ruleLabel = cols[22].toInt(&okRule);
+        const int    frameIdx  = fields[0].toInt(&okFrame);
+        const double movNose   = fields[1].toDouble(&okNose);
+        const double movBody   = fields[2].toDouble(&okBody);
+        const double movMean   = fields[4].toDouble(&okMean);  // bp_mean
+        const int    ruleLabel = fields[22].toInt(&okRule);
         if (!okFrame || !okRule || !okNose || !okBody || !okMean) continue;
 
-        QVariantMap m;
-        m["frameIdx"] = frameIdx;
-        m["ruleLabel"] = ruleLabel;
-        m["movNose"] = movNose;
-        m["movBody"] = movBody;
-        m["movMean"] = movMean;
-        result.append(m);
+        QVariantMap entry;
+        entry["frameIdx"]  = frameIdx;
+        entry["ruleLabel"] = ruleLabel;
+        entry["movNose"]   = movNose;
+        entry["movBody"]   = movBody;
+        entry["movMean"]   = movMean;
+        result.append(entry);
     }
     return result;
 }
 
-bool InferenceController::writeTextFile(const QString& filePath, const QString& content, bool utf8Bom)
+bool InferenceController::writeTextFile(const QString& filePath, const QString& content,
+                                        bool utf8Bom)
 {
-    QString path = filePath.trimmed();
-    if (path.startsWith("file:///"))
-        path = path.mid(8);
-    if (path.isEmpty())
+    QString cleanPath = filePath.trimmed();
+    if (cleanPath.startsWith("file:///"))
+        cleanPath = cleanPath.mid(8);
+    if (cleanPath.isEmpty())
         return false;
 
-    QFileInfo fi(path);
-    if (!QDir().mkpath(fi.absolutePath()))
+    if (!QDir().mkpath(QFileInfo(cleanPath).absolutePath()))
         return false;
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    QFile outputFile(cleanPath);
+    if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
 
-    QTextStream out(&file);
-    out.setEncoding(QStringConverter::Utf8);
+    QTextStream textStream(&outputFile);
+    textStream.setEncoding(QStringConverter::Utf8);
     if (utf8Bom)
-        out << "\xEF\xBB\xBF";
-    out << content;
-    file.close();
+        textStream << "\xEF\xBB\xBF";
+    textStream << content;
+    outputFile.close();
     return true;
 }
 
 QString InferenceController::readTextFile(const QString& filePath) const
 {
-    QString path = filePath.trimmed();
-    if (path.startsWith("file:///"))
-        path = path.mid(8);
-    if (path.isEmpty())
+    QString cleanPath = filePath.trimmed();
+    if (cleanPath.startsWith("file:///"))
+        cleanPath = cleanPath.mid(8);
+    if (cleanPath.isEmpty())
         return QString();
 
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    QFile inputFile(cleanPath);
+    if (!inputFile.open(QIODevice::ReadOnly | QIODevice::Text))
         return QString();
 
-    QTextStream in(&file);
-    in.setEncoding(QStringConverter::Utf8);
-    return in.readAll();
+    QTextStream textStream(&inputFile);
+    textStream.setEncoding(QStringConverter::Utf8);
+    return textStream.readAll();
 }
 
 bool InferenceController::savePdfReport(const QString& pdfPath,
@@ -415,17 +440,16 @@ bool InferenceController::savePdfReport(const QString& pdfPath,
                                         const QString& title,
                                         const QStringList& captions)
 {
-    QString outPath = pdfPath.trimmed();
-    if (outPath.startsWith("file:///"))
-        outPath = outPath.mid(8);
-    if (outPath.isEmpty() || imagePaths.isEmpty())
+    QString cleanPath = pdfPath.trimmed();
+    if (cleanPath.startsWith("file:///"))
+        cleanPath = cleanPath.mid(8);
+    if (cleanPath.isEmpty() || imagePaths.isEmpty())
         return false;
 
-    QFileInfo fi(outPath);
-    if (!QDir().mkpath(fi.absolutePath()))
+    if (!QDir().mkpath(QFileInfo(cleanPath).absolutePath()))
         return false;
 
-    QPdfWriter pdf(outPath);
+    QPdfWriter pdf(cleanPath);
     pdf.setResolution(150);
     pdf.setPageSize(QPageSize(QPageSize::A4));
     pdf.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
@@ -434,92 +458,94 @@ bool InferenceController::savePdfReport(const QString& pdfPath,
     if (!painter.isActive())
         return false;
 
-    const QRect page = painter.viewport();
-    const int margin = 36;
+    const QRect page        = painter.viewport();
+    const int   margin      = 36;
     const QRect contentRect = page.adjusted(margin, margin, -margin, -margin);
 
     bool drewAny = false;
-    for (int i = 0; i < imagePaths.size(); ++i) {
-        QString imgPath = imagePaths[i].trimmed();
-        if (imgPath.startsWith("file:///"))
-            imgPath = imgPath.mid(8);
-        QImage img(imgPath);
-        if (img.isNull())
+    for (int imageIndex = 0; imageIndex < imagePaths.size(); ++imageIndex) {
+        QString resolvedPath = imagePaths[imageIndex].trimmed();
+        if (resolvedPath.startsWith("file:///"))
+            resolvedPath = resolvedPath.mid(8);
+        QImage pageImage(resolvedPath);
+        if (pageImage.isNull())
             continue;
 
-        if (drewAny)
-            pdf.newPage();
+        if (drewAny) pdf.newPage();
         drewAny = true;
 
         painter.fillRect(page, Qt::white);
         painter.setPen(QColor("#111827"));
 
+        const QString pageTitle = title.isEmpty()
+            ? QStringLiteral("MindTrace Results Report") : title;
         painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
-        const QString pageTitle = title.isEmpty() ? QStringLiteral("MindTrace Results Report") : title;
         painter.drawText(contentRect.left(), contentRect.top(), contentRect.width(), 26,
                          Qt::AlignLeft | Qt::AlignVCenter, pageTitle);
 
+        const QString caption       = (imageIndex < captions.size()) ? captions[imageIndex] : QString();
+        const int     captionHeight = caption.isEmpty() ? 0 : 24;
         painter.setFont(QFont("Segoe UI", 9));
-        const QString cap = (i < captions.size() ? captions[i] : QString());
-        const int captionH = cap.isEmpty() ? 0 : 24;
-        if (!cap.isEmpty()) {
-            painter.drawText(contentRect.left(), contentRect.top() + 28, contentRect.width(), 20,
-                             Qt::AlignLeft | Qt::AlignVCenter, cap);
+        if (!caption.isEmpty()) {
+            painter.drawText(contentRect.left(), contentRect.top() + 28,
+                             contentRect.width(), 20,
+                             Qt::AlignLeft | Qt::AlignVCenter, caption);
         }
 
-        QRect imgRect = contentRect.adjusted(0, 34 + captionH, 0, 0);
-        if (imgRect.height() < 40)
-            imgRect = contentRect.adjusted(0, 34, 0, 0);
+        QRect imageRect = contentRect.adjusted(0, 34 + captionHeight, 0, 0);
+        if (imageRect.height() < 40)
+            imageRect = contentRect.adjusted(0, 34, 0, 0);
 
-        const QSize target = img.size().scaled(imgRect.size(), Qt::KeepAspectRatio);
-        const QRect centered(QPoint(imgRect.left() + (imgRect.width() - target.width()) / 2,
-                                    imgRect.top() + (imgRect.height() - target.height()) / 2),
-                            target);
-        painter.drawImage(centered, img);
+        const QSize scaledSize = pageImage.size().scaled(imageRect.size(), Qt::KeepAspectRatio);
+        const QRect centeredRect(
+            QPoint(imageRect.left() + (imageRect.width()  - scaledSize.width())  / 2,
+                   imageRect.top()  + (imageRect.height() - scaledSize.height()) / 2),
+            scaledSize);
+        painter.drawImage(centeredRect, pageImage);
     }
 
     painter.end();
     return drewAny;
 }
 
-bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int campo)
+bool InferenceController::exportBehaviorFeatures(const QString& csvPath, int fieldIndex)
 {
-    if (campo < 0 || campo >= 3) return false;
+    if (fieldIndex < 0 || fieldIndex >= 3) return false;
 
-    const auto& history = m_engine->getScannerHistory(campo);
+    const auto& history = m_engine->getScannerHistory(fieldIndex);
     if (history.empty()) {
-        qWarning() << "[InferenceController] exportBehaviorFeatures: histÃ³rico vazio para campo" << campo;
+        qWarning() << "[InferenceController] exportBehaviorFeatures: historico vazio para campo"
+                   << fieldIndex;
         return false;
     }
 
-    QFile file(csvPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qWarning() << "[InferenceController] exportBehaviorFeatures: nÃ£o foi possÃ­vel abrir" << csvPath;
+    QFile csvFile(csvPath);
+    if (!csvFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "[InferenceController] exportBehaviorFeatures: nao foi possivel abrir"
+                   << csvPath;
         return false;
     }
 
-    QTextStream out(&file);
-    // UTF-8 BOM para compatibilidade com Excel
-    out.setEncoding(QStringConverter::Utf8);
-    out << "\xEF\xBB\xBF";
+    QTextStream csvStream(&csvFile);
+    csvStream.setEncoding(QStringConverter::Utf8);
+    csvStream << "\xEF\xBB\xBF";  // UTF-8 BOM for Excel compatibility
 
-    // CabeÃ§alho
-    out << "frame,move_nose,move_body,bp_sum,bp_mean,bp_min,bp_max"
-           ",roll2s_mean,roll2s_sum,roll5s_mean,roll5s_sum"
-           ",roll6s_mean,roll6s_sum,roll7_5s_mean,roll7_5s_sum"
-           ",roll15s_mean,roll15s_sum"
-           ",prob_sum,prob_mean"
-           ",low_prob_01,low_prob_05,low_prob_075"
-           ",rule_label\n";
+    csvStream << "frame,move_nose,move_body,bp_sum,bp_mean,bp_min,bp_max"
+                 ",roll2s_mean,roll2s_sum,roll5s_mean,roll5s_sum"
+                 ",roll6s_mean,roll6s_sum,roll7_5s_mean,roll7_5s_sum"
+                 ",roll15s_mean,roll15s_sum"
+                 ",prob_sum,prob_mean"
+                 ",low_prob_01,low_prob_05,low_prob_075"
+                 ",rule_label\n";
 
     for (const auto& rec : history) {
-        out << rec.frameIdx;
+        csvStream << rec.frameIdx;
         for (size_t i = 0; i < 21; ++i)
-            out << ',' << rec.features[i];
-        out << ',' << rec.ruleLabel << '\n';
+            csvStream << ',' << rec.features[i];
+        csvStream << ',' << rec.ruleLabel << '\n';
     }
 
-    file.close();
+    csvFile.close();
     qDebug() << "[InferenceController] exportBehaviorFeatures: exportados"
              << history.size() << "frames para" << csvPath;
     return true;
@@ -531,9 +557,9 @@ void InferenceController::startAnalysis(const QString& videoPath, const QString&
 {
     if (m_isAnalyzing) return;
 
-    QString cleanVideo = videoPath;
-    if (cleanVideo.startsWith("file:///"))
-        cleanVideo = cleanVideo.mid(8);
+    QString localVideoPath = videoPath;
+    if (localVideoPath.startsWith("file:///"))
+        localVideoPath = localVideoPath.mid(8);
 
     m_videoW = 0;
     m_videoH = 0;
@@ -572,7 +598,7 @@ void InferenceController::startAnalysis(const QString& videoPath, const QString&
     //       modelReady signal will fire later and emit readyReceived() since m_isAnalyzing==true
 
     // Start headless playback â€” QVideoSink delivers every decoded frame
-    m_player->setSource(QUrl::fromLocalFile(cleanVideo));  // Qt 6: setSource (was setMedia)
+    m_player->setSource(QUrl::fromLocalFile(localVideoPath));  // Qt 6: setSource (was setMedia)
     m_player->setPlaybackRate(1.0);
     m_player->play();
 
@@ -1053,23 +1079,6 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
                 emit errorOccurred("Camera error: " + errorString);
             });
 
-    auto pixFmtName = [](QVideoFrameFormat::PixelFormat pix) -> QString {
-        switch (pix) {
-            case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
-            case QVideoFrameFormat::Format_NV12:    return "NV12";
-            case QVideoFrameFormat::Format_NV21:    return "NV21";
-            case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
-            case QVideoFrameFormat::Format_YUYV:    return "YUYV";
-            case QVideoFrameFormat::Format_UYVY:    return "UYVY";
-            case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
-            case QVideoFrameFormat::Format_BGRX8888:return "BGRX8888";
-            case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
-            case QVideoFrameFormat::Format_RGBX8888:return "RGBX8888";
-            case QVideoFrameFormat::Format_Invalid: return "Invalid";
-            default: return QString("Unknown(%1)").arg(static_cast<int>(pix));
-        }
-    };
-
     const auto formats = selected.videoFormats();
     emit infoReceived(QString("Camera device: %1 (%2 formats advertised)")
                       .arg(selected.description()).arg(formats.size()));
@@ -1080,7 +1089,7 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
                           .arg(i).arg(r.width()).arg(r.height())
                           .arg(f.minFrameRate(), 0, 'f', 1)
                           .arg(f.maxFrameRate(), 0, 'f', 1)
-                          .arg(pixFmtName(f.pixelFormat())));
+                          .arg(pixelFormatName(f.pixelFormat())));
     }
 
     if (preferredWidth > 0) {
@@ -1116,7 +1125,7 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
             emit infoReceived(QString("Live profile applied: %1x%2 @ up to %3 FPS  fmt=%4")
                               .arg(chosenRes.width()).arg(chosenRes.height())
                               .arg(bestFormat.maxFrameRate(), 0, 'f', 2)
-                              .arg(pixFmtName(bestFormat.pixelFormat())));
+                              .arg(pixelFormatName(bestFormat.pixelFormat())));
         }
         emit infoReceived(QString("Live profile requested: %1x%2 @ %3 FPS")
                           .arg(preferredWidth).arg(preferredHeight).arg(preferredFps, 0, 'f', 0));
@@ -1242,25 +1251,10 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
 {
     // Log real pixel format on first live frame for diagnostics.
     if (m_isLiveMode && m_videoW == 0 && m_videoH == 0) {
-        const int fw = frame.width();
-        const int fh = frame.height();
-        const QVideoFrameFormat::PixelFormat pix = frame.surfaceFormat().pixelFormat();
-        auto pixStr = [](QVideoFrameFormat::PixelFormat p) -> QString {
-            switch (p) {
-                case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
-                case QVideoFrameFormat::Format_NV12:    return "NV12";
-                case QVideoFrameFormat::Format_NV21:    return "NV21";
-                case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
-                case QVideoFrameFormat::Format_YUYV:    return "YUYV";
-                case QVideoFrameFormat::Format_UYVY:    return "UYVY";
-                case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
-                case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
-                case QVideoFrameFormat::Format_Invalid: return "Invalid";
-                default: return QString("Unknown(%1)").arg(static_cast<int>(p));
-            }
-        };
+        const QVideoFrameFormat::PixelFormat pixFmt = frame.surfaceFormat().pixelFormat();
         const QString msg = QString("First frame actual: %1x%2  fmt=%3")
-                            .arg(fw).arg(fh).arg(pixStr(pix));
+                            .arg(frame.width()).arg(frame.height())
+                            .arg(pixelFormatName(pixFmt));
         QMetaObject::invokeMethod(this, [this, msg]() {
             emit infoReceived(msg);
         }, Qt::QueuedConnection);
@@ -1270,25 +1264,13 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
     if (image.isNull()) {
         if (m_isLiveMode && !m_loggedLiveNullFrame) {
             m_loggedLiveNullFrame = true;
-            const QVideoFrameFormat::PixelFormat pix = frame.surfaceFormat().pixelFormat();
-            auto pixStr = [](QVideoFrameFormat::PixelFormat p) -> QString {
-                switch (p) {
-                    case QVideoFrameFormat::Format_Jpeg:    return "MJPEG";
-                    case QVideoFrameFormat::Format_NV12:    return "NV12";
-                    case QVideoFrameFormat::Format_NV21:    return "NV21";
-                    case QVideoFrameFormat::Format_YUV420P: return "YUV420P";
-                    case QVideoFrameFormat::Format_YUYV:    return "YUYV";
-                    case QVideoFrameFormat::Format_UYVY:    return "UYVY";
-                    case QVideoFrameFormat::Format_BGRA8888:return "BGRA8888";
-                    case QVideoFrameFormat::Format_RGBA8888:return "RGBA8888";
-                    case QVideoFrameFormat::Format_Invalid: return "Invalid";
-                    default: return QString("Unknown(%1)").arg(static_cast<int>(p));
-                }
-            };
-            QMetaObject::invokeMethod(this, [this, pix, pixStr]() {
-                emit infoReceived(QString("Live frame conversion falhou (QVideoFrame::toImage nulo). PixelFormat=%1 (%2)")
-                                  .arg(pixStr(pix))
-                                  .arg(static_cast<int>(pix)));
+            const QVideoFrameFormat::PixelFormat pixFmt = frame.surfaceFormat().pixelFormat();
+            QMetaObject::invokeMethod(this, [this, pixFmt]() {
+                emit infoReceived(
+                    QString("Live frame conversion falhou (QVideoFrame::toImage nulo). "
+                            "PixelFormat=%1 (%2)")
+                    .arg(pixelFormatName(pixFmt))
+                    .arg(static_cast<int>(pixFmt)));
             }, Qt::QueuedConnection);
         }
         return;
@@ -1302,7 +1284,7 @@ void InferenceController::onVideoFrameChanged(const QVideoFrame& frame)
 void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
     if (status == QMediaPlayer::LoadedMedia) {
-        // Qt 6: metaData() returns QMediaMetaData, access via enum key
+        // Qt 6: metaData() returns QMediaMetaData — access via enum key.
         double fps = m_player->metaData().value(QMediaMetaData::VideoFrameRate).toDouble();
         if (fps <= 0.0) fps = 30.0;
         emit fpsReceived(fps);
@@ -1311,7 +1293,7 @@ void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         setAnalyzing(false);
 
     } else if (status == QMediaPlayer::InvalidMedia) {
-        emit errorOccurred("VÃ­deo invÃ¡lido ou nÃ£o suportado pelo codec do sistema.");
+        emit errorOccurred("Video invalido ou nao suportado pelo codec do sistema.");
         setAnalyzing(false);
     }
 }

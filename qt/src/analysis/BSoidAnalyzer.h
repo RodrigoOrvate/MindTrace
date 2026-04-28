@@ -1,71 +1,77 @@
 #pragma once
 // ── BSoidAnalyzer ──────────────────────────────────────────────────────────
-// Análise comportamental pós-sessão inspirada em B-SOiD.
-// Pipeline: lê CSV de features[21] → normaliza → PCA 21→6 → K-Means k=N →
-//           emite grupos descobertos via sinal analysisReady().
+// Post-session behavioural analysis inspired by B-SOiD.
+// Pipeline: reads features[21] CSV -> normalise -> PCA 21->6 -> K-Means k=N
+//           -> emits discovered groups via analysisReady() signal.
 //
-// Roda em QThread (runAnalysis()) para não bloquear a UI.
-// Entrada: CSV exportado por InferenceController::exportBehaviorFeatures().
-// Saída:   vetor de BsoidGroup com estatísticas de cada cluster.
+// Runs on a QThread (runAnalysis()) to avoid blocking the UI.
+// Input:  CSV exported by InferenceController::exportBehaviorFeatures().
+// Output: vector of BsoidGroup with per-cluster statistics.
 
 #include <QObject>
-#include <QThread>
 #include <QString>
+#include <QThread>
 #include <QVariantList>
-#include <vector>
 #include <array>
+#include <vector>
 
-// ── Resultado por cluster ──────────────────────────────────────────────────
+/// Per-cluster statistics produced by BSoidAnalyzer::analyze().
 struct BsoidGroup {
     int   clusterId    = 0;
     int   frameCount   = 0;
-    float percentage   = 0.0f;   // % do total de frames
-    float avgMovNose   = 0.0f;   // movement_nose médio no cluster
-    float avgMovBody   = 0.0f;   // movement_body médio no cluster
-    int   dominantRule = -1;     // ruleLabel mais frequente no cluster
+    float percentage   = 0.0f;   ///< fraction of total frames (0–100)
+    float avgMovNose   = 0.0f;   ///< mean movement_nose in this cluster
+    float avgMovBody   = 0.0f;   ///< mean movement_body in this cluster
+    int   dominantRule = -1;     ///< most frequent BehaviorScanner rule label
 };
 
-// ── Mapeamento frame→cluster ───────────────────────────────────────────────
+/// Per-frame cluster assignment emitted after a successful analysis.
 struct FrameCluster {
     int frameIdx  = 0;
     int clusterId = 0;
-    int ruleLabel = 0;  // ruleLabel da regra nativa (BehaviorScanner::BEHAVIOR_*)
+    int ruleLabel = 0;  ///< BehaviorScanner::BEHAVIOR_* label at this frame
 };
 
+/// Post-session behavioural analysis inspired by B-SOiD.
+/// Pipeline: reads features[21] CSV → normalises → PCA 21→6 → K-Means k=N →
+/// emits discovered groups via analysisReady().
+/// Runs in a QThread (analyze()) to avoid blocking the UI.
 class BSoidAnalyzer : public QObject
 {
     Q_OBJECT
 public:
     explicit BSoidAnalyzer(QObject* parent = nullptr);
 
-    // Carrega CSV e roda análise em background (non-blocking).
-    // csvPath: saída de exportBehaviorFeatures(); nClusters: 4–12 (padrão 7)
+    /// Load CSV and run analysis in background (non-blocking).
+    /// @param csvPath  output of InferenceController::exportBehaviorFeatures()
+    /// @param nClusters  number of K-Means clusters (4–12, default 7)
     Q_INVOKABLE void analyze(const QString& csvPath, int nClusters = 7);
 
-    // Para análise em andamento (não espera terminar)
+    /// Request cancellation of the running analysis (does not block).
     Q_INVOKABLE void cancel();
 
-    // Exporta resultado de clustering como CSV
+    /// Export last clustering result as a CSV file.
     Q_INVOKABLE bool exportResult(const QString& outPath) const;
 
-    // Retorna o mapeamento frame→{cluster,ruleLabel} como QVariantList para QML
+    /// Return the frame→{cluster,ruleLabel} mapping as a QVariantList for QML.
     Q_INVOKABLE QVariantList getFrameMapping() const;
 
-    // Preenche dois BehaviorTimeline diretamente de C++ (evita alocar QVariantList grande)
-    // ruleTimeline e clusterTimeline são ponteiros para objetos BehaviorTimeline em QML
+    /// Fill two BehaviorTimeline objects directly from C++ (avoids allocating a large QVariantList).
+    /// @param ruleTimeline     pointer to a BehaviorTimeline QML object (rule colours)
+    /// @param clusterTimeline  pointer to a BehaviorTimeline QML object (cluster colours)
     Q_INVOKABLE void populateTimelines(QObject* ruleTimeline, QObject* clusterTimeline, double fps);
 
-    // Extrai clips de vídeo representativos para cada cluster usando FFmpeg.
-    // Cria <outDir>/grupo_N/clip_M.mp4 + timestamps.csv por cluster.
-    // Se FFmpeg não estiver disponível, cria apenas os timestamps.csv.
+    /// Extract representative video clips for each cluster using FFmpeg.
+    /// Creates \c <outDir>/grupo_N/clip_M.mp4 + \c timestamps.csv per cluster.
+    /// If FFmpeg is unavailable, only \c timestamps.csv files are written.
     Q_INVOKABLE void extractSnippets(const QString& videoPath, const QString& outDir,
                                      double fps, int nPerCluster = 3);
 
 signals:
-    void progress(int percent);                          // 0–100
-    void analysisReady(QVariantList groups);             // lista de QVariantMap por cluster
+    void progress(int percent);                          ///< 0–100 during PCA + K-Means
+    void analysisReady(QVariantList groups);             ///< QVariantMap per cluster
     void errorOccurred(const QString& msg);
-    void snippetsProgress(int percent);                  // 0–100 para extração de clips
+    void snippetsProgress(int percent);                  ///< 0–100 during clip extraction
     void snippetsDone(bool ok, const QString& outDir, const QString& message);
 
 private slots:
@@ -77,13 +83,14 @@ private:
     QVector<FrameCluster>   m_lastMapping;
 };
 
-// ── Worker (roda no QThread) ───────────────────────────────────────────────
+/// Background worker that runs PCA + K-Means on the feature CSV.
+/// Owned by BSoidAnalyzer; moved to its own QThread for the duration of analyze().
 class BSoidWorker : public QObject
 {
     Q_OBJECT
 public:
-    static constexpr int PCA_DIMS = 6;    // redução 21 → 6
-    static constexpr int MAX_ITER = 100;  // iterações K-Means
+    static constexpr int PCA_DIMS = 6;    ///< PCA output dimensionality (21 → 6)
+    static constexpr int MAX_ITER = 100;  ///< K-Means iteration limit
 
     explicit BSoidWorker(const QString& csvPath, int nClusters, QObject* parent = nullptr);
 
@@ -96,7 +103,6 @@ signals:
     void error(const QString& msg);
 
 private:
-    // Tipos internos
     using Feature21 = std::array<float, 21>;
     using Feature6  = std::array<float, PCA_DIMS>;
 
@@ -106,7 +112,6 @@ private:
         int       ruleLabel = 0;
     };
 
-    // Etapas do pipeline
     bool             loadCsv(std::vector<RawRow>& rows);
     void             normalize(std::vector<Feature21>& data);
     std::vector<Feature6> reducePca(const std::vector<Feature21>& data);

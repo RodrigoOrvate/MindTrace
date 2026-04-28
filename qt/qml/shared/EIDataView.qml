@@ -19,14 +19,14 @@ Item {
     function buildColMap() {
         var map = {}
         if (!tableModel) return map
-        for (var i = 0; i < tableModel.columnCount(); i++)
-            map[String(tableModel.headerData(i, Qt.Horizontal, Qt.DisplayRole)).trim()] = i
+        for (var colIdx = 0; colIdx < tableModel.columnCount(); colIdx++)
+            map[String(tableModel.headerData(colIdx, Qt.Horizontal, Qt.DisplayRole)).trim()] = colIdx
         return map
     }
     function colOf(name) { return colMap.hasOwnProperty(name) ? colMap[name] : -1 }
     function colOfAny(names) {
-        for (var i = 0; i < names.length; i++) {
-            var idx = colOf(names[i])
+        for (var nameIdx = 0; nameIdx < names.length; nameIdx++) {
+            var idx = colOf(names[nameIdx])
             if (idx >= 0) return idx
         }
         return -1
@@ -56,7 +56,7 @@ Item {
             spacing: 8
             BusyIndicator { visible: tableModel && tableModel.fetchingMore; running: visible; implicitWidth: 20; implicitHeight: 20 }
             Text { text: tableModel && tableModel.rowCount() > 0
-                         ? tableModel.rowCount() + " registro(s) · Exporte para ver latência e métricas"
+                         ? tableModel.rowCount() + " " + LanguageManager.tr3("registro(s)", "record(s)", "registro(s)")
                          : LanguageManager.tr3("Sem dados registrados", "No data recorded", "Sin datos registrados")
                 color: ThemeManager.textTertiary; font.pixelSize: 11
                 Behavior on color { ColorAnimation { duration: 150 } } }
@@ -97,7 +97,7 @@ Item {
                         Rectangle { Layout.preferredWidth: 140; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.fill: parent; anchors.margins: 6
-                                text: cellAny(dataRow.index, ["Vídeo", "Video", "Diretorio do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
+                                text: cellAny(dataRow.index, ["Vídeo", "Video", "Diretório do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
                                 color: ThemeManager.textTertiary; font.pixelSize: 9; elide: Text.ElideLeft
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
                         Rectangle { Layout.preferredWidth: 90; height: 36; color: dataRow.rowBg
@@ -123,7 +123,7 @@ Item {
 
         RowLayout { spacing: 8
             Text { text: "💡"; font.pixelSize: 12 }
-            Text { text: LanguageManager.tr3("Use \"Exportar\" para ver latencia, tempos na plataforma/grade, distancia e velocidade.", "Use \"Export\" to view latency, platform/grid times, distance, and speed.", "Use \"Exportar\" para ver latencia, tiempos en plataforma/rejilla, distancia y velocidad.")
+            Text { text: LanguageManager.tr3("Use \"Exportar\" para ver latencia, tempos na plataforma/grade, distância e velocidade.", "Use \"Export\" to view latency, platform/grid times, distance, and speed.", "Use \"Exportar\" para ver latencia, tiempos en plataforma/rejilla, distância y velocidad.")
                 color: ThemeManager.textTertiary; font.pixelSize: 10
                 Behavior on color { ColorAnimation { duration: 150 } } } }
     }

@@ -5,12 +5,9 @@
 #include <QString>
 #include <QStringList>
 
-// ---------------------------------------------------------------------------
-// ExperimentTableModel
-//   Modelo de tabela com Lazy Loading via canFetchMore / fetchMore.
-//   Lê um CSV de linhas; carrega BATCH_SIZE linhas por vez conforme o
-//   TableView rola — mantém consumo de RAM mínimo para arquivos grandes.
-// ---------------------------------------------------------------------------
+/// CSV-backed table model with lazy loading via canFetchMore / fetchMore.
+/// Loads BATCH_SIZE rows at a time as the TableView scrolls, keeping
+/// RAM usage minimal for large files.
 class ExperimentTableModel : public QAbstractTableModel
 {
     Q_OBJECT
@@ -42,12 +39,11 @@ public:
 
     QString sourcePath() const;
 
-    // ── API invocável pelo QML ──────────────────────────────────────────
     Q_INVOKABLE void loadCsv(const QString &csvPath);
     Q_INVOKABLE void addRow();
     Q_INVOKABLE void removeRow(int row);
     Q_INVOKABLE bool saveCsv() const;
-    // Exporta para um arquivo diferente (cópia limpa para compartilhamento)
+    /// Export to a different path (clean copy for sharing, UTF-8 BOM included).
     Q_INVOKABLE bool exportCsv(const QString &destPath) const;
 
 signals:

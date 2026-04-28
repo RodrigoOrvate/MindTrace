@@ -1,5 +1,5 @@
 ﻿// qml/ei/EIMetadataDialog.qml
-// Diálogo pós-sessão para Esquiva Inibitória — dia + animal + tratamento.
+// Post-session dialog for Inhibitory Avoidance — day + animal + treatment.
 
 import QtQuick
 import QtQuick.Layouts
@@ -95,7 +95,7 @@ Popup {
                 "tempo_grade_s":       parseFloat(tempoGrade.toFixed(2)),
                 "bouts_plataforma":    boutsPlataf,
                 "bouts_grade":         boutsGrade,
-                "distancia_total_m":   parseFloat(totalDistance.toFixed(2)),
+                "distância_total_m":   parseFloat(totalDistance.toFixed(2)),
                 "velocidade_media_ms": parseFloat(vMediaReal.toFixed(2)),
                 "droga": root.includeDrug ? root._drogaText.trim() : ""
             }
@@ -145,7 +145,7 @@ Popup {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Sessao Concluida", "Session Completed", "Sesion Completada")
+                    text: LanguageManager.tr3("Sessão Concluida", "Session Completed", "Sesion Completada")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -164,7 +164,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Dia da sessão ─────────────────────────────────────────────────
+        // ── Session day ───────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
@@ -231,7 +231,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Campo único ───────────────────────────────────────────────────
+        // ── Single field ──────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             radius: 10
@@ -328,7 +328,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Botões ────────────────────────────────────────────────────────
+        // ── Buttons ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }

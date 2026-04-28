@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 
+/// Persists the UI language code (pt-BR, en-US, es-ES) in mindtrace_settings.json.
 class LanguageSettings : public QObject {
     Q_OBJECT
 

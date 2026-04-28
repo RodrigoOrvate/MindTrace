@@ -1,7 +1,7 @@
 ﻿// qml/ArenaSetup.qml
-// Mosaico 2×2 — zonas arrastáveis via Shift+Esq (drag em tempo real).
-// Dev Mode: exibe diâmetro das zonas; Shift+Scroll redimensiona.
-// Vídeo offline: um VideoOutput no canto + ShaderEffectSource por campo (sem bug de hardware overlay).
+// 2x2 mosaic — draggable zones via Shift+Left (real-time drag).
+// Dev Mode: shows zone diameter; Shift+Scroll resizes.
+// Offline video: one VideoOutput in the corner + ShaderEffectSource per field (no hardware overlay bug).
 
 import QtQuick
 import QtQuick.Controls
@@ -28,7 +28,7 @@ Item {
     property string analysisMode: ""
     property string saveDirectory: ""
     property string liveOutputName: "live"
-    property string cameraId: ""      // descrição da câmera selecionada para ao_vivo
+    property string cameraId: ""      // description of the selected camera for live mode
     property bool   livePreviewFrozen: false
     property int    livePreviewFrameCount: 0
     property bool   _isDirectShowPreview: false
@@ -38,12 +38,12 @@ Item {
     property bool   caMode:          aparato === "campo_aberto" || aparato === "comportamento_complexo"
     // CC mode: caMode + sem zona de centro (sem centroRatio no canvas)
     property bool   ccMode:          aparato === "comportamento_complexo"
-    property bool   showObjectZones: true   // false = esconde círculos de zona em CC sem objetos
+    property bool   showObjectZones: true   // false = hides zone circles in CC without objects
     property int    numCampos: 3
 
     signal pairsEdited(string p1, string p2, string p3)
     signal analysisModeChangedExternally(string mode)
-    signal zonasEditadas()  // Emitido quando as zonas são editadas (tempo real)
+    signal zonasEditadas()  // Emitted when zones are edited (real time)
 
     function _cameraBaseName(cameraIdValue) {
         var s = String(cameraIdValue || "")
@@ -115,7 +115,7 @@ Item {
         }
     }
 
-    // Chamado pela aba Gravação quando o usuário quer carregar um novo vídeo
+    // Called by the Recording tab when the user wants to load a new video
     function openVideoLoader() { analysisModePrompt.open() }
 
     // ── Import Arena ──────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ Item {
 
     function _startImport(sourcePath) {
         if (!sourcePath || sourcePath === "" || experimentPath === "") return
-        // Lê dados da arena fonte
+        // Read data from the source arena
         ArenaConfigModel.loadConfigFromPath(sourcePath)
         var srcFloor     = ArenaConfigModel.getFloorPoints()
         var srcZoneCount = ArenaConfigModel.zoneCount()
@@ -158,7 +158,7 @@ Item {
         ArenaConfigModel.loadConfigFromPath(experimentPath)
         var curFloor     = ArenaConfigModel.getFloorPoints()
         var curZoneCount = ArenaConfigModel.zoneCount()
-        // Verifica apenas incompatibilidade de tipo de zona (shape detection removida — coords normalizadas são imprecisas)
+        // Check only zone-type incompatibility (shape detection removed — normalised coords are imprecise)
         var srcType  = _zoneType(srcZoneCount, srcFloor)
         var curType  = _zoneType(curZoneCount, curFloor)
         _pendingImportPath = sourcePath
@@ -184,7 +184,7 @@ Item {
         {x: 0.3, y: 0.5, r: 0.12}, {x: 0.7, y: 0.5, r: 0.12}
     ]
 
-    // NOVO: A borda externa agora é um polígono livre de 4 pontos (Topo das paredes)!
+    // NOTE: The outer border is now a free 4-point polygon (top of walls)!
     property var arenaPoints: [
         [{x:0.02, y:0.02}, {x:0.98, y:0.02}, {x:0.98, y:0.98}, {x:0.02, y:0.98}],
         [{x:0.02, y:0.02}, {x:0.98, y:0.02}, {x:0.98, y:0.98}, {x:0.02, y:0.98}],
@@ -198,7 +198,7 @@ Item {
         [{x: 0.15, y: 0.15}, {x: 0.85, y: 0.15}, {x: 0.85, y: 0.85}, {x: 0.15, y: 0.85}]
     ]
 
-    // Razão do quadrado central no Campo Aberto (relativo aos floorPoints)
+    // Central square ratio in Open Field (relative to floorPoints)
     property real centroRatio: 0.5
 
     function zoneIdsForPair(pair) {
@@ -210,7 +210,7 @@ Item {
         return ["OBJ" + a, "OBJ" + b]
     }
 
-    // ── COLOQUE A NOVA FUNÇÃO AQUI ──────────────────────────
+    // ── ADD NEW FUNCTIONS HERE ──────────────────────────────
     function getRadiusForObject(objId) {
         var match = objId.match(/OBJ([A-Z])/);
         if (!match) return 0.12;
@@ -227,7 +227,7 @@ Item {
         var px = pxSizes[letter];
         if (px === undefined) return 0.12; 
 
-        // Regra de três: normaliza baseado no padrão de 93px (0.12)
+        // Rule of three: normalise based on the 93px (0.12) standard
         return (px / 93.0) * 0.12;
     }
 
@@ -268,7 +268,7 @@ Item {
             var nz = []
             
             for (var i = 0; i < 6; i++) {
-                // Descobre de qual campo e de qual par este círculo pertence
+                // Find which field and which pair this circle belongs to
                 var campoIdx = Math.floor(i / 2)
                 var campoPair = campoIdx === 0 ? root.pair1 : (campoIdx === 1 ? root.pair2 : root.pair3)
                 
@@ -276,19 +276,19 @@ Item {
                 var ids = root.zoneIdsForPair(campoPair)
                 var objId = ids[i % 2]
                 
-                // Puxa o raio matemático automático baseado na letra
+                // Pull the automatic mathematical radius based on the letter
                 var dynamicRadius = root.getRadiusForObject(objId)
 
-                // Par único (1 objeto): desativa zona B para que o tracking nunca dispare
+                // Single pair (1 object): disable zone B so tracking never fires
                 if (i % 2 === 1 && campoPair.length === 1) dynamicRadius = 0
 
                 if (i < n) {
                     var z = ArenaConfigModel.zone(i)
-                    // Em CC: usa raio salvo; em NOR: usa raio dinâmico baseado no objId
+                    // In CC: use saved radius; in NOR: use dynamic radius based on objId
                     var radius = root.ccMode ? (z.radiusRatio || dynamicRadius) : dynamicRadius
                     nz.push({ x: z.xRatio, y: z.yRatio, r: radius })
                 } else {
-                    // Círculos novos também já nascem com o tamanho correto
+                    // New circles also spawn with the correct size
                     nz.push({ x: (i % 2 === 0 ? 0.3 : 0.7), y: 0.5, r: dynamicRadius })
                 }
             }
@@ -297,14 +297,14 @@ Item {
         }
     }
 
-    // ── Player de vídeo offline ──────────────────────────────────────────────
+    // ── Offline video player ──────────────────────────────────────────────
     // Qt 6: MediaPlayer.videoOutput aponta para o VideoOutput; status → mediaStatus
     MediaPlayer {
         id: videoPlayer
         autoPlay: false
         videoOutput: framePreview
         onMediaStatusChanged: {
-            // Quando o vídeo carrega, pulamos para 1 segundo (segurança contra tela preta)
+            // When video loads, seek to 1 second (safety against black screen)
             if (mediaStatus === MediaPlayer.LoadedMedia) {
                 setPosition(1000)  // Qt 6: seek() → setPosition()
                 pause()
@@ -312,7 +312,7 @@ Item {
         }
     }
 
-    // ── Preview de câmera ao vivo ────────────────────────────────────────────
+    // ── Live camera preview ──────────────────────────────────────────────
     MediaDevices { id: arenaMediaDevices }
 
     CaptureSession {
@@ -325,7 +325,7 @@ Item {
     }
     InferenceController { id: arenaPreviewInference }
 
-    // Inicia/para câmera ao mudar cameraId ou analysisMode
+    // Start/stop camera when cameraId or analysisMode changes
     onCameraIdChanged: _updateCameraPreview()
     onAnalysisModeChanged: _updateCameraPreview()
     Timer {
@@ -469,7 +469,7 @@ Item {
         }
     }
 
-    // Popup: confirmar importação com avisos
+    // Popup: confirm import with warnings
     Popup {
         id: importConfirmPopup
         anchors.centerIn: parent
@@ -520,7 +520,7 @@ Item {
         }
     }
 
-    // Popup: análise offline ou ao vivo?
+    // Popup: offline or live analysis?
     Popup {
         id: analysisModePrompt
         width: Math.min(root.width - 24, 560)
@@ -554,7 +554,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true; spacing: 12
 
-                // Análise Offline
+                // Offline analysis
                 Rectangle {
                     Layout.fillWidth: true; Layout.minimumWidth: 0; radius: 8
                     implicitHeight: offlineChoiceCol.implicitHeight + 20
@@ -593,7 +593,7 @@ Item {
                     }
                 }
 
-                // Análise Ao Vivo
+                // Live analysis
                 Rectangle {
                     Layout.fillWidth: true; Layout.minimumWidth: 0; radius: 8
                     implicitHeight: liveChoiceCol.implicitHeight + 20
@@ -649,7 +649,7 @@ Item {
         }
     }
 
-    // Dialog: escolher diretório para salvar vídeo ao vivo
+    // Dialog: choose directory for saving live video
     Popup {
         id: saveDirDialog
         anchors.centerIn: parent
@@ -747,7 +747,7 @@ Item {
         }
     }
 
-    // Popup: selecionar câmera para análise ao vivo
+    // Popup: select camera for live analysis
     Popup {
         id: cameraSelectPopup
         anchors.centerIn: parent
@@ -863,7 +863,7 @@ Item {
                 wrapMode: Text.Wrap
             }
 
-            // Lista de câmeras
+            // Camera list
             ListView {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(cameraSelectPopup._cameras.length * 62, 260)
@@ -1023,7 +1023,7 @@ Item {
             spacing: 10
 
             Text {
-                            text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
+                            text: LanguageManager.tr3("Configuração da Arena", "Arena Setup", "Configuracion de la Arena")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 14; font.weight: Font.Bold
@@ -1035,9 +1035,9 @@ Item {
                 spacing: 6
 
                 Text {
-                    // CA: scroll simples = centro | Ctrl+drag = paredes | Alt+drag = chão
-                    // CC: scroll = objetos | Shift+drag = mover | Ctrl+drag = paredes | Alt+drag = chão
-                    // NOR (devMode): scroll simples = objetos | Ctrl+drag = paredes | Alt+drag = chão
+                    // CA: simple scroll = center | Ctrl+drag = walls | Alt+drag = floor
+                    // CC: scroll = objects | Shift+drag = move | Ctrl+drag = walls | Alt+drag = floor
+                    // NOR (devMode): simple scroll = objects | Ctrl+drag = walls | Alt+drag = floor
                     text: root.ccMode
                           ? LanguageManager.tr3(
                               "\u{1F5B1} Scroll: +/- Zonas  |  Shift + Arrastar: Mover Zonas  |  Ctrl + Arrastar: Paredes  |  Alt + Arrastar: Chao",
@@ -1065,7 +1065,7 @@ Item {
                     spacing: 8
                     layoutDirection: Qt.RightToLeft
 
-                // ── Editar Pares (apenas NOR — CA não tem pares de objetos) ──
+                // ── Edit Pairs (NOR only — CA has no object pairs) ──
                 Button {
                 id: editPairsBtn
                 visible: !root.caMode
@@ -1113,11 +1113,11 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                 }
                 
-                // O padding força o botão a manter o seu tamanho independentemente do texto
+                // Padding keeps the button stable regardless of text
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
                 }
 
-                // ── Carregar Vídeo ────────────────────────────────────────────────
+                // ── Load Video ────────────────────────────────────────────────
                 Button {
                 id: videoBtnRect
                 text: root.analysisMode === "ao_vivo" && root.cameraId !== ""
@@ -1145,7 +1145,7 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                 }
                 
-                // Mantém a área de clique grande e o botão estável
+                // Keeps the click area large and the button stable
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
@@ -1172,7 +1172,7 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
 
-                // ── Salvar Configuração ──────────────────────────────────────────
+                // ── Save Configuration ──────────────────────────────────────
                 Button {
                             text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== "" && (root.caMode || root.ccMode || pair1 !== "")
@@ -1180,11 +1180,11 @@ Item {
                     var allZones = []
                     for (var i = 0; i < 6; i++) {
                         var z = zones[i]
-                        // r: z.r já salva o tamanho do objeto atualizado!
+                        // r: z.r already stores the updated object size
                         allZones.push({ "xRatio": z.x, "yRatio": z.y, "radiusRatio": z.r, "objectId": "" })
                     }
                     
-                    // Empacota os polígonos 3D em texto (JSON) para o C++
+                    // Pack 3D polygons into text (JSON) for C++
                     var arenaStr = JSON.stringify(root.arenaPoints)
                     var floorStr = JSON.stringify(root.floorPoints)
 
@@ -1211,7 +1211,7 @@ Item {
             }
         }
 
-        // ── Mosaico 2×2 ──────────────────────────────────────────────────────
+        // ── 2x2 Mosaic ──────────────────────────────────────────────────────
         GridLayout {
             id: arenaGrid
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -1235,7 +1235,7 @@ Item {
                         anchors { fill: parent; margins: 4 }
                         spacing: 4
 
-                        // Rótulo
+                        // Label
                         RowLayout {
                             Layout.fillWidth: true; spacing: 6
                             Text {
@@ -1278,19 +1278,19 @@ Item {
                                     visible: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
                                     sourceItem: framePreview
 
-                                    // Recorta o quadrante 2×2 correspondente ao campo
+                                    // Crop the 2x2 quadrant corresponding to the field
                                     sourceRect: {
                                         var _fp = framePreview
                                         if (!_fp || _fp.width === 0) return Qt.rect(0,0,0,0)
 
-                                        // Puxa as coordenadas EXATAS do vídeo, ignorando faixas pretas
+                                        // Pull EXACT video coordinates, ignoring black bars
                                         var cr = _fp.contentRect
                                         var cw = cr.width / 2
                                         var ch = cr.height / 2
                                         var cx = cr.x
                                         var cy = cr.y
 
-                                        // Divide o quadrado do vídeo igual por igual
+                                        // Divide the video square equally
                                         if (campoCell.campoIndex === 0) return Qt.rect(cx,      cy,      cw, ch) // Topo-Esq (Campo 1)
                                         if (campoCell.campoIndex === 1) return Qt.rect(cx + cw, cy,      cw, ch) // Topo-Dir (Campo 2)
                                         return Qt.rect(cx,      cy + ch, cw, ch) // Baixo-Esq (Campo 3)
@@ -1298,7 +1298,7 @@ Item {
                                     opacity: 0.9
                                 }
 
-                                // ── Limites 3D da Arena (Paredes + Chão Livres) ───────────
+                                // ── 3D Arena Bounds (Free Walls + Floor) ────────────
                                 Canvas {
                                     id: arenaCanvas
                                     anchors.fill: parent
@@ -1428,7 +1428,7 @@ Item {
                                             var midY = (iTL.y + iTR.y + iBR.y + iBL.y) / 4
 
                                             if (!root.ccMode) {
-                                                // Centro — só CA (não CC)
+                                                // Center — CA only (not CC)
                                                 var cTL={ x: midX + (iTL.x - midX) * root.centroRatio, y: midY + (iTL.y - midY) * root.centroRatio }
                                                 var cTR={ x: midX + (iTR.x - midX) * root.centroRatio, y: midY + (iTR.y - midY) * root.centroRatio }
                                                 var cBR={ x: midX + (iBR.x - midX) * root.centroRatio, y: midY + (iBR.y - midY) * root.centroRatio }
@@ -1438,12 +1438,12 @@ Item {
                                                 ctx.fillText(LanguageManager.tr3("Centro", "Center", "Centro"), midX - 15, midY + 4)
                                             }
 
-                                            // Borda (chão)
+                                            // Border (floor)
                                             ctx.globalCompositeOperation = "destination-over"
                                             poly([iTL,iTR,iBR,iBL], "rgba(0,255,255,0.15)", "rgba(0,255,255,0.6)")
                                             ctx.globalCompositeOperation = "source-over"
 
-                                            // Paredes (área entre chão e arena)
+                                            // Walls (area between floor and arena)
                                             poly([oTL,oTR,iTR,iTL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
                                             poly([iBL,iBR,oBR,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
                                             poly([oTL,iTL,iBL,oBL],"rgba(255,255,255,0.03)", "rgba(255,255,255,0.15)")
@@ -1456,7 +1456,7 @@ Item {
                                             ctx.fillText(LanguageManager.tr3("Parede", "Wall", "Pared"), (oTL.x + iTL.x)/2 - 15, midY + 4)
                                         } else {
                                             // --- MODO RECONHECIMENTO (NOR/RO) ---
-                                            // Chão
+                                            // Floor
                                             poly([iTL,iTR,iBR,iBL], "rgba(255,0,255,0.12)", "rgba(255,0,255,0.5)") 
                                             // Paredes coloridas
                                             poly([oTL,oTR,iTR,iTL],"rgba(255,0,0,0.12)",  "rgba(255,0,0,0.5)") 
@@ -1471,7 +1471,7 @@ Item {
                                             ctx.fillText(LanguageManager.tr3("Parede", "Wall", "Pared"), (oTL.x+iTL.x)/2 - 15, (oTL.y+iTL.y)/2)
                                         }
 
-                                        // Dica visual de contexto: padrão igual nas 4 paredes do campo, variando por campo.
+                                        // Context visual hint: same pattern on all 4 walls, varying per field.
                                         if (root.context === "Contextual" && ci < root.numCampos) {
                                             var wallTop = [oTL,oTR,iTR,iTL]
                                             var wallBottom = [iBL,iBR,oBR,oBL]
@@ -1570,7 +1570,7 @@ Item {
                                     }
                                 }
 
-                                // ── Pontos de Chão (Dev Mode) ─────────────────────────────
+                                // ── Floor Points (Dev Mode) ────────────────────────────
                                 Repeater {
                                     model: root.devMode ? 4 : 0
                                     Rectangle {
@@ -1604,7 +1604,7 @@ Item {
                                     }
                                 }
 
-                                // ── Overlay de interação ──────────────────────
+                                // ── Interaction overlay ───────────────────────
                                 MouseArea {
                                     id: interactionMa
                                     anchors.fill: parent
@@ -1638,8 +1638,8 @@ Item {
                                         } else if (mouse.modifiers & Qt.ControlModifier) {
                                             // Ctrl funciona em CA e CC sem devMode
                                             var ap = root.arenaPoints[campoCell.campoIndex]
-                                            // SEM limite de distância: sempre captura o canto mais próximo
-                                            // mesmo se estiver fora do quadrante visível
+                                            // NO distance limit: always captures the nearest corner
+                                            // even if outside the visible quadrant
                                             dragOuterCorner = -1
                                             var minDistOuter = Infinity
                                             for (var c=0; c<4; c++) {
@@ -1667,7 +1667,7 @@ Item {
                                         if (!allowDrag) return;
                                         var w = arenaRect.width, h = arenaRect.height
 
-                                        // Clamp para zonas e chão (devem ficar dentro do quadrante)
+                                        // Clamp for zones and floor (must stay within the quadrant)
                                         var mx = Math.max(0, Math.min(w, mouse.x))
                                         var my = Math.max(0, Math.min(h, mouse.y))
 
@@ -1716,7 +1716,7 @@ Item {
                                             return
                                         }
                                         // No modo CA: scroll simples (sem modificador ou com Alt)
-                                        // ajusta centroRatio. Não requer devMode.
+                                        // adjusts centroRatio. Does not require devMode.
                                         if (root.caMode && !root.ccMode && (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.AltModifier))) {
                                             wheel.accepted = true
                                             var step = 0.02
@@ -1726,7 +1726,7 @@ Item {
                                             root.zonasEditadas(); showUnsavedToast()
                                             return
                                         }
-                                        // No modo NOR (devMode): scroll simples redimensiona o objeto mais próximo
+                                        // In NOR mode (devMode): simple scroll resizes the nearest object
                                         if (!root.caMode && root.devMode &&
                                                 (wheel.modifiers === Qt.NoModifier || (wheel.modifiers & Qt.ShiftModifier))) {
                                             wheel.accepted = true
@@ -1760,7 +1760,7 @@ Item {
                                     }
                                 }
 
-                                // Placeholder quando par não definido e sem vídeo
+                                // Placeholder when pair not set and no video
                                 Text {
                                     anchors.centerIn: parent
                                     visible: !root.caMode && campoCell.campoPair === "" && root.videoPath === ""
@@ -1773,9 +1773,9 @@ Item {
                 }
             }
 
-            // ── Célula vazia: VideoOutput mestre + controles ──────────────────
-            // masterVideoOut renderiza o vídeo inteiro aqui. ShaderEffectSource
-            // nos campos acima captura esse item (via scene graph, não hardware overlay).
+            // ── Empty cell: master VideoOutput + controls ──────────────────
+            // masterVideoOut renders the full video here. ShaderEffectSource
+            // in the fields above captures this item (via scene graph, not hardware overlay).
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 color: "#08080f"; border.color: "#1a1a2e"; border.width: 1; radius: 2
@@ -1787,7 +1787,7 @@ Item {
                     spacing: 6
                     visible: parent.hasMedia
 
-                    // VideoOutput mestre — ocupa a maior parte da célula
+                    // Master VideoOutput — occupies most of the cell
                     // Offline: alimentado por MediaPlayer. Ao vivo: alimentado por CaptureSession.
                     VideoOutput {
                         id: framePreview
@@ -1825,7 +1825,7 @@ Item {
 
                         Item { Layout.fillWidth: true }
 
-                        // Remover vídeo (somente offline)
+                        // Remove video (offline only)
                         Rectangle {
                             visible: root.analysisMode !== "ao_vivo"
                             height: 24; radius: 5
@@ -1850,7 +1850,7 @@ Item {
                     }
                 }
 
-                // Placeholder sem mídia
+                // Placeholder without media
                 Column {
                     anchors.centerIn: parent
                     spacing: 6
@@ -1959,7 +1959,7 @@ Item {
                         var p2 = editP2.text.trim().toUpperCase()
                         var p3 = editP3.text.trim().toUpperCase()
 
-                        // Atualiza as variáveis locais da Arena
+                        // Update local Arena variables
                         root.pair1 = p1
                         root.pair2 = p2
                         root.pair3 = p3
@@ -1967,7 +1967,7 @@ Item {
                         // Propaga para o dashboard (atualiza aba Dados e SessionResultDialog)
                         root.pairsEdited(p1, p2, p3)
 
-                        // Força a re-leitura dos tamanhos dos objetos (sua biblioteca)
+                        // Force re-read of object sizes (from the library)
                         zoneInitTimer.restart()
 
                         editPairsPopup.close()

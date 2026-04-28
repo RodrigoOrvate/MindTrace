@@ -93,7 +93,7 @@ Item {
                 icon: "🐁"
                 title: LanguageManager.tr3("Campo\nAberto", "Open\nField", "Campo\nAbierto")
                 description: LanguageManager.tr3(
-                    "Exploracao em campo aberto\ne habituacao ao aparato",
+                    "Exploração em campo aberto\ne habituação ao aparato",
                     "Open field exploration\nand habituation",
                     "Exploracion en campo abierto\ny habituacion al aparato"
                 )

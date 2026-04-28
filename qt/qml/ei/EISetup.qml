@@ -1,5 +1,5 @@
 ﻿// qml/ei/EISetup.qml
-// Passo de configuração para Esquiva Inibitória: nome do experimento, diretório, opções e criação.
+// Setup step for Inhibitory Avoidance: experiment name, directory, options and creation.
 
 import QtQuick
 import QtQuick.Controls
@@ -15,7 +15,7 @@ Item {
 
     property string selectedPath: ""
 
-    // name, cols, includeDrug, responsavel, dayNames, savePath
+    // name, cols, includeDrug, responsável, dayNames, savePath
     signal experimentReady(string name, var cols, bool includeDrug, string responsibleUsername, var dayNames, string savePath)
     signal backRequested()
     property string responsibleUsername: ""
@@ -79,7 +79,7 @@ Item {
 
     function doCreate() {
         var cols = [
-            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Diretório do Video", "Video Directory", "Directorio del Video"),
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
             LanguageManager.tr3("Latencia (s)", "Latency (s)", "Latencia (s)"),
@@ -129,7 +129,7 @@ Item {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
+                    text: LanguageManager.tr3("Configuração do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -147,13 +147,13 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Formulário ───────────────────────────────────────────────────
+        // ── Form ─────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             spacing: 24
 
-            // Nome + Diretório
+            // Name + Directory
             RowLayout {
                 Layout.fillWidth: true; spacing: 16
 
@@ -342,7 +342,7 @@ Item {
                             }
                         }
                         Text {
-                            text: "Recomendado: informe um responsavel sempre que houver usuario disponivel."
+                            text: "Recomendado: informe um responsável sempre que houver usuário disponível."
                             color: "#d8c26a"; font.pixelSize: 11
                             wrapMode: Text.Wrap
                         }
@@ -352,7 +352,7 @@ Item {
                     text: root.responsibleUnknown
                           ? "Responsavel sera salvo como \"desconhecido\"."
                           : (ExperimentManager.researcherUsers.length === 0
-                             ? "Nenhum pesquisador disponivel. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuarios nao-admin ativos."
+                             ? "Nenhum pesquisador disponível. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuários não-admin ativos."
                              : "Responsavel registrado no metadata e sincronizado no historico.")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
@@ -360,7 +360,7 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Informação de layout ──────────────────────────────────────
+            // ── Layout information ────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true; height: 80; radius: 10
                 color: ThemeManager.surfaceDim
@@ -384,7 +384,7 @@ Item {
                             color: ThemeManager.textSecondary; font.pixelSize: 11
                         }
                         Text {
-                    text: LanguageManager.tr3("Metricas: latencia, tempo plataforma/grade, bouts, distancia, velocidade", "Metrics: latency, platform/grid time, bouts, distance, speed", "Metricas: latencia, tiempo plataforma/rejilla, bouts, distancia, velocidad")
+                    text: LanguageManager.tr3("Métricas: latencia, tempo plataforma/grade, bouts, distância, velocidade", "Metrics: latency, platform/grid time, bouts, distance, speed", "Métricas: latencia, tiempo plataforma/rejilla, bouts, distância, velocidad")
                             color: ThemeManager.textTertiary; font.pixelSize: 10
                         }
                     }
@@ -506,11 +506,11 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Rodapé ────────────────────────────────────────────────────────
+        // ── Footer ────────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
-            Text { text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
+            Text { text: LanguageManager.tr3("Configuração do Experimento", "Experiment Setup", "Configuracion del Experimento"); color: ThemeManager.textSecondary; font.pixelSize: 11 }
 
             Button {
                 text: LanguageManager.tr3("Criar Experimento ->", "Create Experiment ->", "Crear Experimento ->")

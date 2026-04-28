@@ -1,7 +1,7 @@
 ﻿// qml/ei/EIArenaSetup.qml
-// Arena para Esquiva Inibitória: campo único, paredes, chão e 2 zonas retangulares.
+// Arena for Inhibitory Avoidance: single field, walls, floor and 2 rectangular zones.
 // Plataforma (esquerda) + Grade (direita) — sem objetos pares NOR.
-// Ctrl+Arrastar: Paredes | Alt+Arrastar: Chão | Shift+Arrastar: Zonas | Scroll: +/- Zonas
+// Ctrl+Drag: Walls | Alt+Drag: Floor | Shift+Drag: Zones | Scroll: resize zones
 
 import QtQuick
 import QtQuick.Controls
@@ -21,15 +21,15 @@ Item {
     property string analysisMode:   ""
     property string saveDirectory:  ""
     property string liveOutputName: "live"
-    property string cameraId:       ""    // descrição da câmera selecionada para ao_vivo
+    property string cameraId:       ""    // description of the selected camera for live mode
     property bool   livePreviewFrozen: false
     property int    livePreviewFrameCount: 0
     property bool   _isDirectShowPreview: false
     property int    numCampos:      1
     property bool   devMode:        false
-    property real   videoAspectRatio: 1.5 // 720x480 padrão
+    property real   videoAspectRatio: 1.5 // default 720x480
 
-    // Cor do aparato (parametrizável para reuso em CA/CC com 1 campo)
+    // Apparatus color (configurable for reuse in CA/CC with 1 field)
     property color primaryColor:   "#c8a000"
     property color secondaryColor: "#9a7800"
 
@@ -65,7 +65,7 @@ Item {
 
     function _startImport(sourcePath) {
         if (!sourcePath || sourcePath === "" || experimentPath === "") return
-        // Lê dados da arena fonte
+        // Read data from the source arena
         ArenaConfigModel.loadConfigFromPath(sourcePath)
         var srcFloor     = ArenaConfigModel.getFloorPoints()
         var srcZoneCount = ArenaConfigModel.zoneCount()
@@ -73,7 +73,7 @@ Item {
         ArenaConfigModel.loadConfigFromPath(experimentPath, ":/arena_config_ei_referencia.json")
         var curFloor     = ArenaConfigModel.getFloorPoints()
         var curZoneCount = ArenaConfigModel.zoneCount()
-        // Verifica apenas incompatibilidade de tipo de zona (shape detection removida — coords normalizadas são imprecisas)
+        // Check only zone-type incompatibility (shape detection removed — normalised coords are imprecise)
         var srcType  = _zoneType(srcZoneCount, srcFloor)
         var curType  = _zoneType(curZoneCount, curFloor)
         _pendingImportPath = sourcePath
@@ -93,10 +93,10 @@ Item {
     }
 
     // Zonas: 2 zonas em formato {x, y, r} — r = metade da largura/altura normalizada
-    // Valores iniciais neutros; preenchidos via zoneInitTimer após carregar do modelo
+    // Neutral initial values; filled via zoneInitTimer after loading from the model
     property var zones:       [ { x: 0.25, y: 0.5, r: 0.15 }, { x: 0.70, y: 0.5, r: 0.25 } ]
 
-    // Paredes e chão — preenchidos via zoneInitTimer (da referência EI ou do arquivo salvo)
+    // Walls and floor — filled via zoneInitTimer (from EI reference or saved file)
     property var arenaPoints: [[]]
     property var floorPoints: [[]]
 
@@ -142,10 +142,10 @@ Item {
     property alias mediaDevices: mediaDevicesLoader.item
     VideoInputEnumerator { id: cameraProbe }
 
-    // Função pública: abre o popup de modo
+    // Public function: open the mode popup
     function openVideoLoader() { analysisModePrompt.open() }
 
-    // ── Toast "não salvo" ────────────────────────────────────────────────────
+    // ── Unsaved toast ────────────────────────────────────────────────────
     Rectangle {
         id: unsavedToast
         visible: false; z: 5000
@@ -171,9 +171,9 @@ Item {
     // ── Carregar config ao abrir experimento ────────────────────────────────
     onExperimentPathChanged: {
         if (experimentPath === "") return
-        // EI usa referência própria como fallback (sem arena_config.json salvo)
+    // EI uses its own reference as fallback (no arena_config.json saved)
         ArenaConfigModel.loadConfigFromPath(experimentPath, ":/arena_config_ei_referencia.json")
-        // arenaPoints, floorPoints e zones são aplicados em zoneInitTimer via onConfigChanged
+    // arenaPoints, floorPoints and zones are applied in zoneInitTimer via onConfigChanged
     }
 
     Connections {
@@ -181,7 +181,7 @@ Item {
         function onConfigChanged() { zoneInitTimer.restart() }
     }
 
-    // Helper: parseia string JSON de pontos → [[{x,y},...]] com expectedCount mínimo
+    // Helper: parse JSON point string -> [[{x,y},...]] with minimum expectedCount
     function normalizePoints(data, expectedCount) {
         try {
             if (!data || data === "") return null
@@ -198,7 +198,7 @@ Item {
     Timer {
         id: zoneInitTimer; interval: 60; repeat: false
         onTriggered: {
-            // Aplica arenaPoints e floorPoints do modelo (vem do arquivo salvo ou da referência EI)
+            // Apply arenaPoints and floorPoints from the model (from saved file or EI reference)
             var normArena = root.normalizePoints(ArenaConfigModel.getArenaPoints(), 4)
             var normFloor = root.normalizePoints(ArenaConfigModel.getFloorPoints(), 8)
             if (normArena) root.arenaPoints = normArena
@@ -218,7 +218,7 @@ Item {
         }
     }
 
-    // ── Player de vídeo (preview) ────────────────────────────────────────────
+    // ── Video player (preview) ───────────────────────────────────────────
     MediaPlayer {
         id: videoPlayer
         autoPlay: false
@@ -231,7 +231,7 @@ Item {
         }
     }
 
-    // ── Preview de câmera ao vivo ────────────────────────────────────────────
+    // ── Live camera preview ──────────────────────────────────────────────
     CaptureSession {
         id: eiArenaCaptureSession
         videoOutput: null
@@ -357,7 +357,7 @@ Item {
         eiArenaCaptureSession.videoOutput = null
     }
 
-    // ── Diálogos ─────────────────────────────────────────────────────────────
+    // ── Dialogs ──────────────────────────────────────────────────────────
     FileDialog {
         id: videoFileDialog
         title: "Selecionar Vídeo de Análise"
@@ -388,7 +388,7 @@ Item {
         }
     }
 
-    // Popup: confirmar importação com avisos
+    // Popup: confirm import with warnings
     Popup {
         id: importConfirmPopup
         anchors.centerIn: parent
@@ -574,7 +574,7 @@ Item {
         }
     }
 
-    // Popup: diretório para salvar vídeo ao vivo
+    // Popup: directory for saving live video
     Popup {
         id: saveDirPopup
         anchors.centerIn: parent
@@ -676,7 +676,7 @@ Item {
         }
     }
 
-    // Popup: selecionar câmera para análise ao vivo
+    // Popup: select camera for live analysis
     Popup {
         id: eiCameraSelectPopup
         anchors.centerIn: parent
@@ -966,13 +966,13 @@ Item {
         anchors { fill: parent; margins: 16 }
         spacing: 10
 
-        // ── Barra de ações ────────────────────────────────────────────────────
+        // ── Action bar ───────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
 
             Text {
-                            text: LanguageManager.tr3("Configuracao da Arena", "Arena Setup", "Configuracion de la Arena")
+                            text: LanguageManager.tr3("Configuração da Arena", "Arena Setup", "Configuracion de la Arena")
                 color: ThemeManager.textPrimary
                 Behavior on color { ColorAnimation { duration: 150 } }
                 font.pixelSize: 14; font.weight: Font.Bold
@@ -1024,7 +1024,7 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 6; bottomPadding: 6
             }
 
-                // Carregar vídeo
+                // Load video
                 Button {
                 id: videoBtnRect
                 text: root.analysisMode === "ao_vivo" && root.cameraId !== ""
@@ -1076,12 +1076,12 @@ Item {
                 leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
             }
 
-                // Salvar configuração
+                // Save configuration
                 Button {
                             text: "💾 " + LanguageManager.tr3("Salvar Configuracao", "Save Configuration", "Guardar Configuracion")
                 enabled: experimentPath !== ""
                 onClicked: {
-                    // No EI, zones são salvos como quadrilaterais no floorPoints (string JSON)
+                    // In EI, zones are saved as quadrilaterals in floorPoints (JSON string)
                     var arenaStr = JSON.stringify(root.arenaPoints)
                     var floorStr = JSON.stringify(root.floorPoints)
                     if (ArenaConfigModel.saveConfigToPath(experimentPath, "", "", [], arenaStr, floorStr)) {
@@ -1105,16 +1105,16 @@ Item {
             }
         }
 
-        // ── Arena retangular — campo único ────────────────────────────────────
+        // ── Rectangular arena — single field ──────────────────────────────
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Arena como retângulo (proporção 2:1 aprox para EI)
+            // Arena as rectangle (approx 2:1 ratio for EI)
             Item {
                 id: arenaCell
                 anchors.centerIn: parent
-                // Proporção dinâmica baseada no vídeo
+                // Dynamic aspect ratio based on video
                 width:  parent.width  > parent.height * root.videoAspectRatio ? parent.height * root.videoAspectRatio : parent.width
                 height: width / root.videoAspectRatio
 
@@ -1127,12 +1127,12 @@ Item {
                     Behavior on color { ColorAnimation { duration: 200 } }
                     clip: true
 
-                    // Preview do vídeo (campo único, sem crop de mosaico)
+                    // Video preview (single field, no mosaic crop)
                     ShaderEffectSource {
                         anchors.fill: parent
                         visible: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
                         sourceItem: framePreview
-                        // Nenhum crop — mostra o vídeo inteiro
+                        // No crop — shows the full video
                         sourceRect: {
                             var _fp = framePreview
                             if (!_fp || _fp.width === 0) return Qt.rect(0,0,0,0)
@@ -1142,7 +1142,7 @@ Item {
                         opacity: 0.9
                     }
 
-                    // ── Canvas: paredes + chão ──────────────────────────────
+                    // ── Canvas: walls + floor ───────────────────────────
                     Canvas {
                         id: arenaCanvas
                         anchors.fill: parent
@@ -1240,7 +1240,7 @@ Item {
                         }
                     }
 
-                    // ── Pontos de Chão (Dev Mode) ─────────────────────────────
+                    // ── Floor points (Dev Mode) ────────────────────────
                     Repeater {
                         model: root.devMode ? 4 : 0
                         Rectangle {
@@ -1297,7 +1297,7 @@ Item {
                         }
                     }
 
-                    // ── Interação: arrastar zonas, paredes, chão ──────────────
+                    // ── Interaction: drag zones, walls, floor ────────────
                     MouseArea {
                         id: interactionMa
                         anchors.fill: parent
@@ -1315,7 +1315,7 @@ Item {
                             var capDist = Infinity 
 
                             if (mouse.modifiers & Qt.ShiftModifier) {
-                                // Arrasta canto da Plataforma (índices 0-3 do floorPoints agora)
+                                // Drag Platform corner (floorPoints indices 0-3)
                                 for (var c1 = 0; c1 < 4; c1++) {
                                     if (!fp[c1]) continue
                                     var fx1 = fp[c1].x * w, fy1 = fp[c1].y * h
@@ -1323,7 +1323,7 @@ Item {
                                     if (df1 < capDist) { capDist = df1; dragFloorCorner = c1 }
                                 }
                             } else if (mouse.modifiers & Qt.AltModifier) {
-                                // Arrasta canto da Grade (índices 4-7 do floorPoints agora)
+                                // Drag Grid corner (floorPoints indices 4-7)
                                 for (var c2 = 4; c2 < 8; c2++) {
                                     if (!fp[c2]) continue
                                     var fx2 = fp[c2].x * w, fy2 = fp[c2].y * h
@@ -1331,7 +1331,7 @@ Item {
                                     if (df2 < capDist) { capDist = df2; dragFloorCorner = c2 }
                                 }
                             } else if (mouse.modifiers & Qt.ControlModifier) {
-                                // Arrasta canto mais próximo das paredes (arenaPoints 0-3)
+                                // Drag nearest wall corner (arenaPoints 0-3)
                                 for (var c3 = 0; c3 < 4; c3++) {
                                     if (!ap[c3]) continue
                                     var px = ap[c3].x * w, py = ap[c3].y * h

@@ -1,20 +1,17 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QHash>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
-#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
 
-// ---------------------------------------------------------------------------
-// ExperimentListModel
-//   QAbstractListModel de alta performance para o ListView da sidebar.
-//   A filtragem é feita in-process sobre um QStringList — O(n) sem alocações
-//   extras nem proxies adicionais para listas de centenas de itens.
-// ---------------------------------------------------------------------------
+/// High-performance QAbstractListModel for the sidebar ListView.
+/// Filtering is done in-process on a QStringList — O(n) with no extra
+/// allocations or proxy models, efficient for lists of hundreds of items.
 class ExperimentListModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -58,10 +55,7 @@ private:
     QStringList m_responsibles;
 };
 
-// ---------------------------------------------------------------------------
-// ExperimentManager
-//   Singleton QML. Gerencia criação/leitura de experimentos em disco.
-// ---------------------------------------------------------------------------
+/// Singleton QML object. Manages experiment creation and persistence on disk.
 class ExperimentManager : public QObject
 {
     Q_OBJECT
@@ -76,13 +70,13 @@ public:
     QString              activeContext() const;
     QStringList          researcherUsers() const;
 
-    // ── API invocável pelo QML ──────────────────────────────────────────────
+    // ── QML-invokable API ──────────────────────────────────────────────────
     Q_INVOKABLE void    loadContext(const QString &context, const QString &aparatoFilter = QString());
 
-    // Criação simples (sem configuração de colunas — mantido por compatibilidade)
+    // Simple creation (no column config — kept for backwards compatibility)
     Q_INVOKABLE bool    createExperiment(const QString &name);
 
-    // Criação completa: nome + quantidade de animais (linhas) + nomes das colunas
+    // Full creation: name + animal count (rows) + column names
     Q_INVOKABLE bool    createExperimentWithConfig(const QString    &name,
                                                    int               animalCount,
                                                    const QStringList &columns);
@@ -91,11 +85,11 @@ public:
     Q_INVOKABLE QString experimentPath(const QString &name, const QString &context = QString()) const;
     Q_INVOKABLE bool    deleteExperiment(const QString &name, const QString &context = QString());
 
-    // Chamado ao fim do timer de 300 s: insere N linhas de uma vez no CSV.
-    // rows: lista de QStringList, uma por campo, valores na ordem das colunas do CSV.
-    // Ex.: [["video.mp4","A1","1","1","AA","Salina"],
-    //        ["video.mp4","A1","2","1","AB","Salina"],
-    //        ["video.mp4","A1","3","1","AC","Salina"]]
+    // Called at the end of the 300-s timer: inserts N rows at once into the CSV.
+    // rows: list of QStringList, one per field, values in CSV column order.
+    // E.g.: [["video.mp4","A1","1","1","AA","Saline"],
+    //         ["video.mp4","A1","2","1","AB","Saline"],
+    //         ["video.mp4","A1","3","1","AC","Saline"]]
     Q_INVOKABLE bool    insertSessionResult(const QString &experimentName,
                                             const QVariantList &rows);
 
@@ -120,46 +114,46 @@ public:
 
     Q_INVOKABLE bool    updateCentroRatio(const QString &folderPath, double ratio);
 
-    // Lê metadata.json e retorna pair1/pair2/pair3/includeDrug/hasReactivation para o dashboard.
+    // Reads metadata.json and returns pair1/pair2/pair3/includeDrug/hasReactivation for the dashboard.
     Q_INVOKABLE QVariantMap readMetadata(const QString &name) const;
 
-    // Persiste apenas os pares no metadata.json existente (chamado após edição na tab Arena).
+    // Persists only the pairs into the existing metadata.json (called after Arena tab edit).
     Q_INVOKABLE bool updatePairs(const QString &folderPath,
                                  const QString &pair1,
                                  const QString &pair2,
                                  const QString &pair3);
 
-    // Altera a flag de reativação após o experimento ter sido criado
+    // Updates the reactivation flag after the experiment has been created.
     Q_INVOKABLE void setExperimentReactivation(const QString &experimentName, bool hasReactivation);
 
-    // Lê metadata.json a partir do path completo da pasta do experimento.
+    // Reads metadata.json from the full experiment folder path.
     Q_INVOKABLE QVariantMap readMetadataFromPath(const QString &folderPath) const;
 
-    // Salva metadados ricos da sessão (bouts, distância, velocidade) como JSON
-    // no subdiretório "sessions/" dentro da pasta do experimento.
-    // nameHint: prefixo descritivo para o nome do arquivo (ex: "TR_A1-A2-A3")
+    // Saves rich session metadata (bouts, distance, velocity) as JSON
+    // in the "sessions/" subdirectory inside the experiment folder.
+    // nameHint: descriptive prefix for the filename (e.g. "TR_A1-A2-A3")
     Q_INVOKABLE bool saveSessionMetadata(const QString &experimentName,
                                          const QString &jsonData,
                                          const QString &nameHint = QString());
 
     Q_INVOKABLE void    loadAllContexts(const QString &aparatoFilter = QString());
 
-    // Limpa o filtro de aparato e re-sincroniza o modelo.
+    // Clears the apparatus filter and re-syncs the model.
     Q_INVOKABLE void    clearFilter();
 
-    // Define m_activeContext sem disparar scan — usado quando o dashboard
-    // em search mode seleciona um experimento de um contexto específico.
+    // Sets m_activeContext without triggering a disk scan — used when a dashboard
+    // in search mode selects an experiment from a specific context.
     Q_INVOKABLE void setActiveContext(const QString &context);
 
-    // Retorna true se a pasta do experimento já existe no contexto dado.
+    // Returns true if the experiment folder already exists in the given context.
     Q_INVOKABLE bool experimentExists(const QString &context, const QString &name) const;
 
-    // Re-varre o disco e atualiza o modelo (útil após exclusão externa de pasta).
+    // Re-scans the disk and updates the model (useful after external folder deletion).
     Q_INVOKABLE void refreshModel();
 
-    // Persiste dayNames no metadata.json existente do experimento.
+    // Persists dayNames into the existing experiment metadata.json.
     Q_INVOKABLE bool updateDayNames(const QString &folderPath, const QStringList &dayNames);
-    // Persiste os padrões visuais de contexto por campo (ex: horizontal, vertical, dots...).
+    // Persists visual context patterns per field (e.g. horizontal, vertical, dots...).
     Q_INVOKABLE bool updateContextPatterns(const QString &folderPath, const QVariantList &patterns);
     Q_INVOKABLE void refreshResearchers();
     Q_INVOKABLE QString researcherFullName(const QString &username) const;
@@ -172,7 +166,7 @@ signals:
     void experimentCreated(const QString &name, const QString &path);
     void experimentDeleted(const QString &name);
     void errorOccurred(const QString &message);
-    // Emitido após insertSessionResult bem-sucedido — dashboard recarrega o modelo.
+    // Emitted after a successful insertSessionResult — dashboard reloads the model.
     void sessionDataInserted(const QString &experimentName);
 
 private:
@@ -212,7 +206,7 @@ private:
     ExperimentListModel *m_model;
     QString              m_activeContext;
     QString              m_aparatoFilter;
-    bool                 m_inSearchMode;
+    bool                 m_inSearchMode    = false;
     QStringList          m_researcherUsers;
     QHash<QString, QString> m_researcherFullNames;
     QNetworkAccessManager *m_syncNetwork;

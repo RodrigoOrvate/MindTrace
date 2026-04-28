@@ -1,5 +1,5 @@
 ﻿// qml/ca/CAMetadataDialog.qml
-// Popup pós-sessão CA: coleta metadados (fase, animais, droga) e persiste CSV + JSON.
+// Post-session CA popup: collects metadata (phase, animals, treatment) and persists CSV + JSON.
 
 import QtQuick
 import QtQuick.Controls
@@ -59,7 +59,7 @@ Popup {
         if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
         if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
         if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
-        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "triangles")  return LanguageManager.tr3("Triângulos", "Triangles", "Triângulos")
         if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
         return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
     }
@@ -142,7 +142,7 @@ Popup {
                 "movimento": {
                     "tempo_centro_s": tCentroJ, "tempo_borda_s": tBordaJ,
                     "visitas_centro": vCentroJ,
-                    "distancia_total_m":   distRealJ,
+                    "distância_total_m":   distRealJ,
                     "velocidade_media_ms": tTotalJ > 0.5 ? (distRealJ / tTotalJ) : 0.0
                 },
                 "porMinuto": root.perMinuteData[cj] || []
@@ -203,7 +203,7 @@ Popup {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Sessao Concluida", "Session Completed", "Sesion Completada")
+                    text: LanguageManager.tr3("Sessão Concluida", "Session Completed", "Sesion Completada")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -222,7 +222,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Dia da sessão ─────────────────────────────────────────────────
+        // ── Session day ───────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
@@ -320,7 +320,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Botões ────────────────────────────────────────────────────────
+        // ── Buttons ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }

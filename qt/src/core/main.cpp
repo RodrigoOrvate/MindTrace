@@ -1,27 +1,27 @@
-#include <QApplication>
-#include <QQmlApplicationEngine>
-#include <QQuickStyle>
-#include "inference_controller.h"
-#include "video_input_enumerator.h"
-#include "BehaviorTimeline.h"
+#include "ArenaConfigModel.h"
+#include "ArenaModel.h"
 #include "BSoidAnalyzer.h"
-#include <QQmlContext>
-#include <QtQml>
-#include <QMessageBox>
-
+#include "BehaviorTimeline.h"
 #include "ExperimentManager.h"
 #include "ExperimentTableModel.h"
-#include "ArenaModel.h"
-#include "ArenaConfigModel.h"
-#include "ThemeSettings.h"
 #include "LanguageSettings.h"
-#include <QFile>
-#include <QTextStream>
+#include "ThemeSettings.h"
+#include "inference_controller.h"
+#include "video_input_enumerator.h"
+
+#include <QApplication>
 #include <QDateTime>
+#include <QFile>
+#include <QMessageBox>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
+#include <QTextStream>
+#include <QtQml>
 
-// Redireciona todos os logs do Qt para um arquivo ao lado do exe
+// Redirect all Qt log messages to a file alongside the executable
 static QFile *g_logFile = nullptr;
 static QMutex g_logMutex;
 static void messageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
@@ -47,17 +47,16 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("MindTrace"));
     app.setOrganizationName(QStringLiteral("NeuroLab"));
 
-    // Log em arquivo — applicationDirPath() só funciona após QApplication
+    // Log to file — applicationDirPath() is only valid after QApplication is constructed
     QFile logFile(QCoreApplication::applicationDirPath() + "/mindtrace.log");
     if (logFile.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         g_logFile = &logFile;
         qInstallMessageHandler(messageHandler);
     }
 
-    qDebug() << "MindTrace iniciando...";
-    qDebug() << "[CAMFIX] build marker: 2026-04-25-obs-virtualcam-v3";
+    qDebug() << "MindTrace starting...";
 
-    // ── Registro de tipos C++ no motor QML ──────────────────────────────
+    // Register C++ types with the QML engine
     qmlRegisterSingletonType<ExperimentManager>(
         "MindTrace.Backend", 1, 0, "ExperimentManager",
         [](QQmlEngine *engine, QJSEngine *) -> QObject * {
@@ -85,7 +84,7 @@ int main(int argc, char *argv[])
             return cfg;
         });
 
-    qDebug() << "Tipos QML registrados.";
+    qDebug() << "QML types registered.";
 
     qmlRegisterType<InferenceController>("MindTrace.Tracking", 1, 0, "InferenceController");
     qmlRegisterType<VideoInputEnumerator>("MindTrace.Tracking", 1, 0, "VideoInputEnumerator");
@@ -94,19 +93,19 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    // Registra ThemeSettings como context property para acesso QML
+    // Expose settings as context properties for QML access
     ThemeSettings *themeSettings = new ThemeSettings(&engine);
     engine.rootContext()->setContextProperty("ThemeSettings", themeSettings);
     LanguageSettings *languageSettings = new LanguageSettings(&engine);
     engine.rootContext()->setContextProperty("LanguageSettings", languageSettings);
 
-    // Coleta todos os warnings/erros emitidos pelo motor QML
+    // Collect all warnings and errors emitted by the QML engine
     QStringList qmlErrors;
     QObject::connect(&engine, &QQmlApplicationEngine::warnings,
         [&qmlErrors](const QList<QQmlError> &warnings) {
-            for (const QQmlError &e : warnings) {
-                qCritical() << e.toString();
-                qmlErrors << e.toString();
+            for (const QQmlError &qmlError : warnings) {
+                qCritical() << qmlError.toString();
+                qmlErrors << qmlError.toString();
             }
         });
 
@@ -116,18 +115,18 @@ int main(int argc, char *argv[])
         &app, [url, &qmlErrors](QObject *obj, const QUrl &objUrl) {
             if (!obj && url == objUrl) {
                 QString details = qmlErrors.isEmpty()
-                    ? "(sem detalhes — verifique build/mindtrace.log)"
+                    ? "(no details — check build/mindtrace.log)"
                     : qmlErrors.join("\n");
-                QMessageBox::critical(nullptr, "MindTrace — Erro de inicialização",
-                    "Falha ao carregar a interface QML:\n\n" + details);
+                QMessageBox::critical(nullptr, "MindTrace — Initialization Error",
+                    "Failed to load QML interface:\n\n" + details);
                 QCoreApplication::exit(-1);
             }
         },
         Qt::QueuedConnection);
 
-    qDebug() << "Carregando QML:" << url;
+    qDebug() << "Loading QML:" << url;
     engine.load(url);
 
-    qDebug() << "app.exec() iniciando...";
+    qDebug() << "Entering event loop...";
     return app.exec();
 }

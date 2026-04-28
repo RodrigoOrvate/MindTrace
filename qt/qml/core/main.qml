@@ -1,4 +1,4 @@
-// qml/main.qml
+﻿// qml/main.qml
 // Janela raiz e roteador de telas.
 //
 // Fluxo "Criar":
@@ -30,7 +30,7 @@ ApplicationWindow {
     
     Behavior on color { ColorAnimation { duration: 200 } }
 
-    // ── Estado acumulado durante o fluxo de criação NOR ──────────────────
+    // ── State accumulated during the NOR creation flow ─────────────────
     property string pendingContext:     ""
     property string pendingArenaId:     ""
     property int    pendingNorNumCampos: 3
@@ -40,14 +40,14 @@ ApplicationWindow {
     property string pendingPair3:       ""
     property bool   pendingIncludeDrug: true
 
-    // ── Estado acumulado durante o fluxo de criação CA ──────────────────────────────────
+    // ── State accumulated during the CA creation flow ────────────────────────────────
     property int    pendingCaNumCampos: 3
     property string pendingCaContext:   "Padrão"
     property string pendingCaArenaId:   "ca_3campos"
     property var    pendingCaContextPatterns: []
     property bool   pendingCaFlow:      false   // distingue NOR vs CA no onExperimentCreated
 
-    // ── Estado acumulado durante o fluxo de criação CC ──────────────────────────────────
+    // ── State accumulated during the CC creation flow ────────────────────────────────
     property int    pendingCcNumCampos:    3
     property string pendingCcContext:      "Padrão"
     property string pendingCcArenaId:      "cc_3campos"
@@ -56,24 +56,24 @@ ApplicationWindow {
     property bool   pendingCcFlow:         false   // distingue CC no onExperimentCreated
     property bool   pendingCcHasObjectZones: true  // zonas de objetos para sniffing vs resting
 
-    // ── Estado acumulado durante o fluxo de criação IA ──────────────────────────────────
+    // ── State accumulated during the EI creation flow ────────────────────────────────
     property bool   pendingEiFlow:     false
 
-    // ── Nomes dos dias — compartilhado por todos os fluxos ─────────────────
+    // ── Day names — shared by all flows ──────────────────────────────────
     property var    pendingDayNames:   []
 
-    // ── Auto-refresh da sidebar ao recuperar foco (detecta exclusões externas) ──
+    // ── Auto-refresh sidebar on focus restore (detects external deletions) ──
     onActiveChanged: {
         if (active)
             ExperimentManager.refreshModel()
     }
 
-    // ── Conexão global: quando ExperimentManager cria um experimento
+    // ── Global connection: when ExperimentManager creates an experiment
     //    via NORSetupScreen, navega para o dashboard.
-    //    (Criações vindas do botão interno do dashboard são geridas lá.)
+    //    (Creations from the internal dashboard button are managed there.)
     property bool awaitingCreation: false
 
-    // Qt 6: Connections requer sintaxe "function onSignal(params)" para acessar parâmetros
+    // Qt 6: Connections requires "function onSignal(params)" syntax to access parameters
     Connections {
         target: ExperimentManager
         function onExperimentCreated(name, path) {
@@ -417,7 +417,7 @@ ApplicationWindow {
                 ExperimentManager.clearFilter()
                 stack.pop()
             }
-            aparatoFilter: "" // Mostra todos por padrão no browser universal
+            aparatoFilter: "" // Shows all by default in the universal browser
             onOpenExperiment: function(aparato, numCampos, expName, expPath) {
                 var meta = ExperimentManager.readMetadataFromPath(expPath)
                 if (aparato === "comportamento_complexo" || meta.aparato === "comportamento_complexo") {

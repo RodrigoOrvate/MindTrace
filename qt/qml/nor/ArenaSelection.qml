@@ -1,7 +1,7 @@
 ﻿// qml/nor/ArenaSelection.qml
-// Passo 2 do fluxo NOR: seleÃ§Ã£o de nÃºmero de campos e contexto.
-// 2 campos â†’ PadrÃ£o ou Contextual
-// 3 campos â†’ Sem contexto (fixo)
+// NOR flow step 2: select number of fields and context.
+// 2 fields -> Standard or Contextual
+// 3 fields -> No context (fixed)
 
 import QtQuick
 import QtQuick.Controls
@@ -19,17 +19,17 @@ Item {
         { key: "horizontal", label: LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales") },
         { key: "vertical",   label: LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales") },
         { key: "dots",       label: LanguageManager.tr3("Bolinhas", "Dots", "Puntos") },
-        { key: "triangles",  label: LanguageManager.tr3("Triangulos", "Triangles", "Triangulos") },
+        { key: "triangles",  label: LanguageManager.tr3("Triângulos", "Triangles", "Triângulos") },
         { key: "squares",    label: LanguageManager.tr3("Quadrados", "Squares", "Cuadrados") }
     ]
-    property string selectedContext:   "PadrÃ£o"
+    property string selectedContext:   "Padrão"
 
-    // Contexto forÃ§ado para 3 campos
+    // Context forced for 3 fields
     readonly property bool contextForced: selectedNumCampos !== 2
-    readonly property string resolvedContext: contextForced ? "PadrÃ£o" : selectedContext
+    readonly property string resolvedContext: contextForced ? "Padrão" : selectedContext
 
     readonly property string selectedArenaId:
-        "sq_" + (resolvedContext === "PadrÃ£o" ? "padrao" : "contextual")
+        "sq_" + (resolvedContext === "Padrão" ? "padrao" : "contextual")
 
     // signal: numCampos, context, arenaId
     signal selectionConfirmed(int numCampos, string context, string arenaId, var contextPatterns)
@@ -39,7 +39,7 @@ Item {
         for (var i = 0; i < patternOptions.length; i++) {
             if (patternOptions[i].key === key) return patternOptions[i].label
         }
-        return LanguageManager.tr3("Padrao", "Default", "Predeterminado")
+        return LanguageManager.tr3("Padrão", "Default", "Predeterminado")
     }
     function ensurePatternDefaults() {
         var defaults = ["horizontal", "vertical", "dots"]
@@ -62,7 +62,10 @@ Item {
         if (contextForced) selectedContext = "Padrão"
         ensurePatternDefaults()
     }
-    onSelectedNumCamposChanged: ensurePatternDefaults()
+    onSelectedNumCamposChanged: {
+        if (selectedNumCampos === 2) selectedContext = "Padrão"
+        ensurePatternDefaults()
+    }
     Component.onCompleted: ensurePatternDefaults()
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -72,7 +75,7 @@ Item {
         anchors.margins: 40
         spacing: 0
 
-        // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Header ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
@@ -101,13 +104,13 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Body ─────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 32
 
-            // â”€â”€ Preview dinÃ¢mico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Dynamic preview ──────────────────────────────────────────
             Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: parent.height
@@ -131,7 +134,7 @@ Item {
                         property real cellH: (height - 6) / 2
                         property bool ctx:   root.selectedContext === "Contextual"
 
-                        // Modelo para os 3 campos possÃ­veis
+                        // Model for up to 3 possible fields
                         property var fieldDefs: [
                             { cx: 0,             cy: 0,             active: root.selectedNumCampos >= 1 },
                             { cx: cellW + 6,     cy: 0,             active: root.selectedNumCampos >= 2 },
@@ -297,7 +300,7 @@ Item {
                             }
                         }
 
-                        // CÃ©lula inferior-dir: sempre inativa
+                        // Bottom-right cell: always inactive
                         Rectangle {
                             x: grid.cellW + 6; y: grid.cellH + 6
                             width: grid.cellW; height: grid.cellH
@@ -312,13 +315,13 @@ Item {
                 }
             }
 
-            // â”€â”€ Painel de opÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Options panel ────────────────────────────────────────────
             ColumnLayout {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 280
                 spacing: 24
 
-                // â”€â”€ NÃºmero de campos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Number of fields ──────────────────────────────────────
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -429,7 +432,7 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // â”€â”€ RodapÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Footer ───────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 

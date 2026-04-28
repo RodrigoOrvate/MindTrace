@@ -1,23 +1,24 @@
 #include "ArenaConfigModel.h"
+
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
-#include <QDir>
 
 QVariantMap ArenaConfigModel::defaultZone(int index) {
-    QVariantMap z;
-    z[QStringLiteral("xRatio")] = (index % 2 == 0) ? 0.30 : 0.70;
-    z[QStringLiteral("yRatio")] = 0.50;
-    z[QStringLiteral("radiusRatio")] = 0.12;
-    z[QStringLiteral("objectId")] = QString();
-    return z;
+    QVariantMap zoneMap;
+    zoneMap[QStringLiteral("xRatio")]      = (index % 2 == 0) ? 0.30 : 0.70;
+    zoneMap[QStringLiteral("yRatio")]      = 0.50;
+    zoneMap[QStringLiteral("radiusRatio")] = 0.12;
+    zoneMap[QStringLiteral("objectId")]    = QString();
+    return zoneMap;
 }
 
 ArenaConfigModel::ArenaConfigModel(QObject *parent) : QObject(parent) {
-    for (int i = 0; i < 6; ++i) m_zones.append(defaultZone(i));
+    for (int zoneIdx = 0; zoneIdx < 6; ++zoneIdx) m_zones.append(defaultZone(zoneIdx));
 }
 
 QString ArenaConfigModel::pairId() const { return m_pairId; }
@@ -34,32 +35,32 @@ QVariantMap ArenaConfigModel::zone(int index) const {
 
 int ArenaConfigModel::zoneCount() const { return m_zones.size(); }
 
-// Carrega zonas/paredes/chão de um QJsonObject (helper compartilhado)
+/// Populates arenaPoints, floorPoints, and zones from a parsed JSON root object.
 static void applyZonesFromJson(const QJsonObject &root, QString &arenaPoints, QString &floorPoints, QVariantList &zones) {
-    QString a = root.value("arenaPoints").toString();
-    QString f = root.value("floorPoints").toString();
-    if (!a.isEmpty()) arenaPoints = a;
-    if (!f.isEmpty()) floorPoints = f;
+    const QString arenaPointsRaw = root.value("arenaPoints").toString();
+    const QString floorPointsRaw = root.value("floorPoints").toString();
+    if (!arenaPointsRaw.isEmpty()) arenaPoints = arenaPointsRaw;
+    if (!floorPointsRaw.isEmpty()) floorPoints = floorPointsRaw;
 
-    QJsonArray zArr = root.value("zones").toArray();
-    if (!zArr.isEmpty()) {
+    const QJsonArray zoneArray = root.value("zones").toArray();
+    if (!zoneArray.isEmpty()) {
         zones.clear();
-        for (const auto& v : zArr) {
-            QJsonObject z = v.toObject();
-            QVariantMap zm;
-            zm["xRatio"]      = z.value("xRatio").toDouble();
-            zm["yRatio"]      = z.value("yRatio").toDouble();
-            zm["radiusRatio"] = z.value("radiusRatio").toDouble();
-            zm["objectId"]    = z.value("objectId").toString();
-            zones.append(zm);
+        for (const QJsonValue &zoneValue : zoneArray) {
+            const QJsonObject zoneObj = zoneValue.toObject();
+            QVariantMap zoneMap;
+            zoneMap["xRatio"]      = zoneObj.value("xRatio").toDouble();
+            zoneMap["yRatio"]      = zoneObj.value("yRatio").toDouble();
+            zoneMap["radiusRatio"] = zoneObj.value("radiusRatio").toDouble();
+            zoneMap["objectId"]    = zoneObj.value("objectId").toString();
+            zones.append(zoneMap);
         }
     }
 }
 
 void ArenaConfigModel::loadConfig(const QString &context, const QString &expName) {
-    QString path = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
-                 + "/MindTrace_Data/Experimentos/" + context + "/" + expName;
-    loadConfigFromPath(path);
+    const QString experimentDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+                                + "/MindTrace_Data/Experimentos/" + context + "/" + expName;
+    loadConfigFromPath(experimentDir);
 }
 
 void ArenaConfigModel::loadConfigFromPath(const QString &folderPath) {
@@ -71,11 +72,11 @@ void ArenaConfigModel::loadConfigFromPath(const QString &folderPath, const QStri
     m_configured = false; m_zones.clear();
     for (int i = 0; i < 6; ++i) m_zones.append(defaultZone(i));
 
-    QString path = folderPath + "/arena_config.json";
+    const QString configPath = folderPath + "/arena_config.json";
 
-    QFile file(path);
+    QFile file(configPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        // Sem config salva — carrega o arquivo de referência fornecido como ponto de partida
+        // No saved config — load the provided reference file as a starting point
         QFile ref(referenceFile);
         if (ref.open(QIODevice::ReadOnly)) {
             QJsonObject refRoot = QJsonDocument::fromJson(ref.readAll()).object();
@@ -104,27 +105,25 @@ bool ArenaConfigModel::saveConfig(const QString &context, const QString &expName
 bool ArenaConfigModel::saveConfigToPath(const QString &folderPath, const QString &pairId,
                                       const QString &imageUrl, const QVariantList &zones,
                                       const QString &arenaPointsJson, const QString &floorPointsJson) {
-    QString rootPath = folderPath;
-
-    QDir().mkpath(rootPath);
-    QJsonArray zArr;
-    for (const QVariant &v : zones) {
-        QVariantMap zm = v.toMap();
-        QJsonObject z;
-        z["xRatio"]      = zm["xRatio"].toDouble();
-        z["yRatio"]      = zm["yRatio"].toDouble();
-        z["radiusRatio"] = zm["radiusRatio"].toDouble();
-        z["objectId"]    = zm["objectId"].toString();
-        zArr.append(z);
+    QDir().mkpath(folderPath);
+    QJsonArray zoneArray;
+    for (const QVariant &zoneVariant : zones) {
+        const QVariantMap zoneMap = zoneVariant.toMap();
+        QJsonObject zoneObj;
+        zoneObj["xRatio"]      = zoneMap["xRatio"].toDouble();
+        zoneObj["yRatio"]      = zoneMap["yRatio"].toDouble();
+        zoneObj["radiusRatio"] = zoneMap["radiusRatio"].toDouble();
+        zoneObj["objectId"]    = zoneMap["objectId"].toString();
+        zoneArray.append(zoneObj);
     }
 
-    QJsonObject root;
-    root["pairId"] = pairId; root["imageUrl"] = imageUrl; root["zones"] = zArr;
-    root["arenaPoints"] = arenaPointsJson; root["floorPoints"] = floorPointsJson;
+    QJsonObject configDoc;
+    configDoc["pairId"] = pairId; configDoc["imageUrl"] = imageUrl; configDoc["zones"] = zoneArray;
+    configDoc["arenaPoints"] = arenaPointsJson; configDoc["floorPoints"] = floorPointsJson;
 
-    QFile file(rootPath + "/arena_config.json");
+    QFile file(folderPath + "/arena_config.json");
     if (!file.open(QIODevice::WriteOnly)) return false;
-    file.write(QJsonDocument(root).toJson());
+    file.write(QJsonDocument(configDoc).toJson());
 
     m_pairId = pairId; m_imageUrl = imageUrl; m_zones = zones;
     m_arenaPoints = arenaPointsJson; m_floorPoints = floorPointsJson;

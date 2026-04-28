@@ -1,6 +1,6 @@
-// qml/CampoSelector.qml
+﻿// qml/CampoSelector.qml
 // Seletor unificado para os 3 campos (6 objetos).
-// O Popup se mantém aberto e avança automaticamente até concluir a sequência.
+// The Popup stays open and auto-advances until the sequence is complete.
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -12,7 +12,7 @@ Item {
 
     property int numCampos: 3
 
-    // Variáveis de estado individuais (blindadas contra bugs de reatividade do Qt)
+    // Individual state variables (isolated against Qt reactivity bugs)
     property string c1o1: ""
     property string c1o2: ""
     property string c2o1: ""
@@ -20,32 +20,32 @@ Item {
     property string c3o1: ""
     property string c3o2: ""
 
-    // Expondo os pares formados para o arquivo pai
+    // Exposed pairs built from individual slots
     property string pair1: c1o1 !== "" && c1o2 !== "" ? c1o1 + c1o2 : ""
     property string pair2: c2o1 !== "" && c2o2 !== "" ? c2o1 + c2o2 : ""
     property string pair3: c3o1 !== "" && c3o2 !== "" ? c3o1 + c3o2 : ""
 
-    // Número máximo de steps baseado em numCampos (2 slots por campo)
+    // Maximum step count based on numCampos (2 slots per field)
     readonly property int maxStep: root.numCampos * 2 - 1
 
-    // Sequência atual: 0=C1O1, 1=C1O2, 2=C2O1, 3=C2O2, 4=C3O1, 5=C3O2
+    // Current step: 0=F1O1, 1=F1O2, 2=F2O1, 3=F2O2, 4=F3O1, 5=F3O2
     property int activeStep: 0
 
-    // O objeto H foi removido da biblioteca!
+    // Object H was removed from the letter library
     readonly property var availableLetters: ["A", "B", "C", "D", "E", "F", "G", "I", "J", "L", "M", "N", "O", "P", "R", "S"]
 
     signal allPairsCompleted()
 
     implicitHeight: mainLayout.implicitHeight
 
-    // Função auxiliar para injetar a letra no slot correto da sequência
+    // Helper to inject a letter into the correct slot of the sequence
     function setLetter(step, letter) {
         if (step === 0) c1o1 = letter; else if (step === 1) c1o2 = letter;
         else if (step === 2) c2o1 = letter; else if (step === 3) c2o2 = letter;
         else if (step === 4) c3o1 = letter; else if (step === 5) c3o2 = letter;
     }
 
-    // Função para pegar a letra do slot atual (para marcar vermelho no popup)
+    // Returns the letter at the current slot (used to highlight red in the popup)
     function getCurrentLetter(step) {
         if (step === 0) return c1o1; if (step === 1) return c1o2;
         if (step === 2) return c2o1; if (step === 3) return c2o2;
@@ -53,7 +53,7 @@ Item {
         return "";
     }
 
-    // ── Popup de seleção (Aumentado e Contínuo) ──────────────────────────────
+    // ── Selection popup (enlarged and continuous) ──────────────────────────
     Popup {
         id: letterPicker
         parent: Overlay.overlay
@@ -162,7 +162,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o1 !== "" ? "OBJ" + root.c1o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c1o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o1 !== "" ? "OBJ" + root.c1o1 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c1o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma0; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 0; letterPicker.open() } }
                 }
@@ -181,7 +181,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o2 !== "" ? "OBJ" + root.c1o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c1o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c1o2 !== "" ? "OBJ" + root.c1o2 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c1o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma1; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 1; letterPicker.open() } }
                 }
@@ -218,7 +218,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o1 !== "" ? "OBJ" + root.c2o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c2o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o1 !== "" ? "OBJ" + root.c2o1 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c2o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma2; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 2; letterPicker.open() } }
                 }
@@ -237,7 +237,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o2 !== "" ? "OBJ" + root.c2o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c2o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c2o2 !== "" ? "OBJ" + root.c2o2 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c2o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma3; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 3; letterPicker.open() } }
                 }
@@ -274,7 +274,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 1", "Object 1", "Objeto 1"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o1 !== "" ? "OBJ" + root.c3o1 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c3o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o1 !== "" ? "OBJ" + root.c3o1 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c3o1 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma4; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 4; letterPicker.open() } }
                 }
@@ -293,7 +293,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; spacing: 2
                         Text { Layout.alignment: Qt.AlignHCenter; text: LanguageManager.tr3("Objeto 2", "Object 2", "Objeto 2"); color: ThemeManager.textTertiary; font.pixelSize: 9 }
-                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o2 !== "" ? "OBJ" + root.c3o2 : LanguageManager.tr3("Choose", "Choose", "Elegir"); color: root.c3o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
+                        Text { Layout.alignment: Qt.AlignHCenter; text: root.c3o2 !== "" ? "OBJ" + root.c3o2 : LanguageManager.tr3("Escolher", "Choose", "Elegir"); color: root.c3o2 !== "" ? ThemeManager.textPrimary : ThemeManager.textSecondary; font.pixelSize: 13; font.weight: Font.Bold }
                     }
                     MouseArea { id: ma5; anchors.fill: parent; enabled: parent.isEnabled; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activeStep = 5; letterPicker.open() } }
                 }

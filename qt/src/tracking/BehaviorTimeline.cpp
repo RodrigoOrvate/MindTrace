@@ -20,9 +20,8 @@ void BehaviorTimeline::setDefaultColor(const QColor &color) {
 }
 
 void BehaviorTimeline::appendPoint(float timeSec, int labelId) {
-    // Basic compression: don't add point if time differs by < 0.1 sec (too dense)
     if (!m_points.empty() && (timeSec - m_points.back().timeSec) < 0.05f && m_points.back().labelId == labelId) {
-        m_points.back().timeSec = timeSec; // just stretch the duration
+        m_points.back().timeSec = timeSec; // extend the segment rather than adding a new point
     } else {
         m_points.push_back({timeSec, labelId});
     }
@@ -79,42 +78,37 @@ QSGNode *BehaviorTimeline::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
         m_dataChanged = false;
 
         float maxTime = m_points.back().timeSec;
-        if (maxTime <= 0.0f) maxTime = 1.0f; // Prevent div zero
+        if (maxTime <= 0.0f) maxTime = 1.0f;
 
-        // We draw quads (2 triangles, 6 vertices) for each segment.
-        // A segment goes from point[i] to point[i+1].
-        int numSegments = m_points.size(); 
+        const int numSegments = static_cast<int>(m_points.size());
         geometry->allocate(numSegments * 6);
         QSGGeometry::ColoredPoint2D *vertices = geometry->vertexDataAsColoredPoint2D();
 
-        float rectW = width();
-        float rectH = height();
+        const float rectW = width();
+        const float rectH = height();
 
-        for (size_t i = 0; i < m_points.size(); ++i) {
-            float t1 = (i == 0) ? 0.0f : m_points[i-1].timeSec;
-            float t2 = m_points[i].timeSec;
+        for (size_t segmentIdx = 0; segmentIdx < m_points.size(); ++segmentIdx) {
+            const float startTime = (segmentIdx == 0) ? 0.0f : m_points[segmentIdx - 1].timeSec;
+            const float endTime   = m_points[segmentIdx].timeSec;
 
-            float x1 = (t1 / maxTime) * rectW;
-            float x2 = (t2 / maxTime) * rectW;
-            
-            int label = m_points[i].labelId;
-            QColor qcol = m_colors.value(label, m_defaultColor);
-            
-            // Premultiply alphas for QSG
-            uchar r = qcol.red() * qcol.alphaF();
-            uchar g = qcol.green() * qcol.alphaF();
-            uchar b = qcol.blue() * qcol.alphaF();
-            uchar a = qcol.alpha();
+            const float startX = (startTime / maxTime) * rectW;
+            const float endX   = (endTime   / maxTime) * rectW;
 
-            int vIdx = i * 6;
-            // Triangle 1
-            vertices[vIdx+0].set(x1, 0, r, g, b, a);
-            vertices[vIdx+1].set(x2, 0, r, g, b, a);
-            vertices[vIdx+2].set(x1, rectH, r, g, b, a);
-            // Triangle 2
-            vertices[vIdx+3].set(x2, 0, r, g, b, a);
-            vertices[vIdx+4].set(x2, rectH, r, g, b, a);
-            vertices[vIdx+5].set(x1, rectH, r, g, b, a);
+            const QColor segmentColor = m_colors.value(m_points[segmentIdx].labelId, m_defaultColor);
+
+            // Pre-multiplied alpha required by QSGVertexColorMaterial.
+            const uchar red   = static_cast<uchar>(segmentColor.red()   * segmentColor.alphaF());
+            const uchar green = static_cast<uchar>(segmentColor.green() * segmentColor.alphaF());
+            const uchar blue  = static_cast<uchar>(segmentColor.blue()  * segmentColor.alphaF());
+            const uchar alpha = static_cast<uchar>(segmentColor.alpha());
+
+            const int vertexOffset = static_cast<int>(segmentIdx) * 6;
+            vertices[vertexOffset + 0].set(startX, 0,     red, green, blue, alpha);
+            vertices[vertexOffset + 1].set(endX,   0,     red, green, blue, alpha);
+            vertices[vertexOffset + 2].set(startX, rectH, red, green, blue, alpha);
+            vertices[vertexOffset + 3].set(endX,   0,     red, green, blue, alpha);
+            vertices[vertexOffset + 4].set(endX,   rectH, red, green, blue, alpha);
+            vertices[vertexOffset + 5].set(startX, rectH, red, green, blue, alpha);
         }
 
         node->markDirty(QSGNode::DirtyGeometry);

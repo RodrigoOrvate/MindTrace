@@ -1,19 +1,20 @@
 #include "inference_engine.h"
+
+// GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU.
+// CUDA:     requires onnxruntime-win-x64-gpu build + NVIDIA CUDA drivers.
+// DirectML: requires onnxruntime-directml + DirectML.dll (from NuGet).
+#include <d3d12.h>
+#include <dxgi.h>
+
 #include <QDebug>
 #include <QFile>
+
 #include <algorithm>
 #include <atomic>
 #include <thread>
 
-// GPU execution providers — priority: CUDA (NVIDIA) → DirectML (AMD/Intel) → CPU
-// CUDA:     requires onnxruntime-win-x64-gpu build + NVIDIA CUDA drivers.
-// DirectML: requires onnxruntime-directml + DirectML.dll (from NuGet).
-// Definimos a interface manualmente para evitar erro de cabeçalho ausente.
-#include <d3d12.h>
-#include <dxgi.h>
-
-// Estrutura binária exata da OrtDmlApi para ONNX Runtime 1.24.4
-// A ordem dos membros é crítica para o mapeamento correto na DLL.
+// OrtDmlApi binary layout for ONNX Runtime 1.24.4.
+// Member order is critical for correct DLL vtable mapping.
 typedef struct OrtDmlApi {
     OrtStatus* (ORT_API_CALL* SessionOptionsAppendExecutionProvider_DML)(_In_ OrtSessionOptions* options, int device_id);
     OrtStatus* (ORT_API_CALL* SessionOptionsAppendExecutionProvider_DML1)(_In_ OrtSessionOptions* options, _In_ void* dml_device, _In_ void* cmd_queue);
@@ -25,84 +26,87 @@ typedef struct OrtDmlApi {
     OrtStatus* (ORT_API_CALL* GetDMLCommandQueue)(_In_ OrtSessionOptions* options, _Out_ ID3D12CommandQueue** dmlCommandQueue);
 } OrtDmlApi;
 
-// Declaração do helper que o ORT exporta para obter as APIs dos providers
-// Já declarado em onnxruntime_c_api.h
-
 // ── GPU vendor detection via DXGI ─────────────────────────────────────────────
 // Enumerates the first discrete (non-software) adapter to identify the vendor.
 // Called once at session creation — no runtime overhead during inference.
 enum class GpuVendor { Unknown, NVIDIA, AMD, Intel };
 
-static GpuVendor detectGpuVendor() {
-    IDXGIFactory1* factory = nullptr;
+static GpuVendor detectGpuVendor()
+{
+    IDXGIFactory1* dxgiFactory = nullptr;
     if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1),
-                                  reinterpret_cast<void**>(&factory))))
+                                  reinterpret_cast<void**>(&dxgiFactory))))
         return GpuVendor::Unknown;
 
-    GpuVendor vendor = GpuVendor::Unknown;
-    IDXGIAdapter1* adapter = nullptr;
-    for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
-        DXGI_ADAPTER_DESC1 desc{};
-        adapter->GetDesc1(&desc);
-        adapter->Release();
-        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue; // skip WARP/software
-        switch (desc.VendorId) {
+    GpuVendor      vendor      = GpuVendor::Unknown;
+    IDXGIAdapter1* dxgiAdapter = nullptr;
+    for (UINT adapterIdx = 0;
+         dxgiFactory->EnumAdapters1(adapterIdx, &dxgiAdapter) != DXGI_ERROR_NOT_FOUND;
+         ++adapterIdx)
+    {
+        DXGI_ADAPTER_DESC1 adapterDesc{};
+        dxgiAdapter->GetDesc1(&adapterDesc);
+        dxgiAdapter->Release();
+        if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;
+        switch (adapterDesc.VendorId) {
             case 0x10DE: vendor = GpuVendor::NVIDIA; break;
             case 0x1002: vendor = GpuVendor::AMD;    break;
             case 0x8086: vendor = GpuVendor::Intel;  break;
         }
         if (vendor != GpuVendor::Unknown) break;
     }
-    factory->Release();
+    dxgiFactory->Release();
     return vendor;
 }
 
-// Returns true if CUDA EP was successfully registered (NVIDIA + CUDA ORT build).
-static bool try_add_cuda_provider(Ort::SessionOptions& opts) {
+// Returns true if CUDA EP was successfully registered in *sessionOptions*.
+// Only registers the provider — actual driver validation happens inside
+// tryCreateSessions(). Falls through to DirectML if session creation throws.
+static bool tryAddCudaProvider(Ort::SessionOptions& sessionOptions)
+{
     try {
-        OrtCUDAProviderOptions cuda_options{};
-        cuda_options.device_id = 0;
-        opts.AppendExecutionProvider_CUDA(cuda_options);
+        OrtCUDAProviderOptions cudaOptions{};
+        cudaOptions.device_id = 0;
+        sessionOptions.AppendExecutionProvider_CUDA(cudaOptions);
         return true;
     } catch (const Ort::Exception&) {
-        return false;   // Standard (DirectML) ORT build — CUDA EP not compiled in
+        return false;  // Standard (DirectML) ORT build — CUDA EP not compiled in.
     }
 }
 
 // Returns true if DirectML EP was successfully registered (AMD/Intel/NVIDIA, DX12).
-// Tenta primeiro a API específica (via GetExecutionProviderApi) e cai para a genérica.
-static bool try_add_dml_provider(Ort::SessionOptions& opts) {
+// Tries the typed GetExecutionProviderApi first, then the generic string-based API.
+static bool tryAddDmlProvider(Ort::SessionOptions& sessionOptions)
+{
     try {
         qDebug() << "[ORT] Tentando ativar DirectML (GPU AMD/Intel)...";
-        
-        // Opções obrigatórias para DirectML
-        opts.DisableMemPattern();
-        opts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
-        // 1. Tenta obter a API específica do DirectML via OrtApi
-        const OrtDmlApi* dml_api = nullptr;
-        const OrtApi* api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
-        
-        OrtStatus* status = api->GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&dml_api));
-        if (status == nullptr && dml_api != nullptr) {
+        sessionOptions.DisableMemPattern();
+        sessionOptions.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+
+        const OrtDmlApi* dmlApi    = nullptr;
+        const OrtApi*    ortApi    = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+        OrtStatus*       apiStatus = ortApi->GetExecutionProviderApi(
+            "DML", ORT_API_VERSION, reinterpret_cast<const void**>(&dmlApi));
+
+        if (apiStatus == nullptr && dmlApi != nullptr) {
             qDebug() << "[ORT] OrtDmlApi encontrada. Chamando AppendExecutionProvider_DML(device_id: 0)...";
-            OrtStatus* add_status = dml_api->SessionOptionsAppendExecutionProvider_DML(opts, 0);
-            if (add_status == nullptr) {
+            OrtStatus* addStatus = dmlApi->SessionOptionsAppendExecutionProvider_DML(sessionOptions, 0);
+            if (addStatus == nullptr) {
                 qDebug() << "[ORT] DirectML ativado via OrtDmlApi!";
-                return true; 
-            } else {
-                qDebug() << "[ORT] Falha ao registrar DML via API específica.";
+                return true;
             }
+            qDebug() << "[ORT] Falha ao registrar DML via API especifica.";
         } else {
-            qDebug() << "[ORT] GetExecutionProviderApi('DML') falhou ou retornou nulo. A DLL onnxruntime.dll pode ser a versão de CPU.";
+            qDebug() << "[ORT] GetExecutionProviderApi('DML') falhou ou retornou nulo.";
         }
 
-        // 2. Fallback para API genérica de configuração via string
-        qDebug() << "[ORT] Tentando fallback para API genérica de strings...";
-        std::unordered_map<std::string, std::string> dml_options;
-        dml_options["device_id"] = "0";
-        opts.AppendExecutionProvider("DML", dml_options);
-        qDebug() << "[ORT] DirectML ativado via API genérica!";
+        // Fallback: generic string-based provider API.
+        qDebug() << "[ORT] Tentando fallback para API generica de strings...";
+        std::unordered_map<std::string, std::string> dmlOptions;
+        dmlOptions["device_id"] = "0";
+        sessionOptions.AppendExecutionProvider("DML", dmlOptions);
+        qDebug() << "[ORT] DirectML ativado via API generica!";
         return true;
     } catch (const Ort::Exception& e) {
         qDebug() << "[ORT] Erro ao carregar DirectML:" << e.what();
@@ -113,6 +117,8 @@ static bool try_add_dml_provider(Ort::SessionOptions& opts) {
     }
 }
 
+// ── Construction / destruction ─────────────────────────────────────────────────
+
 InferenceEngine::InferenceEngine(QObject* parent)
     : QThread(parent)
     , m_env(ORT_LOGGING_LEVEL_WARNING, "MindTrace")
@@ -122,160 +128,167 @@ InferenceEngine::InferenceEngine(QObject* parent)
 InferenceEngine::~InferenceEngine()
 {
     requestStop();
-    // Ensure thread is fully finished before QObject teardown.
-    // Timed waits can still leave a running thread during slow session creation.
+    // Always wait for full thread exit — timed waits can return early during slow
+    // session creation and leave the thread running into QObject teardown.
     wait();
 }
 
-void InferenceEngine::loadModel(const QString& path)
+// ── Public configuration ───────────────────────────────────────────────────────
+
+void InferenceEngine::loadModel(const QString& modelPath)
 {
     QMutexLocker lock(&m_mutex);
-    m_modelPath = path;
+    m_modelPath = modelPath;
 }
 
-void InferenceEngine::loadBehaviorModel(const QString& dirPath)
+void InferenceEngine::loadBehaviorModel(const QString& behaviorModelDir)
 {
     QMutexLocker lock(&m_mutex);
-    m_bModelDir = dirPath;
-    m_behaviorEnabled = !dirPath.isEmpty();
+    m_behaviorModelDir = behaviorModelDir;
+    m_behaviorEnabled  = !behaviorModelDir.isEmpty();
 }
 
-void InferenceEngine::setZones(int campo, const std::vector<Zone>& zones) {
-    if (campo >= 0 && campo < 3) {
-        m_scanners[campo].setZones(zones);
-    }
+void InferenceEngine::setZones(int fieldIndex, const std::vector<Zone>& zones)
+{
+    if (fieldIndex >= 0 && fieldIndex < 3)
+        m_scanners[fieldIndex].setZones(zones);
 }
 
-void InferenceEngine::setFloorPolygon(int campo, const std::vector<std::pair<float,float>>& poly) {
-    if (campo >= 0 && campo < 3) {
-        m_scanners[campo].setFloorPolygon(poly);
-    }
+void InferenceEngine::setFloorPolygon(int fieldIndex, const std::vector<std::pair<float, float>>& poly)
+{
+    if (fieldIndex >= 0 && fieldIndex < 3)
+        m_scanners[fieldIndex].setFloorPolygon(poly);
 }
 
-void InferenceEngine::setVelocity(int campo, float velocity) {
-    if (campo >= 0 && campo < 3) {
-        m_scanners[campo].setVelocity(velocity);
-    }
+void InferenceEngine::setVelocity(int fieldIndex, float velocity)
+{
+    if (fieldIndex >= 0 && fieldIndex < 3)
+        m_scanners[fieldIndex].setVelocity(velocity);
 }
 
-const std::vector<FrameRecord>& InferenceEngine::getScannerHistory(int campo) const {
-    static const std::vector<FrameRecord> empty;
-    if (campo < 0 || campo >= 3) return empty;
-    return m_scanners[campo].frameHistory();
+void InferenceEngine::setFullFrameMode(bool enabled)
+{
+    m_fullFrame.store(enabled, std::memory_order_relaxed);
 }
 
-void InferenceEngine::clearScannerHistory(int campo) {
-    if (campo >= 0 && campo < 3)
-        m_scanners[campo].clearHistory();
-}
-
-void InferenceEngine::enqueueFrame(const QImage& frame, int videoW, int videoH)
+void InferenceEngine::enqueueFrame(const QImage& frame, int videoWidth, int videoHeight)
 {
     QMutexLocker lock(&m_mutex);
-    m_pending    = {frame, videoW, videoH};
-    m_hasPending = true;
+    m_pendingJob       = {frame, videoWidth, videoHeight};
+    m_pendingAvailable = true;
     m_cond.wakeOne();
 }
 
 void InferenceEngine::requestStop()
 {
     QMutexLocker lock(&m_mutex);
-    m_stop = true;
+    m_stopRequested = true;
     m_cond.wakeAll();
 }
 
-// ── Session creation ──────────────────────────────────────────────────────────
+const std::vector<FrameRecord>& InferenceEngine::getScannerHistory(int fieldIndex) const
+{
+    static const std::vector<FrameRecord> empty;
+    if (fieldIndex < 0 || fieldIndex >= 3) return empty;
+    return m_scanners[fieldIndex].frameHistory();
+}
 
-// Helper: tenta criar as 3 sessões ONNX com as opções fornecidas.
-// Retorna true se todas foram criadas com sucesso, false caso contrário.
-// Em caso de falha, reseta os ponteiros para não deixar sessões parciais.
-bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& opts)
+void InferenceEngine::clearScannerHistory(int fieldIndex)
+{
+    if (fieldIndex >= 0 && fieldIndex < 3)
+        m_scanners[fieldIndex].clearHistory();
+}
+
+// ── Session creation ───────────────────────────────────────────────────────────
+
+bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& sessionOptions)
 {
     try {
         emit infoMsg("Carregando modelos de pose (GPU)...");
-        for (int i = 0; i < 3; i++) {
-            m_sessions[i] = std::make_unique<Ort::Session>(
-                m_env, m_modelPath.toStdWString().c_str(), opts);
+        for (int sessionIdx = 0; sessionIdx < 3; ++sessionIdx) {
+            m_sessions[sessionIdx] = std::make_unique<Ort::Session>(
+                m_env, m_modelPath.toStdWString().c_str(), sessionOptions);
         }
-        
-        if (m_behaviorEnabled && !m_bModelDir.isEmpty()) {
-            // ── Load individual binary classifiers (one .onnx per behavior) ──
+
+        if (m_behaviorEnabled && !m_behaviorModelDir.isEmpty()) {
+            // Load individual binary classifiers (one .onnx per behaviour class).
             // Expected files: walking.onnx, sniffing.onnx, grooming.onnx,
-            //                 resting.onnx, rearing.onnx in behavior_models directory
-            // Index matches QML behaviorNames: [Walking=0, Sniffing=1, Grooming=2,
-            //                                   Resting=3, Rearing=4]
+            //                 resting.onnx, rearing.onnx
+            // Indices align with QML behaviorNames: [Walking=0, Sniffing=1, Grooming=2,
+            //                                        Resting=3, Rearing=4]
             static const std::pair<const char*, int> BEHAVIOR_MAP[] = {
                 {"walking",  0},
                 {"sniffing", 1},
                 {"grooming", 2},
                 {"resting",  3},
-                {"rearing", 4},
+                {"rearing",  4},
             };
 
             m_behaviorSessions.clear();
 
-            Ort::SessionOptions bOpts;
-            bOpts.SetIntraOpNumThreads(1);
-            bOpts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-            bOpts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+            Ort::SessionOptions behaviorSessionOpts;
+            behaviorSessionOpts.SetIntraOpNumThreads(1);
+            behaviorSessionOpts.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+            behaviorSessionOpts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
 
-            Ort::AllocatorWithDefaultOptions bAlloc;
-            int loaded = 0;
+            Ort::AllocatorWithDefaultOptions behaviorAllocator;
+            int loadedCount = 0;
 
-            for (auto& [name, idx] : BEHAVIOR_MAP) {
-                QString onnxPath = m_bModelDir + "/" + name + ".onnx";
-                if (!QFile::exists(onnxPath)) {
-                    qDebug() << "[Behavior] Não encontrado:" << onnxPath;
+            for (auto& [name, behaviorIdx] : BEHAVIOR_MAP) {
+                const QString behaviorModelPath = m_behaviorModelDir + "/" + name + ".onnx";
+                if (!QFile::exists(behaviorModelPath)) {
+                    qDebug() << "[Behavior] Nao encontrado:" << behaviorModelPath;
                     continue;
                 }
                 try {
                     auto session = std::make_unique<Ort::Session>(
-                        m_env, onnxPath.toStdWString().c_str(), bOpts);
+                        m_env, behaviorModelPath.toStdWString().c_str(), behaviorSessionOpts);
 
-                    BehaviorSessionInfo bsi;
-                    bsi.behaviorIndex = idx;
-                    bsi.inputName = session->GetInputNameAllocated(0, bAlloc).get();
+                    BehaviorSessionInfo behaviorSession;
+                    behaviorSession.behaviorIndex = behaviorIdx;
+                    behaviorSession.inputName =
+                        session->GetInputNameAllocated(0, behaviorAllocator).get();
 
-                    // Find the float32 probabilities output (shape [None, 2])
-                    const size_t outCount = session->GetOutputCount();
-                    for (size_t i = 0; i < outCount; ++i) {
-                        auto info = session->GetOutputTypeInfo(i);
-                        if (info.GetONNXType() == ONNX_TYPE_TENSOR) {
-                            auto elemType = info.GetTensorTypeAndShapeInfo().GetElementType();
+                    const size_t outputCount = session->GetOutputCount();
+                    for (size_t outputIdx = 0; outputIdx < outputCount; ++outputIdx) {
+                        auto typeInfo = session->GetOutputTypeInfo(outputIdx);
+                        if (typeInfo.GetONNXType() == ONNX_TYPE_TENSOR) {
+                            const auto elemType =
+                                typeInfo.GetTensorTypeAndShapeInfo().GetElementType();
                             if (elemType == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
-                                bsi.probOutputName = session->GetOutputNameAllocated(i, bAlloc).get();
+                                behaviorSession.probOutputName =
+                                    session->GetOutputNameAllocated(outputIdx, behaviorAllocator).get();
                                 break;
                             }
                         }
                     }
 
-                    if (bsi.probOutputName.empty()) {
-                        qDebug() << "[Behavior] Sem saída float em:" << onnxPath;
+                    if (behaviorSession.probOutputName.empty()) {
+                        qDebug() << "[Behavior] Sem saida float em:" << behaviorModelPath;
                         continue;
                     }
 
-                    bsi.session = std::move(session);
-                    m_behaviorSessions.push_back(std::move(bsi));
+                    behaviorSession.session = std::move(session);
+                    m_behaviorSessions.push_back(std::move(behaviorSession));
                     qDebug() << "[Behavior] Carregado:" << name
-                             << "→ behaviorNames[" << idx << "]";
-                    ++loaded;
+                             << "-> behaviorNames[" << behaviorIdx << "]";
+                    ++loadedCount;
                 } catch (const Ort::Exception& e) {
                     qDebug() << "[Behavior] Falha ao carregar" << name << ":" << e.what();
                 }
             }
 
-            m_behaviorEnabled = loaded > 0;
-            if (loaded > 0)
-                emit infoMsg(QString("Behavior: %1 classificador(es) carregado(s)").arg(loaded));
+            m_behaviorEnabled = loadedCount > 0;
+            if (loadedCount > 0)
+                emit infoMsg(QString("Behavior: %1 classificador(es) carregado(s)").arg(loadedCount));
             else
                 qDebug() << "[Behavior] Nenhum modelo carregado — usando rule-based";
         }
         return true;
     } catch (const Ort::Exception& e) {
-        qDebug() << "[ORT] Falha ao criar sessão de pose:" << e.what();
-        for (int i = 0; i < 3; i++) {
-            m_sessions[i].reset();
-        }
+        qDebug() << "[ORT] Falha ao criar sessao de pose:" << e.what();
+        for (int sessionIdx = 0; sessionIdx < 3; ++sessionIdx)
+            m_sessions[sessionIdx].reset();
         m_behaviorSessions.clear();
         return false;
     }
@@ -283,67 +296,60 @@ bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& opts)
 
 bool InferenceEngine::createSession()
 {
-    // DXGI detecta o fabricante da GPU uma única vez
     const GpuVendor vendor = detectGpuVendor();
 
-    // ── Tentativa 1: CUDA (NVIDIA) ────────────────────────────────────────────
-    // try_add_cuda_provider apenas registra o provider nas opções — não valida
-    // se os drivers CUDA/cuDNN estão disponíveis. A validação real acontece em
-    // tryCreateSessions(). Se falhar (ex: cudart não instalado), cai para DML.
+    // Attempt 1: CUDA (NVIDIA). Provider registration alone does not validate
+    // that CUDA/cuDNN are installed — tryCreateSessions() does the real check.
     if (vendor == GpuVendor::NVIDIA) {
-        Ort::SessionOptions opts;
-        if (try_add_cuda_provider(opts)) {
-            opts.SetIntraOpNumThreads(1);
-            if (tryCreateSessions(opts)) {
+        Ort::SessionOptions sessionOptions;
+        if (tryAddCudaProvider(sessionOptions)) {
+            sessionOptions.SetIntraOpNumThreads(1);
+            if (tryCreateSessions(sessionOptions)) {
                 emit infoMsg("Modo GPU: CUDA ativo (NVIDIA)");
                 goto sessions_ready;
             }
-            qDebug() << "[ORT] CUDA registrado mas sessão falhou (CUDA runtime/cuDNN ausente?). Tentando DirectML...";
+            qDebug() << "[ORT] CUDA registrado mas sessao falhou. Tentando DirectML...";
         }
     }
 
-    // ── Tentativa 2: DirectML (AMD/Intel/NVIDIA sem CUDA) ─────────────────────
+    // Attempt 2: DirectML (AMD/Intel/NVIDIA without CUDA).
     {
-        Ort::SessionOptions opts;
-        if (try_add_dml_provider(opts)) {
-            opts.SetIntraOpNumThreads(1);
-            if (tryCreateSessions(opts)) {
+        Ort::SessionOptions sessionOptions;
+        if (tryAddDmlProvider(sessionOptions)) {
+            sessionOptions.SetIntraOpNumThreads(1);
+            if (tryCreateSessions(sessionOptions)) {
                 const QString gpuName = (vendor == GpuVendor::NVIDIA) ? "NVIDIA" :
                                         (vendor == GpuVendor::AMD)    ? "AMD"    : "Intel";
                 emit infoMsg(QString("Modo GPU: DirectML ativo (%1, DirectX 12)").arg(gpuName));
                 goto sessions_ready;
             }
-            qDebug() << "[ORT] DirectML registrado mas sessão falhou. Usando CPU.";
+            qDebug() << "[ORT] DirectML registrado mas sessao falhou. Usando CPU.";
         }
     }
 
-    // ── Tentativa 3: CPU fallback ─────────────────────────────────────────────
+    // Attempt 3: CPU fallback.
     {
-        Ort::SessionOptions opts;
-        opts.SetIntraOpNumThreads(4);
-        opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        if (!tryCreateSessions(opts)) {
-            emit errorMsg("ONNX: falha ao criar sessão mesmo em modo CPU.");
+        Ort::SessionOptions sessionOptions;
+        sessionOptions.SetIntraOpNumThreads(4);
+        sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+        if (!tryCreateSessions(sessionOptions)) {
+            emit errorMsg("ONNX: falha ao criar sessao mesmo em modo CPU.");
             return false;
         }
-        emit infoMsg("Modo CPU: GPU não disponível");
+        emit infoMsg("Modo CPU: GPU nao disponivel");
     }
 
 sessions_ready:
     try {
-        Ort::AllocatorWithDefaultOptions alloc;
-
-        // Query names from the first session (identical across all three)
-        m_inputName = m_sessions[0]->GetInputNameAllocated(0, alloc).get();
+        Ort::AllocatorWithDefaultOptions allocator;
+        m_inputName = m_sessions[0]->GetInputNameAllocated(0, allocator).get();
 
         m_outputNames.clear();
-        size_t outCount = m_sessions[0]->GetOutputCount();
-        for (size_t i = 0; i < outCount; i++) {
-            m_outputNames.push_back(m_sessions[0]->GetOutputNameAllocated(i, alloc).get());
-        }
-        m_hasLocref = (m_outputNames.size() >= 2);
-        // Behavior session I/O names stored in m_bInputName/m_bOutputName
-        // (populated inside tryCreateSessions above).
+        const size_t outputCount = m_sessions[0]->GetOutputCount();
+        for (size_t outputIdx = 0; outputIdx < outputCount; ++outputIdx)
+            m_outputNames.push_back(m_sessions[0]->GetOutputNameAllocated(outputIdx, allocator).get());
+
+        m_hasLocrefOutput = (m_outputNames.size() >= 2);
         return true;
     } catch (const Ort::Exception& e) {
         emit errorMsg(QString("ONNX load error: ") + e.what());
@@ -351,139 +357,122 @@ sessions_ready:
     }
 }
 
-// ── Thread main loop ──────────────────────────────────────────────────────────
+// ── Thread main loop ───────────────────────────────────────────────────────────
 
 void InferenceEngine::run()
 {
-    // Reset stop/pending flags so re-starting after stopAnalysis() works correctly.
-    // m_stop is set to true by requestStop() — without this reset the while loop
-    // would break immediately on the second (and every subsequent) session.
+    // Reset flags so a re-start after stopAnalysis() works correctly.
+    // m_stopRequested is set true by requestStop() — without this reset the
+    // while loop would break immediately on every subsequent session.
     {
         QMutexLocker lock(&m_mutex);
-        m_stop       = false;
-        m_hasPending = false;
+        m_stopRequested    = false;
+        m_pendingAvailable = false;
     }
 
-    // Reset behavioral scanners so stale movement history from previous sessions
-    // doesn't contaminate the first frames of a new session.
+    // Reset scanners so stale movement history from the previous session does
+    // not contaminate the first frames of the new one.
     for (auto& scanner : m_scanners) scanner.reset();
 
     if (!createSession()) return;
     emit modelReady();
 
     while (true) {
-        Job job;
+        PendingJob job;
         {
             QMutexLocker lock(&m_mutex);
-            while (!m_hasPending && !m_stop)
+            while (!m_pendingAvailable && !m_stopRequested)
                 m_cond.wait(&m_mutex);
-            if (m_stop) break;
-            job          = std::move(m_pending);
-            m_hasPending = false;
+            if (m_stopRequested) break;
+            job                = std::move(m_pendingJob);
+            m_pendingAvailable = false;
         }
         processJob(job);
     }
 }
 
-// ── Full-frame mode (EI) ──────────────────────────────────────────────────────
+// ── Per-frame processing ───────────────────────────────────────────────────────
 
-void InferenceEngine::setFullFrameMode(bool enabled)
+void InferenceEngine::processJob(const PendingJob& job)
 {
-    m_fullFrame.store(enabled, std::memory_order_relaxed);
-}
+    if (job.frame.isNull() || job.videoWidth <= 0 || job.videoHeight <= 0) return;
 
-// ── Per-frame processing ──────────────────────────────────────────────────────
-
-void InferenceEngine::processJob(const Job& job)
-{
-    if (job.frame.isNull() || job.videoW <= 0 || job.videoH <= 0) return;
-
-    // ── EI: frame completo → campo 0, sem corte de quadrante ─────────────────
-    // Para Esquiva Inibitória (câmera única cobrindo a arena inteira),
-    // o frame 720×480 é redimensionado para 360×240 e processado como campo 0.
-    // Os scale factors refletem o frame completo para que as coordenadas emitidas
-    // (em pixels do mosaico) cubram [0, videoW] × [0, videoH].
+    // EI mode: single field covering the entire frame.
     if (m_fullFrame.load(std::memory_order_relaxed)) {
-        const float scaleX = static_cast<float>(job.videoW) / MODEL_W;
-        const float scaleY = static_cast<float>(job.videoH) / MODEL_H;
-        QImage crop = job.frame.copy(0, 0, job.videoW, job.videoH);
+        const float scaleX = static_cast<float>(job.videoWidth)  / MODEL_W;
+        const float scaleY = static_cast<float>(job.videoHeight) / MODEL_H;
+        QImage crop = job.frame.copy(0, 0, job.videoWidth, job.videoHeight);
         if (crop.isNull()) return;
         if (crop.width() != MODEL_W || crop.height() != MODEL_H)
-            crop = crop.scaled(MODEL_W, MODEL_H,
-                               Qt::IgnoreAspectRatio, Qt::FastTransformation);
+            crop = crop.scaled(MODEL_W, MODEL_H, Qt::IgnoreAspectRatio, Qt::FastTransformation);
         crop = crop.convertToFormat(QImage::Format_RGB888);
         inferCrop(crop, 0, 0, 0, scaleX, scaleY);
         return;
     }
 
-    // ── Modo mosaico: 3 quadrantes half-size em paralelo ─────────────────────
-    const int halfW = job.videoW / 2;
-    const int halfH = job.videoH / 2;
+    // Mosaic mode: 3 quadrant half-frames processed in parallel.
+    const int halfW = job.videoWidth  / 2;
+    const int halfH = job.videoHeight / 2;
     const float scaleX = static_cast<float>(halfW) / MODEL_W;
     const float scaleY = static_cast<float>(halfH) / MODEL_H;
 
-    // 3 active campos: top-left, top-right, bottom-left
+    // Fields: top-left (0), top-right (1), bottom-left (2).
     const int offsets[3][2] = {{0, 0}, {halfW, 0}, {0, halfH}};
 
-    // Each thread owns its crop, resize, convert, and infer — fully parallel
-    std::vector<std::thread> threads;
-    threads.reserve(3);
-    for (int i = 0; i < 3; i++) {
-        const int ox = offsets[i][0];
-        const int oy = offsets[i][1];
-        threads.emplace_back([this, &job, i, ox, oy, halfW, halfH, scaleX, scaleY]() {
-            // Crop (cheap — pointer copy when bounds are valid)
-            QImage crop = job.frame.copy(ox, oy, halfW, halfH);
+    std::vector<std::thread> workerThreads;
+    workerThreads.reserve(3);
+    for (int fieldIndex = 0; fieldIndex < 3; ++fieldIndex) {
+        const int cropOffsetX = offsets[fieldIndex][0];
+        const int cropOffsetY = offsets[fieldIndex][1];
+        workerThreads.emplace_back([this, &job, fieldIndex,
+                                    cropOffsetX, cropOffsetY,
+                                    halfW, halfH, scaleX, scaleY]() {
+            QImage crop = job.frame.copy(cropOffsetX, cropOffsetY, halfW, halfH);
             if (crop.isNull()) return;
-
-            // Resize only if needed — FastTransformation is ~3x faster than Smooth
             if (crop.width() != MODEL_W || crop.height() != MODEL_H)
                 crop = crop.scaled(MODEL_W, MODEL_H,
                                    Qt::IgnoreAspectRatio, Qt::FastTransformation);
-
-            // Convert to RGB (in-place when possible)
             crop = crop.convertToFormat(QImage::Format_RGB888);
-
-            inferCrop(crop, i, ox, oy, scaleX, scaleY);
+            inferCrop(crop, fieldIndex, cropOffsetX, cropOffsetY, scaleX, scaleY);
         });
     }
-    for (auto& t : threads) t.join();
+    for (auto& thread : workerThreads) thread.join();
 }
 
-// ── Per-crop ONNX inference ───────────────────────────────────────────────────
+// ── Per-crop ONNX inference ────────────────────────────────────────────────────
 
-void InferenceEngine::inferCrop(const QImage& crop, int campo,
-                              int ox, int oy,
-                              float scaleX, float scaleY)
+void InferenceEngine::inferCrop(const QImage& crop, int fieldIndex,
+                                int cropOffsetX, int cropOffsetY,
+                                float scaleX, float scaleY)
 {
-    // Build float32 input tensor [1, MODEL_H, MODEL_W, 3]
-    std::vector<float> input(MODEL_H * MODEL_W * 3);
-    for (int r = 0; r < MODEL_H; r++) {
-        const uchar* src = crop.constScanLine(r);
-        float*       dst = input.data() + r * MODEL_W * 3;
-        for (int c = 0; c < MODEL_W; c++) {
-            dst[c * 3 + 0] = static_cast<float>(src[c * 3 + 0]); // R
-            dst[c * 3 + 1] = static_cast<float>(src[c * 3 + 1]); // G
-            dst[c * 3 + 2] = static_cast<float>(src[c * 3 + 2]); // B
+    // Build float32 input tensor [1, MODEL_H, MODEL_W, 3].
+    std::vector<float> inputBuffer(MODEL_H * MODEL_W * 3);
+    for (int row = 0; row < MODEL_H; ++row) {
+        const uchar* rowPixels = crop.constScanLine(row);
+        float*       inputRow  = inputBuffer.data() + row * MODEL_W * 3;
+        for (int col = 0; col < MODEL_W; ++col) {
+            inputRow[col * 3 + 0] = static_cast<float>(rowPixels[col * 3 + 0]); // R
+            inputRow[col * 3 + 1] = static_cast<float>(rowPixels[col * 3 + 1]); // G
+            inputRow[col * 3 + 2] = static_cast<float>(rowPixels[col * 3 + 2]); // B
         }
     }
 
-    int64_t shape[] = {1, MODEL_H, MODEL_W, 3};
-    auto    mem     = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU);
-    Ort::Value inTensor = Ort::Value::CreateTensor<float>(
-        mem, input.data(), input.size(), shape, 4);
+    int64_t    inputShape[]  = {1, MODEL_H, MODEL_W, 3};
+    auto       cpuMemInfo    = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU);
+    Ort::Value inputTensor   = Ort::Value::CreateTensor<float>(
+        cpuMemInfo, inputBuffer.data(), inputBuffer.size(), inputShape, 4);
 
-    const char* inNames[] = {m_inputName.c_str()};
-    std::vector<const char*> outNames;
-    for (auto& s : m_outputNames) outNames.push_back(s.c_str());
-    const size_t numOut = m_hasLocref ? 2 : 1;
+    const char*              inputNamePtr[]     = {m_inputName.c_str()};
+    std::vector<const char*> outputNamePtrs;
+    for (const auto& name : m_outputNames) outputNamePtrs.push_back(name.c_str());
+    const size_t requestedOutputCount = m_hasLocrefOutput ? 2 : 1;
 
     std::vector<Ort::Value> outputs;
     try {
-        outputs = m_sessions[campo]->Run(
+        outputs = m_sessions[fieldIndex]->Run(
             Ort::RunOptions{nullptr},
-            inNames, &inTensor, 1,
-            outNames.data(), numOut);
+            inputNamePtr, &inputTensor, 1,
+            outputNamePtrs.data(), requestedOutputCount);
     } catch (const Ort::Exception& e) {
         emit errorMsg(QString("ONNX run error: ") + e.what());
         return;
@@ -492,72 +481,60 @@ void InferenceEngine::inferCrop(const QImage& crop, int campo,
     // scoremap: [1, HEAT_ROWS, HEAT_COLS, 2]
     const float* scoreData = outputs[0].GetTensorData<float>();
     // locref:   [1, HEAT_ROWS, HEAT_COLS, 4]
-    const float* locData = (m_hasLocref && outputs.size() >= 2)
+    const float* locData = (m_hasLocrefOutput && outputs.size() >= 2)
                            ? outputs[1].GetTensorData<float>() : nullptr;
 
-    PosePoint pNose, pBody;
+    PosePoint nosePoint, bodyPoint;
 
-    // Process nose (ch=0) and body (ch=1)
-    for (int ch = 0; ch < 2; ch++) {
-        // Find peak in HEAT_ROWS × HEAT_COLS heatmap for this channel
-        float bestVal = -1e9f;
-        int   bestR = 0, bestC = 0;
-        for (int r = 0; r < HEAT_ROWS; r++) {
-            for (int c = 0; c < HEAT_COLS; c++) {
-                float v = scoreData[r * HEAT_COLS * 2 + c * 2 + ch];
-                if (v > bestVal) { bestVal = v; bestR = r; bestC = c; }
+    // Process nose (channel 0) and body (channel 1).
+    for (int channel = 0; channel < 2; ++channel) {
+        float peakScore = -1e9f;
+        int   peakRow   = 0;
+        int   peakCol   = 0;
+        for (int row = 0; row < HEAT_ROWS; ++row) {
+            for (int col = 0; col < HEAT_COLS; ++col) {
+                const float heatmapScore = scoreData[row * HEAT_COLS * 2 + col * 2 + channel];
+                if (heatmapScore > peakScore) {
+                    peakScore = heatmapScore;
+                    peakRow   = row;
+                    peakCol   = col;
+                }
             }
         }
 
-        if (bestVal < 0.05f) continue;
+        if (peakScore < 0.05f) continue;
 
-        // Locref channels: dx_nose=0, dy_nose=1, dx_body=2, dy_body=3
-        const int dxCh = (ch == 0) ? 0 : 2;
-        const int dyCh = (ch == 0) ? 1 : 3;
-        const float ldx = locData ? locData[bestR * HEAT_COLS * 4 + bestC * 4 + dxCh] : 0.f;
-        const float ldy = locData ? locData[bestR * HEAT_COLS * 4 + bestC * 4 + dyCh] : 0.f;
+        // Locref channel layout: dx_nose=0, dy_nose=1, dx_body=2, dy_body=3.
+        const int   locrefDxChannel = (channel == 0) ? 0 : 2;
+        const int   locrefDyChannel = (channel == 0) ? 1 : 3;
+        const float locrefDx = locData
+            ? locData[peakRow * HEAT_COLS * 4 + peakCol * 4 + locrefDxChannel] : 0.f;
+        const float locrefDy = locData
+            ? locData[peakRow * HEAT_COLS * 4 + peakCol * 4 + locrefDyChannel] : 0.f;
 
-        // Crop-space pixel coords
-        const float px = (bestC + 0.5f) * STRIDE + ldx * LOCREF_STD;
-        const float py = (bestR + 0.5f) * STRIDE + ldy * LOCREF_STD;
+        // Crop-space pixel coordinates.
+        const float cropX = (peakCol + 0.5f) * STRIDE + locrefDx * LOCREF_STD;
+        const float cropY = (peakRow + 0.5f) * STRIDE + locrefDy * LOCREF_STD;
 
-        // Mosaico-space pixel coords
-        const float mx = px * scaleX + static_cast<float>(ox);
-        const float my = py * scaleY + static_cast<float>(oy);
+        // Mosaico-space pixel coordinates.
+        const float mosaicX = cropX * scaleX + static_cast<float>(cropOffsetX);
+        const float mosaicY = cropY * scaleY + static_cast<float>(cropOffsetY);
 
-        if (ch == 0) {
-            // Likelihood threshold solicitado: 0.75
-            if (bestVal >= 0.75f) {
-                pNose = {px, py, bestVal}; // Usar px, py (escala local 360x240) para o scanner
-            }
-            emit trackResult(campo, mx, my, bestVal);
+        if (channel == 0) {
+            if (peakScore >= 0.75f)
+                nosePoint = {cropX, cropY, peakScore};
+            emit trackResult(fieldIndex, mosaicX, mosaicY, peakScore);
         } else {
-            if (bestVal >= 0.75f) {
-                pBody = {px, py, bestVal}; // Usar px, py (escala local 360x240) para o scanner
-            }
-            emit bodyResult(campo, mx, my, bestVal);
+            if (peakScore >= 0.75f)
+                bodyPoint = {cropX, cropY, peakScore};
+            emit bodyResult(fieldIndex, mosaicX, mosaicY, peakScore);
         }
     }
 
-    // ── Behavior classification ───────────────────────────────────────────────
-    // pushFrame is always called to keep rolling history current.
-    // Using rule-based classifySimple() only - no ONNX behavior models.
-    const bool validPose = m_scanners[campo].pushFrame(pNose, pBody);
+    // Rule-based behaviour classification (no ONNX behaviour models active).
+    const bool validPose = m_scanners[fieldIndex].pushFrame(nosePoint, bodyPoint);
+    if (!validPose) return;
 
-    if (!validPose) return; // one or both keypoints undetected — skip classification
-
-    // Rule-based classifier using classifySimple()
-    int simpleResult = m_scanners[campo].classifySimple();
-    
-    // Get raw values for debug (comentado - debug apenas em CC via QML)
-    //std::vector<float> feats = m_scanners[campo].getFeatures();
-    //static const char* BEH_NAMES[] = {"Walking","Sniffing","Grooming","Resting","Rearing"};
-    //qDebug() << "[Behavior] Simple:" << BEH_NAMES[simpleResult] 
-    //         << "noseMov=" << feats[0] << "bodyMov=" << feats[1] 
-    //         << "roll2s=" << feats[6]
-    //         << "noseXY=" << pNose.x << "," << pNose.y 
-    //         << "bodyXY=" << pBody.x << "," << pBody.y
-    //         << "dy=" << (pBody.y - pNose.y);
-    
-    emit behaviorResult(campo, simpleResult);
+    const int behaviorLabel = m_scanners[fieldIndex].classifySimple();
+    emit behaviorResult(fieldIndex, behaviorLabel);
 }

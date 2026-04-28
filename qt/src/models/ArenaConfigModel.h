@@ -1,10 +1,11 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 #include <QVariantList>
 #include <QVariantMap>
-#include <QString>
 
+/// Loads and saves per-experiment arena configuration (zones, floor polygon, image).
 class ArenaConfigModel : public QObject
 {
     Q_OBJECT
@@ -16,27 +17,26 @@ class ArenaConfigModel : public QObject
 public:
     explicit ArenaConfigModel(QObject *parent = nullptr);
 
-    QString pairId()     const;
-    QString imageUrl()   const;
-    bool    configured() const;
-    QVariantList zones()  const;
+    QString      pairId()     const;
+    QString      imageUrl()   const;
+    bool         configured() const;
+    QVariantList zones()      const;
 
-    // ── API invocável pelo QML ──────────────────────────────────────────
-    // Carrega a configuração da arena (zonas, pontos) conforme o contexto e nome (pasta padrão)
+    /// Load arena config (zones, points) by context name and experiment name.
     Q_INVOKABLE void loadConfig(const QString &context, const QString &expName);
-    
-    // Carrega a partir de um caminho de pasta absoluto (Desktop, HD Externo, etc)
-    // Usa arena_config_referencia.json como fallback padrão (NOR/CA/CC)
+
+    /// Load arena config from an absolute folder path.
+    /// Falls back to arena_config_referencia.json (NOR/CA/CC default).
     Q_INVOKABLE void loadConfigFromPath(const QString &folderPath);
-    // Sobrecarga: permite especificar o arquivo de referência (ex: EI usa arquivo próprio)
+    /// Overload: specify a custom reference file (e.g. EI uses its own file).
     Q_INVOKABLE void loadConfigFromPath(const QString &folderPath, const QString &referenceFile);
 
-    // Salva a configuração atual
+    /// Save current config by context + experiment name.
     Q_INVOKABLE bool saveConfig(const QString &context, const QString &expName, const QString &pairId,
                                 const QString &imageUrl, const QVariantList &zones,
                                 const QString &arenaPointsJson, const QString &floorPointsJson);
-                                
-    // NOVO: Salva em um caminho de pasta absoluto
+
+    /// Save config to an absolute folder path.
     Q_INVOKABLE bool saveConfigToPath(const QString &folderPath, const QString &pairId,
                                       const QString &imageUrl, const QVariantList &zones,
                                       const QString &arenaPointsJson, const QString &floorPointsJson);

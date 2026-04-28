@@ -1,4 +1,4 @@
-// qml/LandingCard.qml
+﻿// qml/LandingCard.qml
 // Card gigante da tela inicial (Criar / Procurar).
 
 import QtQuick
@@ -56,7 +56,7 @@ Item {
             anchors { fill: parent; margins: 36 }
             spacing: 0
 
-            // Ícone grande
+            // Large icon
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: cardRoot.icon
@@ -68,7 +68,7 @@ Item {
 
             Item { Layout.preferredHeight: 24 }
 
-            // Título
+            // Title
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: cardRoot.title
@@ -81,7 +81,7 @@ Item {
 
             Item { Layout.preferredHeight: 16 }
 
-            // Descrição
+            // Description
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true

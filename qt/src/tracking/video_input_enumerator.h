@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QVariantList>
 
+/// Enumerates available video input devices via Qt Multimedia.
 class VideoInputEnumerator : public QObject
 {
     Q_OBJECT

@@ -1,5 +1,5 @@
 ﻿// qml/SessionResultDialog.qml
-// Popup pós-gravação NOR: usuário confirma os dados dos animais de cada campo.
+// Post-recording NOR popup: user confirms animal IDs for each field.
 
 import QtQuick
 import QtQuick.Controls
@@ -11,7 +11,7 @@ import MindTrace.Backend 1.0
 Popup {
     id: root
 
-    // ── Dados fornecidos pelo Dashboard ──────────────────────────────────
+    // ── Data provided by the Dashboard ──────────────────────────────────
     property string experimentName:   ""
     property string pair1:            ""
     property string pair2:            ""
@@ -27,7 +27,7 @@ Popup {
     property int    numCampos:        3
     property var    contextPatterns:  []
 
-    // ── Dados de tracking da sessão ───────────────────────────────────────
+    // ── Session tracking data ──────────────────────────────────────────────
     property var sessionExplorationBouts: [[], [], [], [], [], []]
     property var sessionExplorationTimes: [0, 0, 0, 0, 0, 0]
     property var sessionTotalDistance:    [0.0, 0.0, 0.0]
@@ -35,10 +35,10 @@ Popup {
     property var sessionPerMinuteData:    [{}, {}, {}]
 
     function localizedDayName(dayName, index) {
-        var t = String(dayName || "").trim().toLowerCase()
-        if (t === "treino" || t === "training" || t === "entrenamiento")
+        var normalized = String(dayName || "").trim().toLowerCase()
+        if (normalized === "treino" || normalized === "training" || normalized === "entrenamiento")
             return LanguageManager.tr3("Treino", "Training", "Entrenamiento")
-        if (t === "teste" || t === "test" || t === "prueba")
+        if (normalized === "teste" || normalized === "test" || normalized === "prueba")
             return LanguageManager.tr3("Teste", "Test", "Prueba")
         return String(dayName || (LanguageManager.tr3("Dia ", "Day ", "Dia ") + (index + 1)))
     }
@@ -46,8 +46,8 @@ Popup {
     function localizedDayNames() {
         var out = []
         if (root.dayNames && root.dayNames.length > 0) {
-            for (var i = 0; i < root.dayNames.length; i++)
-                out.push(localizedDayName(root.dayNames[i], i))
+            for (var dayIdx = 0; dayIdx < root.dayNames.length; dayIdx++)
+                out.push(localizedDayName(root.dayNames[dayIdx], dayIdx))
             return out
         }
         return [LanguageManager.tr3("Day 1", "Day 1", "Dia 1")]
@@ -58,7 +58,7 @@ Popup {
         if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
         if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
         if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
-        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "triangles")  return LanguageManager.tr3("Triângulos", "Triangles", "Triângulos")
         if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
         return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
     }
@@ -71,7 +71,7 @@ Popup {
         return
     }
 
-    // ── Geometria ─────────────────────────────────────────────────────────
+    // ── Geometry ──────────────────────────────────────────────────────────
     anchors.centerIn: parent
     width: 540
     height: mainLayout.implicitHeight + 48
@@ -93,35 +93,35 @@ Popup {
         border.color: "#ab3d4c"; border.width: 1.5
     }
 
-    // ── Função de inserção ────────────────────────────────────────────────
+    // ── Insert function ───────────────────────────────────────────────────
     function doInsert() {
-        var v    = root.videoPath.replace("file:///", "")
+        var videoPathClean = root.videoPath.replace("file:///", "")
         var fase = dayCombo.currentText
         var dia  = String(dayCombo.currentIndex + 1)
         var includeContext = root.contextPatterns && root.contextPatterns.length > 0
         var rows = []
         var pares = [root.pair1, root.pair2, root.pair3]
 
-        for (var i = 0; i < root.numCampos; i++) {
-            var aText = root._animalTexts[i] || ""
+        for (var campoIdx = 0; campoIdx < root.numCampos; campoIdx++) {
+            var aText = root._animalTexts[campoIdx] || ""
             if (!aText) continue
-            var contexto = root.contextDisplayName(root.contextPatterns[i] || "")
-            var zi0 = i * 2, zi1 = i * 2 + 1
-            var tA = root.sessionExplorationTimes[zi0] || 0
-            var tB = pares[i].length > 1 ? (root.sessionExplorationTimes[zi1] || 0) : 0
-            var tot = tA + tB
-            var di = pares[i].length <= 1 ? "N/A" : (tot > 0 ? ((tB - tA) / tot).toFixed(3) : "0.000")
-            var bA = (root.sessionExplorationBouts[zi0] || []).length
-            var bB = pares[i].length > 1 ? (root.sessionExplorationBouts[zi1] || []).length : 0
-            var row = [v, aText, String(i + 1), dia]
+            var contexto = root.contextDisplayName(root.contextPatterns[campoIdx] || "")
+            var zoneIdx0 = campoIdx * 2, zoneIdx1 = campoIdx * 2 + 1
+            var timeObjA = root.sessionExplorationTimes[zoneIdx0] || 0
+            var timeObjB = pares[campoIdx].length > 1 ? (root.sessionExplorationTimes[zoneIdx1] || 0) : 0
+            var totalTime = timeObjA + timeObjB
+            var di = pares[campoIdx].length <= 1 ? "N/A" : (totalTime > 0 ? ((timeObjB - timeObjA) / totalTime).toFixed(3) : "0.000")
+            var boutsObjA = (root.sessionExplorationBouts[zoneIdx0] || []).length
+            var boutsObjB = pares[campoIdx].length > 1 ? (root.sessionExplorationBouts[zoneIdx1] || []).length : 0
+            var row = [videoPathClean, aText, String(campoIdx + 1), dia]
             if (includeContext) row.push(contexto)
-            row.push(pares[i],
-                     tA.toFixed(2), bA,
-                     tB.toFixed(2), bB,
-                     tot.toFixed(2), di,
-                     (root.sessionTotalDistance[i] || 0).toFixed(3),
-                     (root.sessionAvgVelocity[i]   || 0).toFixed(3))
-            if (root.includeDrug) row.push(root._drogaTexts[i] || "")
+            row.push(pares[campoIdx],
+                     timeObjA.toFixed(2), boutsObjA,
+                     timeObjB.toFixed(2), boutsObjB,
+                     totalTime.toFixed(2), di,
+                     (root.sessionTotalDistance[campoIdx] || 0).toFixed(3),
+                     (root.sessionAvgVelocity[campoIdx]   || 0).toFixed(3))
+            if (root.includeDrug) row.push(root._drogaTexts[campoIdx] || "")
             rows.push(row)
         }
 
@@ -129,31 +129,31 @@ Popup {
 
         var sessionMeta = {
             "timestamp": new Date().toISOString(),
-            "fase": fase, "dia": dia, "videoPath": v, "campos": []
+            "fase": fase, "dia": dia, "videoPath": videoPathClean, "campos": []
         }
         var paresArr = [root.pair1, root.pair2, root.pair3]
-        for (var j = 0; j < root.numCampos; j++) {
-            if (!root._animalTexts[j]) continue
-            var z0 = j * 2, z1 = j * 2 + 1
-            var b0 = root.sessionExplorationBouts[z0] || []
-            var b1 = root.sessionExplorationBouts[z1] || []
-            var t0 = root.sessionExplorationTimes[z0] || 0
-            var t1 = root.sessionExplorationTimes[z1] || 0
-            sessionMeta["campos"].push({
-                "animal": root._animalTexts[j], "campo": j + 1,
-                "contexto": root.contextDisplayName(root.contextPatterns[j] || ""),
-                "par": paresArr[j], "droga": root._drogaTexts[j],
+        for (var metaIdx = 0; metaIdx < root.numCampos; metaIdx++) {
+            if (!root._animalTexts[metaIdx]) continue
+            var mZone0 = metaIdx * 2, mZone1 = metaIdx * 2 + 1
+            var mBoutsA = root.sessionExplorationBouts[mZone0] || []
+            var mBoutsB = root.sessionExplorationBouts[mZone1] || []
+            var mTimeA  = root.sessionExplorationTimes[mZone0] || 0
+            var mTimeB  = root.sessionExplorationTimes[mZone1] || 0
+            sessionMeta.campos.push({
+                "animal": root._animalTexts[metaIdx], "campo": metaIdx + 1,
+                "contexto": root.contextDisplayName(root.contextPatterns[metaIdx] || ""),
+                "par": paresArr[metaIdx], "droga": root._drogaTexts[metaIdx],
                 "exploração": {
-                    "objA_total_s": t0.toFixed(1), "objB_total_s": t1.toFixed(1),
-                    "objA_bouts": b0, "objB_bouts": b1,
-                    "objA_n_bouts": b0.length, "objB_n_bouts": b1.length,
-                    "DI": (t0 + t1 > 0) ? ((t1 - t0) / (t0 + t1)).toFixed(3) : "NaN"
+                    "objA_total_s": mTimeA.toFixed(1), "objB_total_s": mTimeB.toFixed(1),
+                    "objA_bouts": mBoutsA, "objB_bouts": mBoutsB,
+                    "objA_n_bouts": mBoutsA.length, "objB_n_bouts": mBoutsB.length,
+                    "DI": (mTimeA + mTimeB > 0) ? ((mTimeB - mTimeA) / (mTimeA + mTimeB)).toFixed(3) : "NaN"
                 },
                 "movimento": {
-                    "distancia_total_m":   (root.sessionTotalDistance[j] || 0).toFixed(3),
-                    "velocidade_media_ms": (root.sessionAvgVelocity[j]   || 0).toFixed(3)
+                    "distância_total_m":   (root.sessionTotalDistance[metaIdx] || 0).toFixed(3),
+                    "velocidade_media_ms": (root.sessionAvgVelocity[metaIdx]   || 0).toFixed(3)
                 },
-                "porMinuto": root.sessionPerMinuteData[j] || []
+                "porMinuto": root.sessionPerMinuteData[metaIdx] || []
             })
         }
         var animaisStr = root._animalTexts.slice(0, root.numCampos)
@@ -162,34 +162,31 @@ Popup {
             root.experimentName, JSON.stringify(sessionMeta), fase + "_" + animaisStr)
 
         // Post to animal lifecycle API (fire-and-forget)
-        for (var k = 0; k < root.numCampos; k++) {
-            var dbId = root._animalDbIds[k]
-            if (dbId <= 0 || !root._animalTexts[k]) continue
-            var zk0 = k * 2, zk1 = k * 2 + 1
-            var tkA = root.sessionExplorationTimes[zk0] || 0
-            var tkB = root.sessionExplorationTimes[zk1] || 0
-            var boutsA = (root.sessionExplorationBouts[zk0] || []).length
-            var boutsB = (root.sessionExplorationBouts[zk1] || []).length
-            var tot = tkA + tkB
-            var dist = parseFloat((root.sessionTotalDistance[k] || 0).toFixed(3))
-            var vel = parseFloat((root.sessionAvgVelocity[k] || 0).toFixed(3))
-            root._postEvent(dbId, "NOR — " + fase, {
+        for (var apiIdx = 0; apiIdx < root.numCampos; apiIdx++) {
+            var dbId = root._animalDbIds[apiIdx]
+            if (dbId <= 0 || !root._animalTexts[apiIdx]) continue
+            var aZone0 = apiIdx * 2, aZone1 = apiIdx * 2 + 1
+            var aTimeA = root.sessionExplorationTimes[aZone0] || 0
+            var aTimeB = root.sessionExplorationTimes[aZone1] || 0
+            var aTotalTime = aTimeA + aTimeB
+            var aDist   = parseFloat((root.sessionTotalDistance[apiIdx] || 0).toFixed(3))
+            var aAvgVel = parseFloat((root.sessionAvgVelocity[apiIdx]  || 0).toFixed(3))
+            _postEvent(dbId, "nor_session", {
                 apparatus: "nor", day: fase,
                 day_index: parseInt(dia, 10),
                 experiment_name: root.experimentName,
-                field: k + 1,
-                context: root.contextDisplayName(root.contextPatterns[k] || ""),
-                pair: pares[k],
-                treatment: root.includeDrug ? (root._drogaTexts[k] || "") : "",
-                exploration_a_s: parseFloat(tkA.toFixed(2)),
-                exploration_b_s: parseFloat(tkB.toFixed(2)),
-                exploration_total_s: parseFloat(tot.toFixed(2)),
-                bouts_a: boutsA,
-                bouts_b: boutsB,
-                di: tot > 0 ? parseFloat(((tkB - tkA) / tot).toFixed(3)) : 0,
-                distance_m: dist,
-                avg_speed_ms: vel,
-                video_path: v
+                field: apiIdx + 1,
+                context: root.contextDisplayName(root.contextPatterns[apiIdx] || ""),
+                pair: pares[apiIdx],
+                treatment: root.includeDrug ? (root._drogaTexts[apiIdx] || "") : "",
+                exploration_a_s: parseFloat(aTimeA.toFixed(2)),
+                exploration_b_s: parseFloat(aTimeB.toFixed(2)),
+                exploration_total_s: parseFloat(aTotalTime.toFixed(2)),
+                bouts_b: (root.sessionExplorationBouts[aZone1] || []).length,
+                di: aTotalTime > 0 ? parseFloat(((aTimeB - aTimeA) / aTotalTime).toFixed(3)) : 0,
+                distance_m: aDist,
+                avg_speed_ms: aAvgVel,
+                video_path: videoPathClean
             })
         }
 
@@ -209,7 +206,7 @@ Popup {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Sessao Concluida", "Session Completed", "Sesion Completada")
+                    text: LanguageManager.tr3("Sessão Concluida", "Session Completed", "Sesion Completada")
                     color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
@@ -228,7 +225,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Dia da sessão ─────────────────────────────────────────────────
+        // ── Session day ───────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
@@ -296,7 +293,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Campos ────────────────────────────────────────────────────────
+        // ── Fields ────────────────────────────────────────────────────────
         CampoBlock {
             id: c1
             Layout.fillWidth: true; visible: root.numCampos >= 1; campoIndex: 0
@@ -327,7 +324,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Botões ────────────────────────────────────────────────────────
+        // ── Buttons ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }
@@ -351,7 +348,7 @@ Popup {
         Item { height: 4 }
     }
 
-    // ── Componente: bloco por campo ───────────────────────────────────────
+    // ── Component: per-field block ────────────────────────────────────────
     component CampoBlock: Rectangle {
         id: blk
         radius: 10

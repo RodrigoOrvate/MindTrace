@@ -1,6 +1,6 @@
 ﻿// qml/cc/CCMetadataDialog.qml
-// Popup pós-sessão CC: coleta metadados (animal, dia, droga) e persiste CSV + JSON.
-// Sem fase TR/RA/TT — CC tem sessões numeradas (Dia 1, Dia 2…).
+// Post-session CC popup: collects metadata (animal, day, treatment) and persists CSV + JSON.
+// No TR/RA/TT phase — CC uses numbered sessions (Day 1, Day 2...).
 
 import QtQuick
 import QtQuick.Controls
@@ -21,12 +21,12 @@ Popup {
     property bool   includeDrug:     true
     property var    contextPatterns: []
 
-    // Resultados da sessão (vindos do LiveRecording)
+    // Session results (from LiveRecording)
     property var totalDistance: [0.0, 0.0, 0.0]
     property var avgVelocity:   [0.0, 0.0, 0.0]
     property var perMinuteData: [[], [], []]
     property var behaviorCounts: [{}, {}, {}]
-    property int sessionMinutes: 5   // duração real da sessão em minutos
+    property int sessionMinutes: 5   // actual session duration in minutes
 
     // Textos dos campos (preenchidos pelos CampoBlock via onAnimalChanged / onDrogaChanged)
     property var _animalTexts:  ["", "", ""]
@@ -61,7 +61,7 @@ Popup {
         if (key === "horizontal") return LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales")
         if (key === "vertical")   return LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales")
         if (key === "dots")       return LanguageManager.tr3("Bolinhas", "Dots", "Puntos")
-        if (key === "triangles")  return LanguageManager.tr3("Triangulos", "Triangles", "Triangulos")
+        if (key === "triangles")  return LanguageManager.tr3("Triângulos", "Triangles", "Triângulos")
         if (key === "squares")    return LanguageManager.tr3("Quadrados", "Squares", "Cuadrados")
         return LanguageManager.tr3("Sem contexto", "No context", "Sin contexto")
     }
@@ -92,7 +92,7 @@ Popup {
         border.width: 1.5
     }
 
-    // ── Função de inserção ────────────────────────────────────────────────
+    // ── Insert function ───────────────────────────────────────────────────
     function doInsert() {
         var v    = root.videoPath.replace("file:///", "")
         var fase = dayCombo.currentText
@@ -129,7 +129,7 @@ Popup {
 
         ExperimentManager.insertSessionResult(root.experimentName, rows)
 
-        // JSON rico de sessão
+        // Rich session JSON
         var sessionMeta = {
             "timestamp": new Date().toISOString(),
             "fase":      fase,
@@ -147,7 +147,7 @@ Popup {
                 "contexto": root.contextDisplayName(root.contextPatterns[cj] || ""),
                 "droga":  root.includeDrug ? (root._drogaTexts[cj] || "") : "",
                 "movimento": {
-                    "distancia_total_m":   parseFloat((root.totalDistance[cj] || 0).toFixed(3)),
+                    "distância_total_m":   parseFloat((root.totalDistance[cj] || 0).toFixed(3)),
                     "velocidade_media_ms": parseFloat((root.avgVelocity[cj]   || 0).toFixed(3))
                 },
                 "comportamentos_bouts": root.behaviorCounts[cj] || {},
@@ -206,7 +206,7 @@ Popup {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Sessao Concluida", "Session Completed", "Sesion Completada")
+                    text: LanguageManager.tr3("Sessão Concluida", "Session Completed", "Sesion Completada")
                     color: ThemeManager.textPrimary
                     font.pixelSize: 16; font.weight: Font.Bold
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -230,7 +230,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Dia da sessão ─────────────────────────────────────────────────
+        // ── Session day ───────────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
 
@@ -329,7 +329,7 @@ Popup {
 
         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-        // ── Botões ────────────────────────────────────────────────────────
+        // ── Buttons ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }

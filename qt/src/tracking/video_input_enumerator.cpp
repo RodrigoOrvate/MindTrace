@@ -1,9 +1,9 @@
 #include "video_input_enumerator.h"
-
-#include <QMediaDevices>
-#include <QCameraDevice>
-#include <QStringList>
 #include "dshow_capture.h"
+
+#include <QCameraDevice>
+#include <QMediaDevices>
+#include <QStringList>
 
 VideoInputEnumerator::VideoInputEnumerator(QObject* parent)
     : QObject(parent)
@@ -14,33 +14,31 @@ QVariantList VideoInputEnumerator::listVideoInputs() const
     QVariantList result;
     QStringList seenNames;
 
-    const auto qtDevices = QMediaDevices::videoInputs();
-    for (const auto& dev : qtDevices) {
-        QVariantMap map;
-        map["name"] = dev.description();
-        map["backend"] = "qt";
-        result.append(map);
-        seenNames.append(dev.description());
+    for (const auto& qtDevice : QMediaDevices::videoInputs()) {
+        QVariantMap deviceMap;
+        deviceMap["name"]    = qtDevice.description();
+        deviceMap["backend"] = "qt";
+        result.append(deviceMap);
+        seenNames.append(qtDevice.description());
     }
 
-    const auto dsInputs = DShowCapture::enumerateInputs();
-    for (const auto& ds : dsInputs) {
-        QString label = ds.name;
-        if (label.isEmpty())
+    for (const auto& dsInput : DShowCapture::enumerateInputs()) {
+        QString deviceLabel = dsInput.name;
+        if (deviceLabel.isEmpty())
             continue;
 
-        if (seenNames.contains(label, Qt::CaseInsensitive))
-            label += " [DirectShow]";
+        if (seenNames.contains(deviceLabel, Qt::CaseInsensitive))
+            deviceLabel += " [DirectShow]";
         else
-            seenNames.append(label);
+            seenNames.append(deviceLabel);
 
-        QVariantMap map;
-        map["name"] = label;
-        map["backend"] = "dshow";
-        map["hasComposite"] = ds.hasComposite;
-        map["hasSVideo"] = ds.hasSVideo;
-        map["isHauppauge"] = ds.isHauppauge;
-        result.append(map);
+        QVariantMap deviceMap;
+        deviceMap["name"]         = deviceLabel;
+        deviceMap["backend"]      = "dshow";
+        deviceMap["hasComposite"] = dsInput.hasComposite;
+        deviceMap["hasSVideo"]    = dsInput.hasSVideo;
+        deviceMap["isHauppauge"]  = dsInput.isHauppauge;
+        result.append(deviceMap);
     }
 
     return result;

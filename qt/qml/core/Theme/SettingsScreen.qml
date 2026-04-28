@@ -16,10 +16,10 @@ Popup {
 
     function _cameraBaseName(cameraId) {
         var s = String(cameraId || "")
-        var b = s.toLowerCase().indexOf("|backend:")
-        if (b >= 0) s = s.substring(0, b)
-        var i = s.toLowerCase().indexOf("|input:")
-        if (i >= 0) s = s.substring(0, i)
+        var backendPos = s.toLowerCase().indexOf("|backend:")
+        if (backendPos >= 0) s = s.substring(0, backendPos)
+        var inputPos = s.toLowerCase().indexOf("|input:")
+        if (inputPos >= 0) s = s.substring(0, inputPos)
         return s.replace(" [DirectShow]", "").trim()
     }
 
@@ -71,12 +71,12 @@ Popup {
         if (savedDefaultLiveCameraId !== "") {
             var wantBase = _cameraBaseName(savedDefaultLiveCameraId).toLowerCase()
             var wantBackend = _cameraBackend(savedDefaultLiveCameraId)
-            for (var i = 0; i < liveCameraOptions.length; i++) {
-                var c = liveCameraOptions[i]
-                var cBase = _cameraBaseName(c.name || "").toLowerCase()
-                var cBackend = String(c.backend || "").toLowerCase()
+            for (var cameraIdx = 0; cameraIdx < liveCameraOptions.length; cameraIdx++) {
+                var cam = liveCameraOptions[cameraIdx]
+                var cBase = _cameraBaseName(cam.name || "").toLowerCase()
+                var cBackend = String(cam.backend || "").toLowerCase()
                 if (cBase === wantBase && (wantBackend === "" || cBackend === wantBackend)) {
-                    selectedLiveCameraIndex = i
+                    selectedLiveCameraIndex = cameraIdx
                     break
                 }
             }
@@ -337,9 +337,9 @@ Popup {
                         }
 
                         Component.onCompleted: {
-                            for (var i = 0; i < model.length; i++) {
-                                if (model[i].code === settingsPopup.selectedLanguage) {
-                                    currentIndex = i
+                            for (var langIdx = 0; langIdx < model.length; langIdx++) {
+                                if (model[langIdx].code === settingsPopup.selectedLanguage) {
+                                    currentIndex = langIdx
                                     break
                                 }
                             }

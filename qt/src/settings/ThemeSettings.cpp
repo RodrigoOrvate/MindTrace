@@ -1,69 +1,60 @@
 #include "ThemeSettings.h"
+
+#include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QFile>
 #include <QStandardPaths>
-#include <QDir>
 
 ThemeSettings::ThemeSettings(QObject *parent)
     : QObject(parent) {}
 
 QString ThemeSettings::getSettingsPath() {
-    QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-    QString settingsFile = appDataPath + "/mindtrace_settings.json";
+    const QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     QDir().mkpath(appDataPath);
-    return settingsFile;
+    return appDataPath + "/mindtrace_settings.json";
 }
 
 QJsonObject ThemeSettings::loadSettingsFile() {
-    QString filePath = getSettingsPath();
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return QJsonObject(); // Return empty if file doesn't exist
-    }
-    QByteArray data = file.readAll();
-    file.close();
-    return QJsonDocument::fromJson(data).object();
+    QFile file(getSettingsPath());
+    if (!file.open(QIODevice::ReadOnly))
+        return QJsonObject();
+    const QByteArray rawJson = file.readAll();
+    return QJsonDocument::fromJson(rawJson).object();
 }
 
 void ThemeSettings::saveSettingsFile(const QJsonObject& settings) {
-    QString filePath = getSettingsPath();
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly)) {
+    QFile file(getSettingsPath());
+    if (!file.open(QIODevice::WriteOnly))
         return;
-    }
     file.write(QJsonDocument(settings).toJson());
-    file.close();
 }
 
 void ThemeSettings::saveSetting(const QString& key, bool value) {
-    QJsonObject obj = loadSettingsFile();
-    obj[key] = value;
-    saveSettingsFile(obj);
+    QJsonObject settings = loadSettingsFile();
+    settings[key] = value;
+    saveSettingsFile(settings);
 }
 
 QVariant ThemeSettings::loadSetting(const QString& key) {
-    QJsonObject obj = loadSettingsFile();
-    if (obj.contains(key)) {
-        return obj[key].toVariant();
-    }
-    return QVariant(); // Return null if not found
+    const QJsonObject settings = loadSettingsFile();
+    if (settings.contains(key))
+        return settings[key].toVariant();
+    return QVariant();
 }
 
 void ThemeSettings::saveVariant(const QString& key, const QVariant& value) {
-    QJsonObject obj = loadSettingsFile();
-    if (!value.isValid() || value.isNull()) {
-        obj.remove(key);
-    } else {
-        obj[key] = QJsonValue::fromVariant(value);
-    }
-    saveSettingsFile(obj);
+    QJsonObject settings = loadSettingsFile();
+    if (!value.isValid() || value.isNull())
+        settings.remove(key);
+    else
+        settings[key] = QJsonValue::fromVariant(value);
+    saveSettingsFile(settings);
 }
 
 QVariant ThemeSettings::loadVariant(const QString& key, const QVariant& defaultValue) {
-    QJsonObject obj = loadSettingsFile();
-    if (obj.contains(key)) {
-        return obj[key].toVariant();
-    }
+    const QJsonObject settings = loadSettingsFile();
+    if (settings.contains(key))
+        return settings[key].toVariant();
     return defaultValue;
 }

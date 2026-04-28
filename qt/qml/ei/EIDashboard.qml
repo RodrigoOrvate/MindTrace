@@ -1,5 +1,5 @@
 ﻿// qml/ei/EIDashboard.qml
-// Dashboard Esquiva Inibitória: sidebar + Arena + Gravação + Dados.
+// Inhibitory Avoidance dashboard: sidebar + Arena + Recording + Data.
 
 import QtQuick
 import QtQuick.Controls
@@ -120,7 +120,7 @@ Item {
         function onSessionDataInserted(experimentName, sessionPath) {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show(LanguageManager.tr3("Sessao registrada!", "Session saved!", "Sesion guardada!"))
+                successToast.show(LanguageManager.tr3("Sessão registrada!", "Session saved!", "Sesion guardada!"))
                 innerTabs.currentIndex = 2  // aba Dados
             }
         }
@@ -136,7 +136,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Top bar ──────────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -166,13 +166,13 @@ Item {
             }
         }
 
-        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Body ─────────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Sidebar ──────────────────────────────────────────────────────
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -294,7 +294,7 @@ Item {
                 }
             }
 
-            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Work area ────────────────────────────────────────────────────
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -329,7 +329,7 @@ Item {
                         var ext = meta.extincaoDays || 5
                         var names = [LanguageManager.tr3("Treino", "Training", "Entrenamiento")]
                         for (var i = 1; i <= ext; i++) names.push("E" + i)
-                        if (meta.hasReactivation) names.push(LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"))
+                        if (meta.hasReactivation) names.push(LanguageManager.tr3("Reativação", "Reactivation", "Reactivacion"))
                         names.push(LanguageManager.tr3("Teste", "Test", "Prueba"))
                         dayNames = names
                     }
@@ -345,7 +345,7 @@ Item {
                     anchors.fill: parent
                     currentIndex: 0
 
-                    // Índice 0: placeholder "selecione um experimento"
+                    // Index 0: placeholder "select an experiment"
                     Item {
                         ColumnLayout {
                             anchors.centerIn: parent; spacing: 14
@@ -359,11 +359,11 @@ Item {
                         }
                     }
 
-                    // Índice 1: painel com abas
+                    // Index 1: panel with tabs
                     ColumnLayout {
                         spacing: 0
 
-                        // â"€â"€ Barra de abas interna â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                        // ── Inner tab bar ─────────────────────────────────────────────────
                         Rectangle {
                             Layout.fillWidth: true; height: 42
                             color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -381,7 +381,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravação", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -431,7 +431,7 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // â"€â"€ Tab 0: Arena â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 0: Arena ──────────────────────────────────────────────
                             EIArenaSetup {
                                 id: tabArenaSetup
                                 experimentPath: workArea.selectedPath
@@ -450,7 +450,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 1: Gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 1: Recording ──────────────────────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
@@ -468,7 +468,7 @@ Item {
                                 floorPoints: tabArenaSetup.floorPoints
 
                                 onSessionEnded: {
-                                    // Latência = tempo decorrido até primeira entrada na grade
+                                    // Latency = elapsed time until first entry into the grid zone
                                     var latencia = eiLatencySeconds >= 0 ? eiLatencySeconds : 0
 
                                     eiResultDialog.latencia        = latencia
@@ -496,7 +496,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 2: Dados â€" Layout aparato-específico
+                            // ── Tab 2: Data — apparatus-specific layout
                             DataView {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -510,7 +510,7 @@ Item {
         }
     }
 
-    // â"€â"€ Diálogo de metadados pós-sessão â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Post-session metadata dialog ───────────────────────────────────────────────────
     EIMetadataDialog {
         id: eiResultDialog
         parent: Overlay.overlay
@@ -520,7 +520,7 @@ Item {
         }
     }
 
-    // â"€â"€ Popups de exclusão â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Delete popups ─────────────────────────────────────────────────────────────────
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent; width: 400; height: 200
@@ -598,7 +598,7 @@ Item {
         }
     }
 
-    // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Toasts ─────────────────────────────────────────────────────────────────────────
     Toast { id: successToast }
     Toast { id: errorToast }
 }

@@ -1,19 +1,14 @@
 #include "ExperimentTableModel.h"
 
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QTextStream>
-#include <QDateTime>
-#include <QtGlobal>
 #include <QProcess>
-#include <QCoreApplication>
-#include <QDir>
+#include <QTextStream>
+#include <QtGlobal>
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// Minimal CSV parser (no quoted comma support).
 static QStringList parseCsvLine(const QString &line)
 {
     return line.split(QLatin1Char(','));
@@ -52,26 +47,26 @@ static ExportTheme detectTheme(const QStringList &headers)
 
 static bool isNumericColumn(const QString &header)
 {
-    const QString h = header.toLower();
-    return h.contains(QStringLiteral("(m)"))
-        || h.contains(QStringLiteral("(m/s)"))
-        || h.contains(QStringLiteral("(s)"))
-        || h.contains(QStringLiteral("(min)"))
-        || h.contains(QStringLiteral("distância"))
-        || h.contains(QStringLiteral("velocidade"))
-        || h.contains(QStringLiteral("latência"))
-        || h.contains(QStringLiteral("bouts"))
-        || h == QStringLiteral("di")
-        || h == QStringLiteral("campo");
+    const QString headerLower = header.toLower();
+    return headerLower.contains(QStringLiteral("(m)"))
+        || headerLower.contains(QStringLiteral("(m/s)"))
+        || headerLower.contains(QStringLiteral("(s)"))
+        || headerLower.contains(QStringLiteral("(min)"))
+        || headerLower.contains(QStringLiteral("distância"))
+        || headerLower.contains(QStringLiteral("velocidade"))
+        || headerLower.contains(QStringLiteral("latência"))
+        || headerLower.contains(QStringLiteral("bouts"))
+        || headerLower == QStringLiteral("di")
+        || headerLower == QStringLiteral("campo");
 }
 
 static bool isIntegerColumn(const QString &header)
 {
-    const QString h = header.toLower();
-    return h == QStringLiteral("campo") || h.contains(QStringLiteral("bouts"));
+    const QString headerLower = header.toLower();
+    return headerLower == QStringLiteral("campo") || headerLower.contains(QStringLiteral("bouts"));
 }
 
-// Formata número usando vírgula como separador decimal (compatível com Excel pt-BR)
+/// Format number using comma as decimal separator (Excel pt-BR compatible).
 static QString formatNumericValue(const QString &value, bool integerFormat)
 {
     bool ok = false;
@@ -80,7 +75,6 @@ static QString formatNumericValue(const QString &value, bool integerFormat)
 
     if (integerFormat)
         return QString::number(static_cast<int>(qRound64(num)));
-    // Usa vírgula como separador decimal para Excel pt-BR
     QString formatted = QString::number(num, 'f', 3);
     formatted.replace(QLatin1Char('.'), QLatin1Char(','));
     return formatted;
@@ -164,7 +158,7 @@ void ExperimentTableModel::fetchMore(const QModelIndex &parent)
     const int first = m_loadedRows.size();
 
     beginInsertRows({}, first, first + batch - 1);
-    for (int i = 0; i < batch; ++i)
+    for (int batchIdx = 0; batchIdx < batch; ++batchIdx)
         m_loadedRows.append(m_pendingRows.takeFirst());
     endInsertRows();
 
@@ -198,7 +192,7 @@ void ExperimentTableModel::addRow()
     beginInsertRows({}, row, row);
 
     QStringList emptyRow;
-    for (int i = 0; i < m_headers.size(); ++i)
+    for (int colIdx = 0; colIdx < m_headers.size(); ++colIdx)
         emptyRow.append(QString());
 
     m_loadedRows.append(emptyRow);
@@ -240,24 +234,20 @@ bool ExperimentTableModel::exportCsv(const QString &destPath) const
     file.write("\xEF\xBB\xBF");
     QTextStream out(&file);
 
-    // Escreve cabeçalhos puros
     out << m_headers.join(QLatin1Char(',')) << '\n';
 
-    // Escreve linhas puras
-    QList<QStringList> allRows = m_loadedRows + m_pendingRows;
-    for (const QStringList &row : allRows) {
+    const QList<QStringList> allRows = m_loadedRows + m_pendingRows;
+    for (const QStringList &row : allRows)
         out << row.join(QLatin1Char(',')) << '\n';
-    }
 
     file.close();
 
-    // Busca o script ao lado do exe (instalado) ou em qt/ (desenvolvimento)
+    // Look for the formatting script next to the exe (installed) or in qt/ (dev layout).
     const QString appDir = QCoreApplication::applicationDirPath();
     QString scriptPath = appDir + "/formatar_mindtrace.py";
     if (!QFile::exists(scriptPath))
         scriptPath = QDir::cleanPath(appDir + "/../../qt/formatar_mindtrace.py");
 
-    // Chama o Python que transformará este CSV puro no arquivo final .xlsx com abas
     QProcess::startDetached(QStringLiteral("python"), QStringList() << scriptPath << destPath);
 
     return true;
@@ -269,16 +259,16 @@ void ExperimentTableModel::parseCsvIntoBuffers(const QString &path)
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return;
 
-    QTextStream in(&file);
+    QTextStream csvStream(&file);
 
-    if (!in.atEnd()) {
+    if (!csvStream.atEnd()) {
         beginResetModel();
-        m_headers = parseCsvLine(in.readLine().trimmed());
+        m_headers = parseCsvLine(csvStream.readLine().trimmed());
         endResetModel();
     }
 
-    while (!in.atEnd()) {
-        const QString line = in.readLine().trimmed();
+    while (!csvStream.atEnd()) {
+        const QString line = csvStream.readLine().trimmed();
         if (!line.isEmpty())
             m_pendingRows.append(parseCsvLine(line));
     }

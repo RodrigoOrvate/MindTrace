@@ -1,4 +1,4 @@
-pragma Singleton
+﻿pragma Singleton
 import QtQuick
 
 QtObject {
@@ -39,7 +39,7 @@ QtObject {
         readonly property color surfaceAlt:       "#e0dcd0"     // secondary surface - mais escuro
         readonly property color surfaceDim:       "#ddd8cc"     // input fields, ainda mais escuro
         readonly property color surfaceHover:     "#d5d0c4"     // hover states on rows
-        readonly property color border:           "#c2bcae"     // borders visíveis
+        readonly property color border:           "#c2bcae"     // visible borders
         readonly property color borderLight:      "#cec8bb"     // light borders
 
         readonly property color textPrimary:      "#2a2a2a"
@@ -56,7 +56,7 @@ QtObject {
         readonly property color warning:          "#cc7700"
         readonly property color error:            "#cc2222"
         
-        readonly property color buttonText:       "#e8e8f0"    // texto branco/claro suave (não cega)
+        readonly property color buttonText:       "#e8e8f0"    // soft white/light text (not blinding)
         readonly property color shadowColor:      "#000000"
     }
 

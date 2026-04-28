@@ -16,21 +16,20 @@ Item {
     readonly property color rowEven: ThemeManager.surfaceDim
     readonly property color rowOdd:  ThemeManager.surface
 
-    // ── Mapa reativo de colunas ─────────────────────────────────────
     property var colMap: ({})
 
     function buildColMap() {
         var map = {}
         if (!tableModel) return map
-        for (var i = 0; i < tableModel.columnCount(); i++)
-            map[String(tableModel.headerData(i, Qt.Horizontal, Qt.DisplayRole)).trim()] = i
+        for (var colIdx = 0; colIdx < tableModel.columnCount(); colIdx++)
+            map[String(tableModel.headerData(colIdx, Qt.Horizontal, Qt.DisplayRole)).trim()] = colIdx
         return map
     }
 
     function colOf(name) { return colMap.hasOwnProperty(name) ? colMap[name] : -1 }
     function colOfAny(names) {
-        for (var i = 0; i < names.length; i++) {
-            var idx = colOf(names[i])
+        for (var nameIdx = 0; nameIdx < names.length; nameIdx++) {
+            var idx = colOf(names[nameIdx])
             if (idx >= 0) return idx
         }
         return -1
@@ -61,7 +60,7 @@ Item {
             BusyIndicator { visible: tableModel && tableModel.fetchingMore; running: visible; implicitWidth: 20; implicitHeight: 20 }
             Text {
                 text: tableModel && tableModel.rowCount() > 0
-                      ? tableModel.rowCount() + " registro(s) · Exporte para ver métricas detalhadas"
+                      ? tableModel.rowCount() + " " + LanguageManager.tr3("registro(s)", "record(s)", "registro(s)")
                       : LanguageManager.tr3("Sem dados registrados", "No data recorded", "Sin datos registrados")
                 color: ThemeManager.textTertiary; font.pixelSize: 11
                 Behavior on color { ColorAnimation { duration: 150 } }
@@ -79,29 +78,29 @@ Item {
                 width: Math.max(parent.width, headerRow.implicitWidth)
                 spacing: 0
 
-                // ── Cabeçalho ─────────────────────────────────────
+                // Column headers
                 RowLayout {
                     id: headerRow
                     Layout.fillWidth: true; spacing: 1
 
-                    Rectangle { Layout.preferredWidth: 140; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 120; Layout.minimumWidth: 100; height: 40; color: accentColor
                         Text { anchors.fill: parent; anchors.margins: 8; text: "Vídeo"
                             color: "white"; font.weight: Font.Bold; font.pixelSize: 11; elide: Text.ElideRight } }
-                    Rectangle { Layout.preferredWidth: 90; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 85; Layout.minimumWidth: 75; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Animal", "Animal", "Animal")
                             color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
-                    Rectangle { Layout.preferredWidth: 130; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 110; Layout.minimumWidth: 90; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Object Pair", "Object Pair", "Par de Objetos")
                             color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
-                    Rectangle { Layout.preferredWidth: 70; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 70; Layout.minimumWidth: 60; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Campo", "Field", "Campo")
                             color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
-                    Rectangle { Layout.preferredWidth: 90; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 85; Layout.minimumWidth: 75; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Dia", "Day", "Dia")
                             color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
-                    Rectangle { Layout.preferredWidth: 140; height: 40; color: accentColor
+                    Rectangle { Layout.preferredWidth: 100; Layout.minimumWidth: 85; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Contexto", "Context", "Contexto")
-                            color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
+                            color: "white"; font.weight: Font.Bold; font.pixelSize: 11; elide: Text.ElideRight } }
                     Rectangle {
                         visible: hasTreatment()
                         Layout.fillWidth: true; Layout.minimumWidth: 90; height: 40; color: accentColor
@@ -110,7 +109,7 @@ Item {
                     Item { visible: !hasTreatment(); Layout.fillWidth: true }
                 }
 
-                // ── Dados ─────────────────────────────────────────
+                // Data rows
                 Repeater {
                     model: tableModel
                     delegate: RowLayout {
@@ -119,33 +118,33 @@ Item {
                         Layout.fillWidth: true; spacing: 1
                         readonly property color rowBg: index % 2 === 0 ? rowEven : rowOdd
 
-                        Rectangle { Layout.preferredWidth: 140; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 120; Layout.minimumWidth: 100; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.fill: parent; anchors.margins: 6
-                                text: cellAny(dataRow.index, ["Vídeo", "Video", "Diretorio do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
+                                text: cellAny(dataRow.index, ["Vídeo", "Video", "Diretório do Video", "Diretório do Vídeo", "Video Directory", "Directorio del Video"])
                                 color: ThemeManager.textTertiary; font.pixelSize: 9; elide: Text.ElideLeft
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
-                        Rectangle { Layout.preferredWidth: 90; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 85; Layout.minimumWidth: 75; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Animal"])
                                 color: ThemeManager.textPrimary; font.pixelSize: 12; font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
-                        Rectangle { Layout.preferredWidth: 130; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 110; Layout.minimumWidth: 90; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Par de Objetos", "Object Pair"])
                                 color: ThemeManager.textSecondary; font.pixelSize: 11
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
-                        Rectangle { Layout.preferredWidth: 70; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 70; Layout.minimumWidth: 60; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Campo", "Field"])
                                 color: ThemeManager.textSecondary; font.pixelSize: 11
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
-                        Rectangle { Layout.preferredWidth: 90; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 85; Layout.minimumWidth: 75; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Dia", "Day"])
                                 color: accentColor; font.pixelSize: 11; font.weight: Font.Bold
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
-                        Rectangle { Layout.preferredWidth: 140; height: 36; color: dataRow.rowBg
+                        Rectangle { Layout.preferredWidth: 100; Layout.minimumWidth: 85; height: 36; color: dataRow.rowBg
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Contexto", "Context"])
                                 color: ThemeManager.textSecondary; font.pixelSize: 11; elide: Text.ElideRight
@@ -166,7 +165,7 @@ Item {
         RowLayout {
             spacing: 8
             Text { text: "💡"; font.pixelSize: 12 }
-            Text { text: "Use \"Exportar\" para ver métricas completas: exploração, DI, distância e velocidade."
+            Text { text: LanguageManager.tr3("Use \"Exportar\" para ver metricas completas.", "Use \"Export\" to view full metrics: exploration, DI, distance and speed.", "Use \"Exportar\" para ver metricas completas.")
                 color: ThemeManager.textTertiary; font.pixelSize: 10
                 Behavior on color { ColorAnimation { duration: 150 } } }
         }

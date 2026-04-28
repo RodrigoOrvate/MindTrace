@@ -1,6 +1,6 @@
-// qml/SelectionCard.qml
-// Card de seleção reutilizável (arenas, pares de objetos, etc.)
-// Menor que NORCard; indica seleção com borda accent + check.
+﻿// qml/SelectionCard.qml
+// Reusable selection card (arenas, object pairs, etc.)
+// Smaller than NORCard; indicates selection with accent border + check mark.
 
 import QtQuick
 import QtQuick.Layouts
@@ -13,10 +13,10 @@ Item {
     property string icon:        ""
     property string title:       ""
     property string description: ""
-    property string badge:       ""       // label de badge opcional (ex.: "Treino")
+    property string badge:       ""       // optional badge label (e.g. "Training")
     property color  badgeColor:  ThemeManager.border
     property color  badgeText:   ThemeManager.textSecondary
-    property string events:      ""       // linha de eventos (ex.: "OBJA  •  OBJB")
+    property string events:      ""       // event row text (e.g. "OBJA  u2022  OBJB")
     property bool   selected:    false
 
     signal clicked()
@@ -59,7 +59,7 @@ Item {
             anchors { fill: parent; margins: 18 }
             spacing: 0
 
-            // Ícone
+            // Icon
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: cardRoot.icon
@@ -68,7 +68,7 @@ Item {
 
             Item { Layout.preferredHeight: 10 }
 
-            // Título
+            // Title
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
@@ -83,7 +83,7 @@ Item {
 
             Item { Layout.preferredHeight: 6 }
 
-            // Descrição
+            // Description
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
@@ -97,7 +97,7 @@ Item {
 
             Item { Layout.fillHeight: true }
 
-            // Badge de fase (opcional)
+            // Phase badge (optional)
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
                 visible: cardRoot.badge !== ""
@@ -117,7 +117,7 @@ Item {
                 }
             }
 
-            // Linha de eventos (opcional)
+            // Event row (optional)
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillWidth: true
@@ -133,7 +133,7 @@ Item {
             Item { Layout.preferredHeight: 4 }
         }
 
-        // Check de seleção (canto superior direito)
+        // Selection check mark (top-right corner)
         Rectangle {
             anchors { top: parent.top; right: parent.right; margins: 8 }
             width: 18; height: 18; radius: 9

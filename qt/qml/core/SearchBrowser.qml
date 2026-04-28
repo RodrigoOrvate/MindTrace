@@ -1,7 +1,7 @@
 ﻿// qml/core/SearchBrowser.qml
-// Browser universal de experimentos â€" agrupa NOR e Campo Aberto.
-// Ao selecionar um experimento emite openExperiment(aparato, numCampos, name, path)
-// para que main.qml roteie ao dashboard correto.
+// Universal experiment browser — groups NOR and Open Field.
+// Selecting an experiment emits openExperiment(aparato, numCampos, name, path)
+// so that main.qml routes it to the correct dashboard.
 
 import QtQuick
 import QtQuick.Controls
@@ -77,7 +77,7 @@ Item {
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
 
-    // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Top bar ──────────────────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -109,13 +109,13 @@ Item {
             }
         }
 
-        // â"€â"€ Corpo: sidebar + preview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Body: sidebar + preview ────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Sidebar ─────────────────────────────────────────────────
             Rectangle {
                 width: 300; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -199,7 +199,7 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 200 } }
                             }
 
-                            // Botão Excluir (lixeira) - sempre visível
+                            // Delete button (trash icon) — always visible
                             Rectangle {
                                 id: deleteBtn
                                 anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
@@ -265,12 +265,12 @@ Item {
                 }
             }
 
-            // â"€â"€ Painel de preview / abertura â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Preview / open panel ──────────────────────────────────────
             Item {
                 id: previewContainer
                 Layout.fillWidth: true; Layout.fillHeight: true
 
-                // Valores temporários para o experimento selecionado
+                // Temporary values for the selected experiment
                 property string previewAparatoVal:   "nor"
                 property int    previewNumCamposVal: 3
                 property string previewPathVal:      ""
@@ -382,9 +382,9 @@ Item {
         }
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusão â€" passo 1
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ══════════════════════════════════════════════════════════════════════
+    // Popup: confirm deletion — step 1
+    // ══════════════════════════════════════════════════════════════════════
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
@@ -411,7 +411,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: LanguageManager.tr3("Tem certeza que deseja excluir\n\"", "Are you sure you want to delete\n\"", "Seguro que desea eliminar\n\"") + root.pendingDeleteName + "\"?\n\n" + LanguageManager.tr3("Esta acao e irreversivel.", "This action is irreversible.", "Esta accion es irreversible.")
+                text: LanguageManager.tr3("Tem certeza que deseja excluir\n\"", "Are you sure you want to delete\n\"", "Seguro que desea eliminar\n\"") + root.pendingDeleteName + "\"?\n\n" + LanguageManager.tr3("Esta ação e irreversivel.", "This action is irreversible.", "Esta accion es irreversible.")
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
@@ -435,9 +435,9 @@ Item {
         }
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Popup: confirmar exclusão â€" passo 2
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ══════════════════════════════════════════════════════════════════════
+    // Popup: confirm deletion — step 2
+    // ══════════════════════════════════════════════════════════════════════
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent
@@ -461,7 +461,7 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
             spacing: 14
 
-            Text { text: LanguageManager.tr3("Confirmacao Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
+            Text { text: LanguageManager.tr3("Confirmação Final", "Final Confirmation", "Confirmacion Final"); color: ThemeManager.textPrimary; font.pixelSize: 16; font.weight: Font.Bold; Behavior on color { ColorAnimation { duration: 150 } } }
 
             Text {
                 Layout.fillWidth: true
@@ -469,7 +469,7 @@ Item {
                 color: ThemeManager.textSecondary; font.pixelSize: 13; wrapMode: Text.WordWrap; Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Nome em destaque â€" igual ao GitHub: "Digite exatamente: NomeDoExperimento"
+            // Highlighted name — same UX as GitHub: "Type exactly: ExperimentName"
             Rectangle {
                 Layout.fillWidth: true
                 height: nameLabel.implicitHeight + 10

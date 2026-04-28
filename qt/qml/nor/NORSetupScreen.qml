@@ -19,11 +19,11 @@ Item {
     property var    contextPatterns: []
     property int    numCampos: 3
 
-    // name, cols, par por campo, flag droga, responsavel, dayNames, savePath
+    // name, cols, par por campo, flag droga, responsável, dayNames, savePath
     signal experimentReady(string name, var cols, string pair1, string pair2, string pair3, bool includeDrug, string responsibleUsername, var dayNames, string savePath)
     signal backRequested()
 
-    // Par selecionado por campo — string de 2 letras (ex.: "AB", "AA") ou "" se não definido.
+    // Selected pair per field — 2-letter string (e.g. "AB", "AA"), or "" if not set.
     property string campo1Id: camposMulti.pair1
     property string campo2Id: camposMulti.pair2
     property string campo3Id: camposMulti.pair3
@@ -87,17 +87,17 @@ Item {
 
     function doCreate() {
         var cols = [
-            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Diretório do Video", "Video Directory", "Directorio del Video"),
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
             LanguageManager.tr3("Contexto", "Context", "Contexto"),
             LanguageManager.tr3("Par de Objetos", "Object Pair", "Par de Objetos"),
-            LanguageManager.tr3("Exploracao Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
+            LanguageManager.tr3("Exploração Obj1 (s)", "Obj1 Exploration (s)", "Exploracion Obj1 (s)"),
             LanguageManager.tr3("Bouts Obj1", "Obj1 Bouts", "Bouts Obj1"),
-            LanguageManager.tr3("Exploracao Obj2 (s)", "Obj2 Exploration (s)", "Exploracion Obj2 (s)"),
+            LanguageManager.tr3("Exploração Obj2 (s)", "Obj2 Exploration (s)", "Exploracion Obj2 (s)"),
             LanguageManager.tr3("Bouts Obj2", "Obj2 Bouts", "Bouts Obj2"),
-            LanguageManager.tr3("Exploracao Total (s)", "Total Exploration (s)", "Exploracion Total (s)"),
+            LanguageManager.tr3("Exploração Total (s)", "Total Exploration (s)", "Exploracion Total (s)"),
             "DI",
             LanguageManager.tr3("Distancia (m)", "Distance (m)", "Distancia (m)"),
             LanguageManager.tr3("Velocidade (m/s)", "Speed (m/s)", "Velocidad (m/s)")
@@ -145,7 +145,7 @@ Item {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
+                    text: LanguageManager.tr3("Configuração do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -164,7 +164,7 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Formulário central ────────────────────────────────────────────
+        // ── Main form ──────────────────────────────────────────────────────
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
@@ -360,7 +360,7 @@ Item {
                             }
                         }
                         Text {
-                            text: "Recomendado: informe um responsavel sempre que houver usuario disponivel."
+                            text: "Recomendado: informe um responsável sempre que houver usuário disponível."
                             color: "#d8c26a"; font.pixelSize: 11
                             wrapMode: Text.Wrap
                         }
@@ -370,7 +370,7 @@ Item {
                     text: root.responsibleUnknown
                           ? "Responsavel sera salvo como \"desconhecido\"."
                           : (ExperimentManager.researcherUsers.length === 0
-                             ? "Nenhum pesquisador disponivel. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuarios nao-admin ativos."
+                             ? "Nenhum pesquisador disponível. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuários não-admin ativos."
                              : "Responsavel registrado no metadata e sincronizado no historico.")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
@@ -544,7 +544,7 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Rodapé + botão ────────────────────────────────────────────────
+        // ── Footer + button ─────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 

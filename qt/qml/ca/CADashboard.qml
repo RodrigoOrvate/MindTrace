@@ -1,5 +1,5 @@
 ﻿// qml/ca/CADashboard.qml
-// Dashboard Campo Aberto: sidebar de experimentos + análise de habituação.
+// Open Field dashboard: experiment sidebar + habituation analysis.
 
 import QtQuick
 import QtQuick.Controls
@@ -110,7 +110,7 @@ Item {
         function onSessionDataInserted(experimentName, sessionPath) {
             if (workArea.selectedName === experimentName) {
                 tableModel.loadCsv(workArea.selectedPath + "/tracking_data.csv")
-                successToast.show(LanguageManager.tr3("Sessao registrada!", "Session saved!", "Sesion guardada!"))
+                successToast.show(LanguageManager.tr3("Sessão registrada!", "Session saved!", "Sesion guardada!"))
                 innerTabs.currentIndex = 1
             }
         }
@@ -126,7 +126,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // â"€â"€ Barra superior â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Top bar ──────────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             height: 56; color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -171,13 +171,13 @@ Item {
             }
         }
 
-        // â"€â"€ Corpo â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        // ── Body ─────────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            // â"€â"€ Sidebar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Sidebar ──────────────────────────────────────────────────────
             Rectangle {
                 width: 250; Layout.fillHeight: true
                 color: ThemeManager.surface; Behavior on color { ColorAnimation { duration: 200 } }
@@ -298,7 +298,7 @@ Item {
                 }
             }
 
-            // â"€â"€ Área de trabalho â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+            // ── Work area ────────────────────────────────────────────────────
             Item {
                 id: workArea
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -329,7 +329,7 @@ Item {
                     hasReactivation = meta.hasReactivation === true
                     contextPatterns = meta.contextPatterns || []
                     dayNames        = meta.dayNames || (meta.hasReactivation
-                                      ? [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Reativacao", "Reactivation", "Reactivacion"), LanguageManager.tr3("Teste", "Test", "Prueba")]
+                                      ? [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Reativação", "Reactivation", "Reactivacion"), LanguageManager.tr3("Teste", "Test", "Prueba")]
                                       : [LanguageManager.tr3("Treino", "Training", "Entrenamiento"), LanguageManager.tr3("Teste", "Test", "Prueba")])
                     activeNumCampos = meta.numCampos || root.numCampos
 
@@ -373,7 +373,7 @@ Item {
                         }
                     }
 
-                    // 1: Experimento (tab bar + conteúdo)
+                    // 1: Experiment panel (tab bar + content)
                     ColumnLayout {
                         spacing: 0
 
@@ -392,7 +392,7 @@ Item {
                                 Repeater {
                                     id: innerTabs
                                     property int currentIndex: 0
-                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravacao", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
+                                    model: ["🗺 " + LanguageManager.tr3("Arena", "Arena", "Arena"), "🎬 " + LanguageManager.tr3("Gravação", "Recording", "Grabacion"), "📊 " + LanguageManager.tr3("Dados", "Data", "Datos")]
 
                                     delegate: Item {
                                         id: tabItem
@@ -441,9 +441,9 @@ Item {
                             Layout.fillWidth: true; Layout.fillHeight: true
                             currentIndex: innerTabs.currentIndex
 
-                            // â"€â"€ Tab 0: Arena â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 0: Arena ──────────────────────────────────────────────────
                             Item {
-                                // ArenaSetup padrão â€" 2 ou 3 campos
+                                // Standard ArenaSetup — 2 or 3 fields
                                 ArenaSetup {
                                     id: tabArenaSetup
                                     anchors.fill: parent
@@ -472,7 +472,7 @@ Item {
                                     }
                                 }
 
-                                // EIArenaSetup â€" 1 campo (arena EI adaptada para CA)
+                                // EIArenaSetup — 1 field (EI arena adapted for CA)
                                 EIArenaSetup {
                                     id: eiArenaSetupCA
                                     anchors.fill: parent
@@ -496,7 +496,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 1: Gravação â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+                            // ── Tab 1: Recording ───────────────────────────────────────────
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
@@ -518,7 +518,7 @@ Item {
                                     return m.centroRatio || 0.5
                                 })()
 
-                                // Atualiza zonas, arena e chão ao vivo quando a config é salva
+                                // Update zones, arena and floor live when config is saved
                                 Connections {
                                     target: ArenaConfigModel
                                     function onConfigChanged() {
@@ -564,7 +564,7 @@ Item {
                                 }
                             }
 
-                            // â"€â"€ Tab 2: Dados â€" Layout aparato-específico
+                            // ── Tab 2: Data — apparatus-specific layout
                             DataView {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -578,7 +578,7 @@ Item {
         }
     }
 
-    // â"€â"€ Diálogo de resultado CA â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── CA result dialog ──────────────────────────────────────────────────────────────
     CAMetadataDialog {
         id: caResultDialog
         parent: Overlay.overlay
@@ -586,11 +586,11 @@ Item {
         contextPatterns: workArea.contextPatterns
     }
 
-    // â"€â"€ Toasts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Toasts ─────────────────────────────────────────────────────────────────────────
     Toast { id: successToast; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
     Toast { id: errorToast;   anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 16 } }
 
-    // â"€â"€ Popup delete â€" Passo 1 â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Delete popup — Step 1 ────────────────────────────────────────────────────────
     Popup {
         id: deleteStep1Popup
         anchors.centerIn: parent
@@ -623,7 +623,7 @@ Item {
         }
     }
 
-    // â"€â"€ Popup delete â€" Passo 2 (Confirmar digitando o nome) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // ── Delete popup — Step 2 (confirm by typing name) ──────────────────────────────
     Popup {
         id: deleteStep2Popup
         anchors.centerIn: parent

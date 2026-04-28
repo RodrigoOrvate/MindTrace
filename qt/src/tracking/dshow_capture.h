@@ -1,17 +1,18 @@
 #pragma once
 
-#include <QString>
-#include <QList>
 #include <QImage>
+#include <QList>
+#include <QString>
 #include <functional>
 
+/// Metadata for a DirectShow video capture device discovered by DShowCapture::enumerateInputs().
 struct DShowVideoInput
 {
     QString name;
     QString monikerDisplayName;
-    bool isHauppauge = false;
-    bool hasComposite = false;
-    bool hasSVideo = false;
+    bool    isHauppauge  = false;
+    bool    hasComposite = false;
+    bool    hasSVideo    = false;
 };
 
 class DShowCapture

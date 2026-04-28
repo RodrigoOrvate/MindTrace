@@ -1,4 +1,4 @@
-// qml/shared/GenericDataView.qml
+﻿// qml/shared/GenericDataView.qml
 // Fallback data view for unrecognized apparatus types.
 
 import QtQuick
@@ -28,7 +28,7 @@ Item {
         anchors { fill: parent; margins: 24 }
         spacing: 16
 
-        // ── Sumário ───────────────────────────────────────────────
+        // ── Summary ─────────────────────────────────────────────────────
         RowLayout {
             spacing: 8
             BusyIndicator {
@@ -37,15 +37,15 @@ Item {
             }
             Text {
                 text: tableModel && tableModel.rowCount() > 0
-                      ? tableModel.rowCount() + " registro(s)"
-                      : "Sem dados registrados"
+                      ? tableModel.rowCount() + " " + LanguageManager.tr3("registro(s)", "record(s)", "registro(s)")
+                      : LanguageManager.tr3("Sem dados registrados", "No records", "Sin datos registrados")
                 color: ThemeManager.textTertiary; font.pixelSize: 11
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
             Item { Layout.fillWidth: true }
         }
 
-        // ── Tabela dinâmica ────────────────────────────────────────
+        // ── Dynamic table ────────────────────────────────────────────────
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -57,7 +57,7 @@ Item {
                 width: Math.max(parent.width, headerRow.implicitWidth)
                 spacing: 0
 
-                // Cabeçalho dinâmico
+                // Dynamic header
                 RowLayout {
                     id: headerRow
                     Layout.fillWidth: true
@@ -111,7 +111,7 @@ Item {
         }
 
         Text {
-            text: "📊 Dados do experimento — formato genérico."
+            text: "📊 " + LanguageManager.tr3("Dados do experimento", "Experiment data", "Datos del experimento")
             color: ThemeManager.textTertiary; font.pixelSize: 9
             Behavior on color { ColorAnimation { duration: 150 } }
         }

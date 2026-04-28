@@ -1,4 +1,4 @@
-pragma Singleton
+﻿pragma Singleton
 import QtQuick
 
 QtObject {
@@ -83,8 +83,8 @@ QtObject {
 
     // ── INITIALIZATION ─────────────────────────────────────────────────
     Component.onCompleted: {
-        // Não carrega preferência salva — dark mode é sempre o padrão.
-        // Se quiser persistência futura, reabilite loadThemePreference() aqui.
+        // Does not load saved preference — dark mode is always the default.
+        // To enable persistence in future, re-enable loadThemePreference() here.
         manager.updatePalette()
     }
 }

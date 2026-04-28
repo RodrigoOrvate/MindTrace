@@ -1,7 +1,8 @@
 ﻿#include "ExperimentManager.h"
 
-#include <QDateTime>
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -15,7 +16,6 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QUrl>
-#include <QCryptographicHash>
 
 namespace {
 
@@ -40,22 +40,22 @@ void upsertRegistryEntry(const QString& regPath,
                          const QString& path)
 {
     QJsonArray arr = loadRegistryArray(regPath);
-    bool updated = false;
-    for (int i = 0; i < arr.size(); ++i) {
-        QJsonObject obj = arr[i].toObject();
-        if (obj["context"].toString() == context && obj["name"].toString() == name) {
-            obj["path"] = path;
-            arr[i] = obj;
-            updated = true;
+    bool found = false;
+    for (int entryIdx = 0; entryIdx < arr.size(); ++entryIdx) {
+        QJsonObject registryEntry = arr[entryIdx].toObject();
+        if (registryEntry["context"].toString() == context && registryEntry["name"].toString() == name) {
+            registryEntry["path"] = path;
+            arr[entryIdx] = registryEntry;
+            found = true;
             break;
         }
     }
-    if (!updated) {
-        QJsonObject obj;
-        obj["name"] = name;
-        obj["context"] = context;
-        obj["path"] = path;
-        arr.append(obj);
+    if (!found) {
+        QJsonObject registryEntry;
+        registryEntry["name"] = name;
+        registryEntry["context"] = context;
+        registryEntry["path"] = path;
+        arr.append(registryEntry);
     }
     saveRegistryArray(regPath, arr);
 }
@@ -194,14 +194,11 @@ QStringList          ExperimentManager::researcherUsers() const { return m_resea
 
 QString ExperimentManager::basePath() const
 {
-    // Localiza a pasta "Meus Documentos" do usuÃƒÂ¡rio
-    QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    
-    // Define o novo caminho unificado
+    const QString docsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     return docsPath + QStringLiteral("/MindTrace_Data/Experimentos");
 }
 
-// Varre o diretÃƒÂ³rio do contexto ativo e atualiza o modelo Ã¢â‚¬â€ sempre executa.
+// Scans the active context directory; always executes regardless of aparato filter.
 void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
 {
     QStringList names, paths, contexts, aparatos, responsibles;
@@ -210,11 +207,11 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
         QFile regFile(basePath() + QStringLiteral("/registry.json"));
         if (regFile.open(QIODevice::ReadOnly)) {
             const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-            for (const auto& v : arr) {
-                const QJsonObject obj = v.toObject();
-                if (obj["context"].toString() == m_activeContext) {
-                    const QString regPath = obj["path"].toString().trimmed();
-                    const QString regName = obj["name"].toString().trimmed();
+            for (const auto& registryValue : arr) {
+                const QJsonObject registryObject = registryValue.toObject();
+                if (registryObject["context"].toString() == m_activeContext) {
+                    const QString regPath = registryObject["path"].toString().trimmed();
+                    const QString regName = registryObject["name"].toString().trimmed();
                     if (!regPath.isEmpty() && !regName.isEmpty())
                         registryNameByPath.insert(regPath, regName);
                 }
@@ -242,7 +239,7 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
         }
     };
 
-    // 1. Pastas do diretÃƒÂ³rio padrÃƒÂ£o
+    // 1. Standard-path subfolders.
     const QString contextPath = basePath() + QLatin1Char('/') + m_activeContext;
     QDir dir(contextPath);
     if (dir.exists()) {
@@ -252,7 +249,7 @@ void ExperimentManager::scanAndUpdateModel(const QString &aparatoFilter)
         }
     }
 
-    // 2. Experimentos em diretÃƒÂ³rios livres (registry)
+    // 2. External-path experiments from registry.
     for (auto it = registryNameByPath.cbegin(); it != registryNameByPath.cend(); ++it)
         checkAndAdd(it.value(), it.key(), m_activeContext);
 
@@ -274,12 +271,12 @@ void ExperimentManager::loadContext(const QString &context, const QString &apara
 
 bool ExperimentManager::createExperiment(const QString &name)
 {
-    // Delega para o mÃƒÂ©todo completo com colunas padrÃƒÂ£o
-    QStringList defaultCols;
-    defaultCols << QStringLiteral("Animal ID")
-                << QStringLiteral("Grupo")
-                << QStringLiteral("SessÃƒÂ£o")
-                << QStringLiteral("VÃƒÂ­deo");
+    const QStringList defaultCols = {
+        QStringLiteral("Animal ID"),
+        QStringLiteral("Grupo"),
+        QStringLiteral("Sessão"),
+        QStringLiteral("Video"),
+    };
     return createExperimentWithConfig(name, 1, defaultCols);
 }
 
@@ -288,7 +285,7 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
                                                     const QStringList &columns)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
-        emit errorOccurred(QStringLiteral("Contexto ou nome invÃƒÂ¡lido."));
+        emit errorOccurred(QStringLiteral("Contexto ou nome invalido."));
         return false;
     }
     if (columns.isEmpty()) {
@@ -312,15 +309,12 @@ bool ExperimentManager::createExperimentWithConfig(const QString    &name,
 
     QDir dir;
     if (!dir.mkpath(folderPath)) {
-        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel criar a pasta: ") + folderPath);
+        emit errorOccurred(QStringLiteral("Nao foi possivel criar a pasta: ") + folderPath);
         return false;
     }
 
-    // Keep provided headers as-is (supports PT/EN/ES i18n exports).
-    QStringList norms = columns;
-
-    writeMetadata(folderPath, trimmedName, animalCount, norms);
-    writeCsv(folderPath, norms, animalCount);
+    writeMetadata(folderPath, trimmedName, animalCount, columns);
+    writeCsv(folderPath, columns, animalCount);
 
     scanAndUpdateModel();
     emit experimentCreated(trimmedName, folderPath);
@@ -341,10 +335,10 @@ QString ExperimentManager::experimentPath(const QString &name, const QString &co
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
     if (regFile.open(QIODevice::ReadOnly)) {
         QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (int i = 0; i < arr.size(); ++i) {
-            QJsonObject obj = arr[i].toObject();
-            if (obj["context"].toString() == effectiveContext && obj["name"].toString() == name) {
-                return obj["path"].toString();
+        for (int entryIdx = 0; entryIdx < arr.size(); ++entryIdx) {
+            const QJsonObject registryEntry = arr[entryIdx].toObject();
+            if (registryEntry["context"].toString() == effectiveContext && registryEntry["name"].toString() == name) {
+                return registryEntry["path"].toString();
             }
         }
     }
@@ -359,14 +353,13 @@ bool ExperimentManager::deleteExperiment(const QString &name, const QString &con
     QString effectiveContext = context.isEmpty() ? m_activeContext : context;
 
     if (trimmed.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Nome invÃ¡lido."));
+        emit errorOccurred(QStringLiteral("Nome invalido."));
         return false;
     }
 
-    // Usa experimentPath() para encontrar o caminho real (padrÃ£o ou registry)
     const QString folderPath = experimentPath(trimmed, effectiveContext);
     if (folderPath.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Experimento nÃ£o encontrado: ") + trimmed);
+        emit errorOccurred(QStringLiteral("Experimento nao encontrado: ") + trimmed);
         return false;
     }
 
@@ -381,7 +374,7 @@ bool ExperimentManager::deleteExperiment(const QString &name, const QString &con
 
     triggerAnimalLifecycleDeletionAudit(trimmed, folderPath, effectiveContext);
     if (!dir.removeRecursively()) {
-        emit errorOccurred(QStringLiteral("NÃ£o foi possÃ­vel excluir (pode estar em uso): ") + trimmed);
+        emit errorOccurred(QStringLiteral("Nao foi possivel excluir (pode estar em uso): ") + trimmed);
         return false;
     }
 
@@ -405,12 +398,11 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
     const QString csvPath = experimentPath(trimmed)
                             + QStringLiteral("/tracking_data.csv");
 
-    {   // Escopo garante que QFile ÃƒÂ© *fechado* (nÃƒÂ£o apenas flushed) ANTES do sinal.
-        // ~QTextStream() faz flush para o buffer do QFile; ~QFile() faz flush + close
-        // para o OS. SÃƒÂ³ entÃƒÂ£o loadCsv() enxerga as linhas novas em disco.
+    {   // RAII scope: ~QTextStream flushes to QFile buffer; ~QFile closes and flushes to OS.
+        // Only after both destructors run does loadCsv() see the new rows on disk.
         QFile file(csvPath);
         if (!file.open(QIODevice::Append | QIODevice::Text)) {
-            emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir o CSV: ") + csvPath);
+            emit errorOccurred(QStringLiteral("Não foi possível abrir o CSV: ") + csvPath);
             return false;
         }
         QTextStream out(&file);
@@ -420,7 +412,7 @@ bool ExperimentManager::insertSessionResult(const QString &experimentName,
             if (!cols.isEmpty())
                 out << cols.join(QLatin1Char(',')) << QLatin1Char('\n');
         }
-    }   // out destruÃƒÂ­do Ã¢â€ â€™ flush ao QFile; file destruÃƒÂ­do Ã¢â€ â€™ close + flush ao OS
+    }   // RAII: ~QTextStream flushes to QFile buffer; ~QFile closes and flushes to OS.
 
     emit sessionDataInserted(trimmed);
     return true;
@@ -445,14 +437,14 @@ bool ExperimentManager::insertBehaviorResult(const QString &experimentName,
     {
         QFile file(csvPath);
         if (!file.open(QIODevice::Append | QIODevice::Text)) {
-            emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir o CSV: ") + csvPath);
+            emit errorOccurred(QStringLiteral("Não foi possível abrir o CSV: ") + csvPath);
             return false;
         }
-        
+
         if (isNew) {
-            file.write("\xEF\xBB\xBF"); // BOM para Excel
+            file.write("\xEF\xBB\xBF"); // UTF-8 BOM for Excel
             QTextStream header(&file);
-            header << "Video,Animal,Campo,Comportamento,Tempo (s),Sessao (%)\n";
+            header << "Video,Animal,Campo,Comportamento,Tempo (s),Sessão (%)\n";
         }
         
         QTextStream out(&file);
@@ -483,7 +475,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
                                                int                sessionDays)
 {
     if (m_activeContext.isEmpty() || name.trimmed().isEmpty()) {
-        emit errorOccurred(QStringLiteral("Contexto ou nome invÃƒÂ¡lido."));
+        emit errorOccurred(QStringLiteral("Contexto ou nome invalido."));
         return false;
     }
     if (columns.isEmpty()) {
@@ -493,7 +485,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
 
     const QString trimmedName = name.trimmed();
     QString folderPath;
-    
+
     if (savePath.isEmpty()) {
         const QString contextRoot = basePath() + QLatin1Char('/') + m_activeContext;
         if (experimentExists(m_activeContext, trimmedName)) {
@@ -518,7 +510,7 @@ bool ExperimentManager::createExperimentFull(const QString    &name,
 
     QDir dir;
     if (!dir.mkpath(folderPath)) {
-        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel criar a pasta: ") + folderPath);
+        emit errorOccurred(QStringLiteral("Nao foi possivel criar a pasta: ") + folderPath);
         return false;
     }
 
@@ -545,11 +537,11 @@ void ExperimentManager::loadAllContexts(const QString &aparatoFilter)
         QFile regFile(basePath() + QStringLiteral("/registry.json"));
         if (regFile.open(QIODevice::ReadOnly)) {
             const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-            for (const auto& v : arr) {
-                const QJsonObject obj = v.toObject();
-                const QString regPath = obj["path"].toString().trimmed();
-                const QString regName = obj["name"].toString().trimmed();
-                const QString regCtx  = obj["context"].toString().trimmed();
+            for (const auto& registryValue : arr) {
+                const QJsonObject registryObject = registryValue.toObject();
+                const QString regPath = registryObject["path"].toString().trimmed();
+                const QString regName = registryObject["name"].toString().trimmed();
+                const QString regCtx  = registryObject["context"].toString().trimmed();
                 if (!regPath.isEmpty()) {
                     if (!regName.isEmpty()) registryNameByPath.insert(regPath, regName);
                     if (!regCtx.isEmpty())  registryContextByPath.insert(regPath, regCtx);
@@ -615,8 +607,8 @@ void ExperimentManager::setActiveContext(const QString &context)
         m_activeContext = context;
         emit activeContextChanged();
         
-        // Se NÃƒÆ’O estivermos em modo de pesquisa, trocamos a sidebar para mostrar apenas esse contexto.
-        // Se ESTIVERMOS em modo pesquisa, mantemos a lista global (resultados da busca).
+        // Outside search mode: refresh sidebar to this context only.
+        // In search mode: keep the global search results as-is.
         if (!m_inSearchMode && !m_activeContext.isEmpty()) {
             scanAndUpdateModel();
         }
@@ -631,10 +623,10 @@ bool ExperimentManager::experimentExists(const QString &context, const QString &
     QFile regFile(basePath() + QStringLiteral("/registry.json"));
     if (regFile.open(QIODevice::ReadOnly)) {
         const QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
-        for (const auto& v : arr) {
-            const QJsonObject obj = v.toObject();
-            if (obj["context"].toString() == context
-                && obj["name"].toString() == trimmedName) {
+        for (const auto& registryValue : arr) {
+            const QJsonObject registryObject = registryValue.toObject();
+            if (registryObject["context"].toString() == context
+                && registryObject["name"].toString() == trimmedName) {
                 return true;
             }
         }
@@ -708,14 +700,14 @@ QVariantMap ExperimentManager::readMetadataFromPath(const QString &folderPath) c
     if (obj.contains(QStringLiteral("contextPatterns"))) {
         QVariantList patterns;
         const QJsonArray arr = obj[QStringLiteral("contextPatterns")].toArray();
-        for (const QJsonValue &v : arr) patterns.append(v.toString());
+        for (const QJsonValue &jsonValue : arr) patterns.append(jsonValue.toString());
         result[QStringLiteral("contextPatterns")] = patterns;
     }
     if (obj.contains(QStringLiteral("dayNames"))) {
         const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
-        QStringList names;
-        for (const QJsonValue &v : arr) names.append(v.toString());
-        result[QStringLiteral("dayNames")] = names;
+        QStringList dayNameList;
+        for (const QJsonValue &jsonValue : arr) dayNameList.append(jsonValue.toString());
+        result[QStringLiteral("dayNames")] = dayNameList;
     }
     return result;
 }
@@ -774,14 +766,14 @@ QVariantMap ExperimentManager::readMetadata(const QString &name) const
     if (obj.contains(QStringLiteral("contextPatterns"))) {
         QVariantList patterns;
         const QJsonArray arr = obj[QStringLiteral("contextPatterns")].toArray();
-        for (const QJsonValue &v : arr) patterns.append(v.toString());
+        for (const QJsonValue &jsonValue : arr) patterns.append(jsonValue.toString());
         result[QStringLiteral("contextPatterns")] = patterns;
     }
     if (obj.contains(QStringLiteral("dayNames"))) {
         const QJsonArray arr = obj[QStringLiteral("dayNames")].toArray();
-        QStringList names;
-        for (const QJsonValue &v : arr) names.append(v.toString());
-        result[QStringLiteral("dayNames")] = names;
+        QStringList dayNameList;
+        for (const QJsonValue &jsonValue : arr) dayNameList.append(jsonValue.toString());
+        result[QStringLiteral("dayNames")] = dayNameList;
     }
     return result;
 }
@@ -794,13 +786,13 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
     const QString metaPath = folderPath + QStringLiteral("/metadata.json");
     QFile file(metaPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel abrir metadata.json: ") + metaPath);
+        emit errorOccurred(QStringLiteral("Nao foi possivel abrir metadata.json: ") + metaPath);
         return false;
     }
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
     if (!doc.isObject()) {
-        emit errorOccurred(QStringLiteral("metadata.json invÃƒÂ¡lido: ") + metaPath);
+        emit errorOccurred(QStringLiteral("metadata.json invalido: ") + metaPath);
         return false;
     }
 
@@ -810,7 +802,7 @@ bool ExperimentManager::updatePairs(const QString &folderPath,
     obj[QStringLiteral("pair3")] = pair3;
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel salvar metadata.json: ") + metaPath);
+        emit errorOccurred(QStringLiteral("Nao foi possivel salvar metadata.json: ") + metaPath);
         return false;
     }
     file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
@@ -840,7 +832,7 @@ bool ExperimentManager::saveSessionMetadata(const QString &experimentName,
 {
     const QString folderPath = experimentPath(experimentName.trimmed());
     if (folderPath.isEmpty()) {
-        emit errorOccurred(QStringLiteral("Experimento nÃƒÂ£o encontrado: ") + experimentName);
+        emit errorOccurred(QStringLiteral("Experimento nao encontrado: ") + experimentName);
         return false;
     }
 
@@ -855,7 +847,7 @@ bool ExperimentManager::saveSessionMetadata(const QString &experimentName,
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit errorOccurred(QStringLiteral("NÃƒÂ£o foi possÃƒÂ­vel salvar metadados da sessÃƒÂ£o: ") + filePath);
+        emit errorOccurred(QStringLiteral("Nao foi possivel salvar metadados da sessao: ") + filePath);
         return false;
     }
     file.write(jsonData.toUtf8());
@@ -874,11 +866,11 @@ QString ExperimentManager::readDotEnvValue(const QString &key) const
 
     auto appendCandidates = [&](const QString &startPath) {
         QString probe = startPath;
-        for (int i = 0; i < 6; ++i) {
+        for (int depth = 0; depth < 6; ++depth) {
             candidates.append(QDir(probe).filePath("animal-lifecycle-platform/backend/.env"));
-            QDir d(probe);
-            if (!d.cdUp()) break;
-            probe = d.absolutePath();
+            QDir upDir(probe);
+            if (!upDir.cdUp()) break;
+            probe = upDir.absolutePath();
         }
     };
 
@@ -929,13 +921,13 @@ void ExperimentManager::refreshResearchers()
     const QString syncUrl = qEnvironmentVariable("MINDTRACE_SYNC_URL", "http://127.0.0.1:8000").trimmed();
     const QUrl base(syncUrl);
     if (!isSafeLocalSyncUrl(base)) {
-        qWarning() << "[SYNC] URL bloqueada por seguranca (somente loopback local):" << syncUrl;
+        qWarning() << "[SYNC] URL blocked (loopback-only policy):" << syncUrl;
         return;
     }
 
     const QString syncSecret = resolveSyncSecret();
     if (syncSecret.isEmpty()) {
-        qWarning() << "[SYNC] Segredo de sync ausente (MINDTRACE_SYNC_SECRET/SYNC_SECRET/.env). Consulta de pesquisadores abortada.";
+        qWarning() << "[SYNC] Sync secret missing (MINDTRACE_SYNC_SECRET/SYNC_SECRET/.env). Researcher query aborted.";
         return;
     }
 
@@ -966,27 +958,27 @@ void ExperimentManager::refreshResearchers()
             return;
         }
 
-        QStringList next;
-        QHash<QString, QString> nextFullNames;
+        QStringList fetchedUsers;
+        QHash<QString, QString> fetchedFullNames;
         const QJsonDocument doc = QJsonDocument::fromJson(response);
         if (doc.isArray()) {
             const QJsonArray arr = doc.array();
-            for (const QJsonValue &value : arr) {
-                const QJsonObject obj = value.toObject();
-                const QString username = obj.value(QStringLiteral("username")).toString().trimmed();
-                const QString fullName = obj.value(QStringLiteral("full_name")).toString().trimmed();
+            for (const QJsonValue &researcherValue : arr) {
+                const QJsonObject researcherObj = researcherValue.toObject();
+                const QString username = researcherObj.value(QStringLiteral("username")).toString().trimmed();
+                const QString fullName = researcherObj.value(QStringLiteral("full_name")).toString().trimmed();
                 if (!username.isEmpty()) {
-                    next.append(username);
-                    nextFullNames.insert(username, fullName.isEmpty() ? username : fullName);
+                    fetchedUsers.append(username);
+                    fetchedFullNames.insert(username, fullName.isEmpty() ? username : fullName);
                 }
             }
         }
-        next.removeDuplicates();
-        next.sort(Qt::CaseInsensitive);
+        fetchedUsers.removeDuplicates();
+        fetchedUsers.sort(Qt::CaseInsensitive);
 
-        if (next != m_researcherUsers || nextFullNames != m_researcherFullNames) {
-            m_researcherUsers = next;
-            m_researcherFullNames = nextFullNames;
+        if (fetchedUsers != m_researcherUsers || fetchedFullNames != m_researcherFullNames) {
+            m_researcherUsers = fetchedUsers;
+            m_researcherFullNames = fetchedFullNames;
             emit researcherUsersChanged();
         }
         reply->deleteLater();
@@ -1053,9 +1045,9 @@ QByteArray ExperimentManager::computeHmacSha256(const QByteArray &key, const QBy
 
     QByteArray oKeyPad(blockSize, char(0x5c));
     QByteArray iKeyPad(blockSize, char(0x36));
-    for (int i = 0; i < blockSize; ++i) {
-        oKeyPad[i] = oKeyPad[i] ^ normalizedKey[i];
-        iKeyPad[i] = iKeyPad[i] ^ normalizedKey[i];
+    for (int byteIdx = 0; byteIdx < blockSize; ++byteIdx) {
+        oKeyPad[byteIdx] = oKeyPad[byteIdx] ^ normalizedKey[byteIdx];
+        iKeyPad[byteIdx] = iKeyPad[byteIdx] ^ normalizedKey[byteIdx];
     }
 
     const QByteArray inner = QCryptographicHash::hash(iKeyPad + data, QCryptographicHash::Sha256);
@@ -1072,19 +1064,19 @@ void ExperimentManager::triggerAnimalLifecycleSync(const QString &experimentName
     const QString syncUrl = qEnvironmentVariable("MINDTRACE_SYNC_URL", "http://127.0.0.1:8000").trimmed();
     const QUrl base(syncUrl);
     if (!isSafeLocalSyncUrl(base)) {
-        qWarning() << "[SYNC] URL bloqueada por seguranÃƒÂ§a (somente loopback local):" << syncUrl;
+        qWarning() << "[SYNC] URL blocked (loopback-only policy):" << syncUrl;
         return;
     }
 
     const QString syncSecret = resolveSyncSecret();
     if (syncSecret.isEmpty()) {
-        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET ausente. SincronizaÃƒÂ§ÃƒÂ£o abortada.";
+        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET missing. Sync aborted.";
         return;
     }
 
     const QFileInfo expFolder(folderPath);
     if (!expFolder.exists() || !expFolder.isDir()) {
-        qWarning() << "[SYNC] Pasta de experimento invÃƒÂ¡lida:" << folderPath;
+        qWarning() << "[SYNC] Experiment folder invalid:" << folderPath;
         return;
     }
 
@@ -1115,12 +1107,12 @@ void ExperimentManager::triggerAnimalLifecycleSync(const QString &experimentName
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QByteArray response = reply->readAll();
         if (reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300) {
-            qWarning() << "[SYNC] Falha ao sincronizar experimento" << experimentName
+            qWarning() << "[SYNC] Sync failed for experiment" << experimentName
                        << "status=" << httpStatus
-                       << "erro=" << reply->errorString()
+                       << "error=" << reply->errorString()
                        << "resp=" << QString::fromUtf8(response.left(300));
         } else {
-            qDebug() << "[SYNC] SincronizaÃƒÂ§ÃƒÂ£o concluÃƒÂ­da para experimento" << experimentName;
+            qDebug() << "[SYNC] Sync completed for experiment" << experimentName;
         }
         reply->deleteLater();
     });
@@ -1138,13 +1130,13 @@ void ExperimentManager::triggerAnimalLifecycleDeletionAudit(const QString &exper
     const QString syncUrl = qEnvironmentVariable("MINDTRACE_SYNC_URL", "http://127.0.0.1:8000").trimmed();
     const QUrl base(syncUrl);
     if (!isSafeLocalSyncUrl(base)) {
-        qWarning() << "[SYNC] URL bloqueada por seguranca (somente loopback local):" << syncUrl;
+        qWarning() << "[SYNC] URL blocked (loopback-only policy):" << syncUrl;
         return;
     }
 
     const QString syncSecret = resolveSyncSecret();
     if (syncSecret.isEmpty()) {
-        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET ausente. Auditoria de exclusao abortada.";
+        qWarning() << "[SYNC] MINDTRACE_SYNC_SECRET missing. Deletion audit aborted.";
         return;
     }
 
@@ -1173,12 +1165,12 @@ void ExperimentManager::triggerAnimalLifecycleDeletionAudit(const QString &exper
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QByteArray response = reply->readAll();
         if (reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300) {
-            qWarning() << "[SYNC] Falha ao registrar auditoria de exclusao para experimento" << experimentName
+            qWarning() << "[SYNC] Deletion audit failed for experiment" << experimentName
                        << "status=" << httpStatus
-                       << "erro=" << reply->errorString()
+                       << "error=" << reply->errorString()
                        << "resp=" << QString::fromUtf8(response.left(300));
         } else {
-            qDebug() << "[SYNC] Auditoria de exclusao registrada para experimento" << experimentName;
+            qDebug() << "[SYNC] Deletion audit registered for experiment" << experimentName;
         }
         reply->deleteLater();
     });
@@ -1220,19 +1212,19 @@ void ExperimentManager::removeFromRegistry(const QString &name, const QString &c
     QJsonArray arr = QJsonDocument::fromJson(regFile.readAll()).array();
     regFile.close();
 
-    QJsonArray updated;
-    for (int i = 0; i < arr.size(); ++i) {
-        QJsonObject obj = arr[i].toObject();
-        if (obj["name"].toString() == name && obj["context"].toString() == effectiveContext)
-            continue; // remove esta entrada
-        updated.append(obj);
+    QJsonArray filteredArray;
+    for (int entryIdx = 0; entryIdx < arr.size(); ++entryIdx) {
+        const QJsonObject registryEntry = arr[entryIdx].toObject();
+        if (registryEntry["name"].toString() == name && registryEntry["context"].toString() == effectiveContext)
+            continue;
+        filteredArray.append(registryEntry);
     }
 
-    if (arr.size() == updated.size())
-        return; // nada removido Ã¢â‚¬â€ nÃƒÂ£o reescreve
+    if (arr.size() == filteredArray.size())
+        return; // nothing removed — skip rewrite
 
     if (regFile.open(QIODevice::WriteOnly))
-        regFile.write(QJsonDocument(updated).toJson());
+        regFile.write(QJsonDocument(filteredArray).toJson());
 }
 
 bool ExperimentManager::updateDayNames(const QString &folderPath, const QStringList &dayNames)
@@ -1244,7 +1236,7 @@ bool ExperimentManager::updateDayNames(const QString &folderPath, const QStringL
     file.close();
 
     QJsonArray arr;
-    for (const QString &n : dayNames) arr.append(n);
+    for (const QString &dayName : dayNames) arr.append(dayName);
     meta[QStringLiteral("dayNames")] = arr;
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
@@ -1261,7 +1253,7 @@ bool ExperimentManager::updateContextPatterns(const QString &folderPath, const Q
     file.close();
 
     QJsonArray arr;
-    for (const QVariant &p : patterns) arr.append(p.toString());
+    for (const QVariant &patternVariant : patterns) arr.append(patternVariant.toString());
     meta[QStringLiteral("contextPatterns")] = arr;
 
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
@@ -1269,7 +1261,7 @@ bool ExperimentManager::updateContextPatterns(const QString &folderPath, const Q
     return true;
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Helpers de escrita Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// -- Write helpers ------------------------------------------------------------
 
 void ExperimentManager::writeMetadata(const QString    &folderPath,
                                        const QString    &name,
@@ -1326,16 +1318,12 @@ void ExperimentManager::writeCsv(const QString    &folderPath,
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
 
-    // Adiciona assinatura BOM para o Excel nÃƒÂ£o corromper acentuaÃƒÂ§ÃƒÂµes ("ÃƒÂ­", "ÃƒÂ³")
-    file.write("\xEF\xBB\xBF");
+    file.write("\xEF\xBB\xBF"); // UTF-8 BOM so Excel reads accented characters correctly
 
     QTextStream out(&file);
-
-    // CabeÃƒÂ§alhos
     out << columns.join(QLatin1Char(',')) << QLatin1Char('\n');
 
-    // Uma linha vazia por animal
     const QString emptyRow = QString(columns.size() - 1, QLatin1Char(','));
-    for (int i = 0; i < animalCount; ++i)
+    for (int animalIdx = 0; animalIdx < animalCount; ++animalIdx)
         out << emptyRow << QLatin1Char('\n');
 }

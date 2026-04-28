@@ -9,28 +9,28 @@ import MindTrace.Tracking 1.0
 Item {
     id: recordingRoot
 
-    // ── Propriedades injetadas pelo MainDashboard ─────────────────────────────
+    // Properties injected by the dashboard
     property string videoPath: ""
     property string saveDirectory: ""
     property string liveOutputName: ""
-    property string cameraId: ""             // descrição da câmera para modo ao_vivo
+    property string cameraId: ""             // camera description for live mode
     property string pair1: ""
     property string pair2: ""
     property string pair3: ""
-    property string analysisMode: "offline"  // "offline" ou "ao_vivo"
+    property string analysisMode: "offline"  // "offline" or "ao_vivo"
     property string aparato:      "nor"
     property string context:      ""
     property var    contextPatterns: []
     property int    numCampos:    3           // 1, 2 ou 3 campos ativos
-    property bool   ccMode:       false      // CC: usa canvas EI mas exibe apenas distância/velocidade/comportamentos
+    property bool   ccMode:       false      // CC: shows only distance/speed/behavior
 
     property var zones
     property var arenaPoints
     property var floorPoints
     property double centroRatio: 0.5
-    property bool   isReactivation: false  // quando em fase de Reativação ou Teste (RO)
+    property bool   isReactivation: false  // true during Reactivation or Test (RO) phase
 
-    // ── Propagate zones to inference engine ───────────────────────────────────────
+    // Propagate zones to inference engine
     onZonesChanged: {
         if (aparato !== "nor" && aparato !== "comportamento_complexo") return
         if (zones && zones.length > 0) {
@@ -44,7 +44,7 @@ Item {
             }
             console.log("[LiveRecording] Zones propagated to inference:", zones.length, "zones")
         } else {
-            // Limpa zonas no C++ para desabilitar sniffing quando não há objetos configurados
+            // Clear zones in C++ to disable sniffing when no objects are configured
             for (var fc = 0; fc < numCampos; fc++) {
                 inference.setZones(fc, [])
             }
@@ -52,8 +52,8 @@ Item {
         }
     }
 
-    // ── Propaga polígono do chão para detecção de rearing ─────────────────────
-    // Mesmo mecanismo do sniffing: nose fora do floorPoly + body dentro = rearing
+    // Propagate floor polygon for rearing detection
+    // Same mechanism as sniffing: nose outside floorPoly + body inside = rearing
     onFloorPointsChanged: {
         if (floorPoints) {
             for (var fc = 0; fc < numCampos; fc++) {
@@ -65,11 +65,11 @@ Item {
         }
     }
 
-    // ── Controle de velocidade (análise offline) ────────────────────────────────
+    // Playback speed control (offline analysis)
     property double playbackRate: 1.0           // 1x, 2x, 4x, 8x, 16x
     property bool   isOffline: analysisMode === "offline"
 
-    // ── Timer: durão configurável (5 ou 20 min) ────────────────────────────────
+    // Session timer — configurable duration (5 or 20 min)
     property int    sessionDurationMinutes: 5   // injetado pelo dashboard
     property int    sessionDurationSeconds: sessionDurationMinutes * 60
 
@@ -81,12 +81,12 @@ Item {
     property real eiLatencySeconds: -1
 
     signal sessionEnded()
-    signal requestVideoLoad()   // solicitado quando usuário quer carregar próximo vídeo
-    signal liveAnalysisStarting() // emitido antes de startLiveAnalysis — dashboards devem parar preview da arena
+    signal requestVideoLoad()   // emitted when user wants to load the next video
+    signal liveAnalysisStarting() // emitted before startLiveAnalysis — dashboards must stop arena preview
 
-    // ── Estado interno ────────────────────────────────────────────────────────
+    // Internal state
     property bool isAnalyzing:   false
-    // Guards para fim de sessão — previnem popup duplo e distinguem stop manual
+    // Session-end guards — prevent double popup and distinguish manual stop
     property bool _sessionEndedEmitted:  false
     property bool _manualStopRequested:  false
 
@@ -99,12 +99,12 @@ Item {
     property int  videoWidth:    0
     property int  videoHeight:   0
 
-    // Coords normalizadas no frame completo (0..1) — Nose
+    // Normalized coords in full frame (0..1) — Nose
     property var ratNormX:      [-1, -1, -1]
     property var ratNormY:      [-1, -1, -1]
     property var ratLikelihood: [0,  0,  0 ]
 
-    // Coords normalizadas no frame completo (0..1) — Body
+    // Normalized coords in full frame (0..1) — Body
     property var bodyNormX:      [-1, -1, -1]
     property var bodyNormY:      [-1, -1, -1]
     property var bodyLikelihood: [0,  0,  0 ]
@@ -112,7 +112,7 @@ Item {
     // DLC-reported FPS (sent via FPS, signal)
     property double dlcFps:       30.0
 
-    // Diagnóstico ao vivo (visível apenas no modo ao_vivo)
+    // Live diagnostics (visible only in live mode)
     property string liveCameraName: ""
     property string liveRecordedVideoPath: ""
     property int    liveFrameCount: 0
@@ -120,27 +120,27 @@ Item {
     property double _lastFpsTimestampMs: 0
     property double _lastFpsLogTimestampMs: 0
 
-    // Exploração por zona (6 zonas — 2 por campo)
+    // Exploration per zone (6 zones — 2 per field)
     property var explorationTimes: [0, 0, 0, 0, 0, 0]
     property var explorationBouts: [[], [], [], [], [], []]
 
-    // Controle interno de bout — arrays simples (não precisam de binding)
+    // Internal bout control — simple arrays (no binding needed)
     property var _inZone:    [false, false, false, false, false, false]
     property var _entryTime: [0,     0,     0,     0,     0,     0    ]  // ms epoch
 
-    // ── Velocidade e Distância (body point) ───────────────────────────────
-    // Dimensão física da arena por campo (configurável — 50 cm padrão)
+    // Velocity and Distance (body point)
+    // Physical arena dimensions per field (configurable — 50 cm default)
     property double arenaWidthM:  0.50   // largura de 1 campo em metros
     property double arenaHeightM: 0.50   // altura  de 1 campo em metros
 
-    property var currentVelocity: [0.0, 0.0, 0.0]   // m/s por campo (última janela 100ms)
+    property var currentVelocity: [0.0, 0.0, 0.0]   // m/s per field (last 100ms window)
     property var totalDistance:   [0.0, 0.0, 0.0]   // metros acumulados por campo
 
-    // Velocidade média real = distância total / tempo decorrido por campo
+    // True average velocity = total distance / elapsed time per field
     readonly property var avgVelocityMeans: {
         var res = [0.0, 0.0, 0.0]
         for (var i = 0; i < 3; i++) {
-            // timesRemaining[i] pode ser 0 (falsy) quando sessão conclui — usar != null
+            // timesRemaining[i] can be 0 (falsy) when session ends — use != null
             var remaining = (timesRemaining[i] != null && timesRemaining[i] !== undefined)
                             ? timesRemaining[i] : sessionDurationSeconds
             var elapsed = sessionDurationSeconds - remaining
@@ -153,27 +153,27 @@ Item {
     property bool showTrail: false
     property var bodyHistory: [[], [], []]
 
-    // Posição body anterior (coordenadas locais 0..1 dentro do campo)
+    // Previous body position (local coords 0..1 within field)
     property var _prevBodyLX:   [-1.0, -1.0, -1.0]
     property var _prevBodyLY:   [-1.0, -1.0, -1.0]
     property var _prevBodyTime: [0, 0, 0]            // ms epoch
 
-    // ── Snapshots por minuto ───────────────────────────────────────────────
-    // Registra distância acumulada e exploração a cada 60 s de sessão real
-    property int  _lastMinuteSnap: 0        // segundo em que foi o último snap (baseado no maior timer)
+    // Per-minute snapshots
+    // Records accumulated distance and exploration every 60s of real session time
+    property int  _lastMinuteSnap: 0        // second of last snapshot (based on highest timer)
     property var  perMinuteData: [[], [], []]  // por campo: [{min, distM, expA_s, expB_s}]
 
-    // Tick para forçar re-avaliação do bout live a cada 100 ms
+    // Tick to force re-evaluation of live bout every 100 ms
     property int _explorationTick: 0
     property bool _dlcReady: false
 
-    // ── Classificação de Comportamento (SimBA/B-SOiD) ──────────────────────────
+    // Behavior Classification (rule-based)
     property var behaviorNames: ["Walking", "Sniffing", "Grooming", "Resting", "Rearing"]
     property var currentBehaviorString: ["", "", ""]
     property var behaviorCounts: [{}, {}, {}]
     property var _lastBehaviorId: [-1, -1, -1]
 
-    // ── API pública para B-SOiD (inference é ID interno, não acessível de fora) ──
+    // Public API for B-SOiD (inference is an internal ID, not accessible from outside)
     function exportBehaviorFeatures(csvPath, campo) {
         return inference.exportBehaviorFeatures(csvPath, campo)
     }
@@ -202,7 +202,7 @@ Item {
         return inference.savePdfReport(path, imagePaths, title, captions)
     }
 
-    // ── Log ───────────────────────────────────────────────────────────────────
+    // Log
     ListModel { id: logModel }
 
     function localizeBackendInfo(message) {
@@ -220,8 +220,8 @@ Item {
             var msgCpu = message
             msgCpu = msgCpu.replace("Modo CPU", LanguageManager.tr3("Modo CPU", "CPU Mode", "Modo CPU"))
             msgCpu = msgCpu.replace("CPU Mode", LanguageManager.tr3("Modo CPU", "CPU Mode", "Modo CPU"))
-            msgCpu = msgCpu.replace("não disponível", LanguageManager.tr3("nao disponivel", "not available", "no disponible"))
-            msgCpu = msgCpu.replace("not available", LanguageManager.tr3("nao disponivel", "not available", "no disponible"))
+            msgCpu = msgCpu.replace("não disponível", LanguageManager.tr3("nao disponível", "not available", "no disponible"))
+            msgCpu = msgCpu.replace("not available", LanguageManager.tr3("nao disponível", "not available", "no disponible"))
             return msgCpu
         }
         return message
@@ -245,8 +245,8 @@ Item {
     // ── Inference Controller (nativo — ONNX + QVideoProbe para captura de frames) ──
     InferenceController { id: inference }
 
-    // ── Player de exibição (QML nativo) ──────────────────────────────────────────
-    // Qt 6: MediaPlayer.videoOutput aponta para o VideoOutput (direção invertida vs Qt 5)
+    // Display player (native QML)
+    // Qt 6: MediaPlayer.videoOutput points to VideoOutput (direction reversed vs Qt 5)
     MediaPlayer {
         id: displayPlayer
         videoOutput: framePreviewMaster
@@ -271,7 +271,7 @@ Item {
         }
     }
 
-    // Qt 6: Connections usa sintaxe "function onSignal(params)" para aceder parâmetros
+    // Qt 6: Connections uses 'function onSignal(params)' syntax to access parameters
     Connections {
         target: inference
         function onDimsReceived(width, height) {
@@ -292,7 +292,7 @@ Item {
         function onInfoReceived(message) {
             logModel.append({ msg: localizeBackendInfo(message), isErr: false })
             logView.positionViewAtEnd()
-            // Captura nome da câmera emitido por startLiveAnalysis
+            // Capture camera name emitted by startLiveAnalysis
             if (!recordingRoot.isOffline && message.indexOf("📹") >= 0)
                 recordingRoot.liveCameraName = message.replace("📹 Câmera: ", "").replace("📹 Camera: ", "")
             if (message.indexOf("Live recording file: ") === 0)
@@ -304,7 +304,7 @@ Item {
             logView.positionViewAtEnd()
         }
         function onTrackReceived(campo, x, y, p) {
-            // Conta frames ao vivo para diagnóstico
+            // Count live frames for diagnostics
             if (!recordingRoot.isOffline && campo === 0) {
                 recordingRoot.liveFrameCount++
                 var nowMs = Date.now()
@@ -350,7 +350,7 @@ Item {
             by[campo] = y / recordingRoot.videoHeight
             bl[campo] = p
 
-            // Para CC e afins, garantir que a detecção de corpo também pode iniciar o timer
+            // For CC and similar: body tracking can also start the timer
             if (p > 0.5 && !recordingRoot.timerStarted[campo]) {
                 var ts = recordingRoot.timerStarted.slice()
                 ts[campo] = true
@@ -394,7 +394,7 @@ Item {
                 recordingRoot._manualStopRequested = false
             logModel.append({ msg: LanguageManager.tr3("Analise encerrada.", "Analysis ended.", "Analisis finalizado."), isErr: false })
             logView.positionViewAtEnd()
-                // Fim natural do vídeo (C++ encerrou por conta própria): mostrar popup
+                // Natural end of video (C++ closed it on its own): show popup
                 if (!wasManual && recordingRoot.isOffline) {
                     Qt.callLater(recordingRoot._guardedSessionEnded)
                 }
@@ -409,9 +409,9 @@ Item {
         }
     }
 
-    // ── Timer de sessão (1 s) — cada campo decrementa independentemente ────────
-    // No modo offline, o timer escala com playbackRate (1s real = 4s vídeo a 4x).
-    // No modo ao vivo, usa 1:1 (o vídeo é real-time).
+    // Session timer (1 s) — each field decrements independently
+    // In offline mode, timer scales with playbackRate (1s real = 4s video at 4x).
+    // In live mode, uses 1:1 (video is real-time).
     Timer {
         id: sessionMasterTimer
         interval: 1000; repeat: true; running: recordingRoot.isAnalyzing
@@ -447,16 +447,22 @@ Item {
                 }
             }
             recordingRoot.timesRemaining = newTimes
-            // Auto-encerra quando todos concluem
-            if (recordingRoot.isAnalyzing &&
-                    recordingRoot.fieldFinished[0] && recordingRoot.fieldFinished[1] && recordingRoot.fieldFinished[2]) {
+            // Auto-encerra quando todos os campos ativos concluem
+            var allActiveFieldsFinished = true
+            for (var af = 0; af < recordingRoot.numCampos; af++) {
+                if (!recordingRoot.fieldFinished[af]) {
+                    allActiveFieldsFinished = false
+                    break
+                }
+            }
+            if (recordingRoot.isAnalyzing && allActiveFieldsFinished) {
                 recordingRoot.stopSession()
                 recordingRoot._guardedSessionEnded()
             }
         }
     }
 
-    // ── Timer de exploração (100 ms) ──────────────────────────────────────────
+    // Exploration timer (100 ms)
     Timer {
         id: explorationTimer
         interval: 100; repeat: true
@@ -467,10 +473,10 @@ Item {
         }
     }
 
-    // ── Timer de sincronização de posição (400 ms) ────────────────────────────
-    // O displayPlayer é o master. O headless C++ roda no máx 2x (cap de ONNX).
-    // A 4x display / 2x headless, o drift cresce 2s/s de vídeo real.
-    // O timer detecta drift > 800ms e resync o headless para a posição do display.
+    // Position sync timer (400 ms)
+    // The displayPlayer is master. Headless C++ runs at max 2x (ONNX cap).
+    // At 4x display / 2x headless, drift grows 2s/s of real video.
+    // Timer detects drift > 800ms and resyncs headless to display position.
     Timer {
         id: positionSyncTimer
         interval: 400; repeat: true
@@ -483,7 +489,7 @@ Item {
         }
     }
 
-    // ── Funções de controle ───────────────────────────────────────────────────
+    // Control functions
     function startSession() {
         console.log("[LiveRecording] startSession called. mode=", analysisMode, "cameraId=", cameraId, "videoPath=", videoPath)
         if (isAnalyzing) return
@@ -502,7 +508,7 @@ Item {
         timesRemaining   = [sessionDurationSeconds, sessionDurationSeconds, sessionDurationSeconds]
         timerStarted     = [false, false, false]
         fieldFinished    = [false, false, false]
-        // Marca campos além de numCampos como já concluídos (1 ou 2 campos ativos)
+        // Mark fields beyond numCampos as finished (1 or 2 active fields)
         if (numCampos < 3) {
             var _ff = fieldFinished.slice()
             var _ts = timerStarted.slice()
@@ -544,11 +550,11 @@ Item {
         logModel.clear()
         logModel.append({ msg: LanguageManager.tr3("Loading native inference engine...", "Loading native inference engine...", "Cargando motor nativo de inferencia..."), isErr: false })
         logView.positionViewAtEnd()
-        // EI e 1-campo usam frame completo (720×480); demais usam quadrantes
+        // EI and 1-field use full frame (720x480); others use quadrants
         inference.setFullFrameMode(aparato === "esquiva_inibitoria" || numCampos === 1)
         if (recordingRoot.isOffline) {
             console.log("[LiveRecording] Starting OFFLINE analysis. playbackRate=", recordingRoot.playbackRate)
-            // Modo offline: MediaPlayer reproduz arquivo de vídeo
+            // Offline mode: MediaPlayer plays video file
             var pr = recordingRoot.playbackRate
             displayPlayer.videoOutput = framePreviewMaster
             inference.setLivePreviewOutput(null)
@@ -559,8 +565,8 @@ Item {
             if (pr !== 1.0) inference.setPlaybackRate(Math.min(pr, 2.0))
         } else {
             console.log("[LiveRecording] Starting LIVE analysis via InferenceController. cameraId=", recordingRoot.cameraId)
-            // Modo ao vivo: câmera USB — sem MediaPlayer
-            // Sinaliza dashboards para parar preview da arena (libera câmera para inferência)
+            // Live mode: USB camera — no MediaPlayer
+            // Signal dashboards to stop arena preview (frees camera for inference)
             liveAnalysisStarting()
             displayPlayer.videoOutput = null
             displayPlayer.source = ""
@@ -592,7 +598,7 @@ Item {
         displayPlayer.videoOutput = framePreviewMaster
         displayPlayer.stop()
         isAnalyzing = false
-        logModel.append({ msg: LanguageManager.tr3("Sessao parada.", "Session stopped.", "Sesion detenida."), isErr: false })
+        logModel.append({ msg: LanguageManager.tr3("Sessão parada.", "Session stopped.", "Sesion detenida."), isErr: false })
         logView.positionViewAtEnd()
     }
 
@@ -623,7 +629,7 @@ Item {
         var newBouts = []
         for (var i = 0; i < 6; i++) newBouts.push(explorationBouts[i].slice())
         var boutsChanged = false
-        // Em análise offline, cada tick de 100 ms wall-clock cobre (100 * rate) ms de vídeo
+        // In offline analysis, each 100 ms wall-clock tick covers (100 * rate) ms of video
         var rate = recordingRoot.isOffline ? recordingRoot.playbackRate : 1.0
         for (var campo = 0; campo < 3; campo++) {
             if (recordingRoot.fieldFinished[campo]) continue
@@ -651,7 +657,7 @@ Item {
             }
 
             if (recordingRoot.aparato === "campo_aberto") {
-                // -- Lógica Campo Aberto: Centro vs Borda (Body Tracking) --
+                // Open Field logic: Center vs Edge (Body Tracking)
                 if (!floorPoints || !floorPoints[campo]) continue
                 var fp = floorPoints[campo]
                 var cr = recordingRoot.centroRatio
@@ -684,7 +690,7 @@ Item {
             } else if (recordingRoot.aparato === "comportamento_complexo") {
                 continue
             } else if (recordingRoot.aparato === "esquiva_inibitoria") {
-                // ── Lógica IA: Zonas quadrilaterais (Plataforma, Grade) ──
+                // AI logic: quadrilateral zones (Platform, Grid)
                 if (!floorPoints || !floorPoints[campo] || floorPoints[campo].length < 8) continue
                 var blx = bodyLocalX(campo)
                 var bly = bodyLocalY(campo)
@@ -720,7 +726,7 @@ Item {
                     }
                 }
             } else {
-                // -- Lógica NOR: Zonas Circulares --
+                // NOR logic: circular zones
                 for (var obj = 0; obj < 2; obj++) {
                     var zi = campo * 2 + obj
                     var z  = zones[zi]
@@ -745,7 +751,7 @@ Item {
         explorationTimes = newTimes
         if (boutsChanged) explorationBouts = newBouts
 
-        // ── Velocidade e distância do body point ──────────────────────────
+        // Velocity and distance from body point
         var now2    = Date.now()
         var newVel  = currentVelocity.slice()
         var newDist = totalDistance.slice()
@@ -771,7 +777,7 @@ Item {
 
             if (blx >= 0 && bl >= 0.5 && recordingRoot.timerStarted[ci]) {
                 newHist[ci].push({x: blx, y: bly})
-                if (newHist[ci].length > 40) newHist[ci].shift() // Mantém últimos ~4000ms visíveis
+                if (newHist[ci].length > 40) newHist[ci].shift() // Keep last ~4000ms visible
             }
 
             if (blx < 0 || bl < 0.5 || !recordingRoot.timerStarted[ci]) {
@@ -788,10 +794,10 @@ Item {
                 var dx   = (blx - prevX) * arenaWidthM
                 var dy   = (bly - prevY) * arenaHeightM
                 var dist = Math.sqrt(dx * dx + dy * dy)
-                // dt em tempo de vídeo: wall-clock * playbackRate
+                // dt in video time: wall-clock * playbackRate
                 var dt   = (now2 - prevT) / 1000.0 * rate
 
-                // Filtra saltos impossíveis (> 10 m/s de vídeo = glitch de modelo ou pulo da GPU)
+                // Filter impossible jumps (> 10 m/s video = model glitch or GPU skip)
                 if (dt > 0 && dist / dt < 10.0) {
                     newVel[ci]   = dist / dt
                     newDist[ci] += dist
@@ -835,8 +841,8 @@ Item {
         }
     }
 
-    // Retorna segundos do bout atual para a zona zi (ou 0 se não estiver na zona)
-    // Usa _explorationTick como dependência reativa para atualizar a cada 100ms
+    // Returns current bout seconds for zone zi (or 0 if not in zone)
+    // Uses _explorationTick as reactive dependency to update every 100ms
     function currentBoutSec(zi) {
         var _t = recordingRoot._explorationTick
         if (!_inZone[zi]) return 0.0
@@ -844,7 +850,7 @@ Item {
         return (Date.now() - _entryTime[zi]) / 1000.0 * rateDisp
     }
 
-    // Índice de discriminação: (T_novo - T_familiar) / (T_novo + T_familiar)
+    // Discrimination index: (T_novel - T_familiar) / (T_novel + T_familiar)
     // OBJ B (zi1, direita) = novo; OBJ A (zi0, esquerda) = familiar
     function discriminationIndex(campo) {
         var tFam   = explorationTimes[campo * 2]
@@ -855,8 +861,8 @@ Item {
     }
 
     // Coordenada local do rat dentro do quadrante/frame (0..1)
-    // Para EI (fullFrameMode), normX já cobre [0,1] o frame inteiro — sem *2.
-    // Para mosaico (NOR/CA/CC), cada campo é metade do frame: aplica o offset/escala.
+    // For EI (fullFrameMode), normX already covers [0,1] the full frame — no *2.
+    // For mosaic (NOR/CA/CC), each field is half the frame: apply offset/scale.
     function ratLocalX(campo) {
         var nx = ratNormX[campo]
         if (nx < 0) return -1
@@ -895,7 +901,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // ── Painel de sessão (topo) ───────────────────────────────────────────
+        // Session panel (top)
         Rectangle {
             Layout.fillWidth: true
             height: 110
@@ -912,7 +918,7 @@ Item {
                     
                     Item { Layout.fillWidth: true }
 
-                    // ── Velocidade (só aparece em modo offline) ──────────────
+                    // Speed display (offline mode only)
                     Text {
                         text: "\u23E9"; font.pixelSize: 13; color: ThemeManager.textTertiary
                         visible: recordingRoot.isOffline
@@ -946,12 +952,12 @@ Item {
                                     var pos  = displayPlayer.position
                                     recordingRoot.playbackRate = rate
                                     // Stop-seek-play evita o frame preto do WMF
-                                    // ao mudar playbackRate enquanto o player está ativo
+                                    // when changing playbackRate while the player is active
                                     displayPlayer.stop()
                                     displayPlayer.playbackRate = rate
                                     displayPlayer.setPosition(pos)
                                     displayPlayer.play()
-                                    // Headless capped a 2x: ONNX CPU recebe frames no máx 2x.
+                                    // Headless capped at 2x: ONNX CPU receives frames at max 2x.
                                     // O positionSyncTimer a cada 400ms compensa o drift restante.
                                     var headlessRate = Math.min(rate, 2.0)
                                     inference.setPlaybackRate(headlessRate)
@@ -992,11 +998,11 @@ Item {
             }
         }
 
-        // ── Área central ──────────────────────────────────────────────────────
+        // Central area
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 0
 
-            // ── Mosaico 2×2 ───────────────────────────────────────────────────
+            // 2x2 mosaic
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 color: "#05050a"
@@ -1024,7 +1030,7 @@ Item {
                                 border.width: 1
                                 clip: true
 
-                                // Quadrante do vídeo via ShaderEffectSource
+                                // Video quadrant via ShaderEffectSource
                                 ShaderEffectSource {
                                     anchors.fill: parent
                                     sourceItem: framePreviewMaster
@@ -1066,7 +1072,7 @@ Item {
                                     }
                                 }
 
-                                // Overlay arena (paredes + chão + zonas)
+                                // Arena overlay (walls + floor + zones)
                                 Canvas {
                                     id: arenaCanv
                                     anchors.fill: parent
@@ -1207,7 +1213,7 @@ Item {
 
                                         if (recordingRoot.aparato === "esquiva_inibitoria") {
                                             // EI: desenha 4 paredes + Plataforma (0-3) + Grade (4-7)
-                                            // O "inner" da arena abrange os dois polígonos combinados:
+                                            // 'inner' arena spans both polygons combined:
                                             //   canto TL  = fp[0] (Plataforma TL)
                                             //   canto TR  = fp[5] (Grade TR — extremo direito)
                                             //   canto BR  = fp[6] (Grade BR)
@@ -1234,7 +1240,7 @@ Item {
                                                 for(var k2=4;k2<8;k2++) gradePts.push({x:fp[k2].x*w, y:fp[k2].y*h})
                                                 poly(gradePts, "rgba(0,204,255,0.08)", "rgba(0,204,255,0.50)")
                                             }
-                                            return  // Paredes específicas já desenhadas — não executa as genéricas
+                                            return  // Specific walls already drawn — skip generic drawing
                                         } else if (recordingRoot.aparato === "campo_aberto") {
                                             var cr = recordingRoot.centroRatio
                                             var cTL = { x: iTL.x + (iBR.x - iTL.x)*(1-cr)/2, y: iTL.y + (iBR.y - iTL.y)*(1-cr)/2 }
@@ -1281,7 +1287,7 @@ Item {
                                     }
                                 }
 
-                                // Zona A (vinho) - apenas quando há zonas configuradas
+                                // Zone A (maroon) - only when zones are configured
                                 Rectangle {
                                     id: zoneA
                                     visible: recordingRoot.aparato === "nor"
@@ -1298,7 +1304,7 @@ Item {
                                     color: "#40ab3d4c"; border.width: 2
                                     opacity: 0.7
                                 }
-                                // Zona B (azul) - apenas quando há zonas configuradas e par tem 2 objetos
+                                // Zone B (blue) - only when zones are configured and pair has 2 objects
                                 Rectangle {
                                     id: zoneB
                                     visible: recordingRoot.aparato === "nor"
@@ -1442,12 +1448,12 @@ Item {
                         }
                     }
 
-                    // ── Célula inferior-dir: VideoOutput mestre + estado ──────
+                    // Bottom-right cell: master VideoOutput + state overlay
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         color: "#08080f"; border.color: "#1a1a2e"; border.width: 1
 
-                        // Qt 6: VideoOutput não tem "source". O MediaPlayer referencia
+                        // Qt 6: VideoOutput has no 'source'. MediaPlayer references
                         // o VideoOutput via sua propriedade "videoOutput".
                         // Offline: fed by MediaPlayer. Live: fed by C++ CaptureSession via setLivePreviewOutput.
                         VideoOutput {
@@ -1457,7 +1463,7 @@ Item {
                             opacity: 0.45
                         }
 
-                        // Estado da análise sobreposto (modo offline sem vídeo carregado)
+                        // Analysis state overlay (offline mode, no video loaded)
                         Column {
                             anchors.centerIn: parent
                             spacing: 6
@@ -1475,7 +1481,7 @@ Item {
                             }
                         }
 
-                        // Overlay modo ao vivo — câmera pronta para iniciar
+                        // Live mode overlay — camera ready to start
                         Column {
                             anchors.centerIn: parent
                             spacing: 6
@@ -1504,7 +1510,7 @@ Item {
                             }
                         }
 
-                        // Painel de diagnóstico ao vivo (visível durante análise ao vivo)
+                        // Live diagnostics panel (visible during live analysis)
                         Rectangle {
                             anchors { top: parent.top; left: parent.left; margins: 5 }
                             visible: !recordingRoot.isOffline && recordingRoot.isAnalyzing
@@ -1574,11 +1580,11 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 14; spacing: 8
 
-                    // ── Botões Iniciar / Parar + Carregar Vídeo ───────────────
+                    // Start / Stop buttons + Load Video
                     RowLayout {
                         Layout.fillWidth: true; spacing: 6
 
-                        // Botão "Carregar Vídeo" — visível apenas quando parado
+                        // 'Load Video' button — visible only when stopped
                         Rectangle {
                             visible: !recordingRoot.isAnalyzing
                             Layout.fillWidth: true; Layout.minimumWidth: 80
@@ -1683,7 +1689,7 @@ Item {
                         }
                     }
 
-                    // ── Exploração de objetos ──────────────────────────────────
+                    // Object exploration panel
                     Rectangle {
                         Layout.fillWidth: true; height: 1; color: ThemeManager.border
                         Behavior on color { ColorAnimation { duration: 200 } }
@@ -1734,7 +1740,7 @@ Item {
                                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
                                         spacing: 5
 
-                                        // ── Cabeçalho do campo ────────────────
+                                        // ── Field header ─────────────────────
                                         RowLayout {
                                             Layout.fillWidth: true
                                             Text {
@@ -1768,7 +1774,7 @@ Item {
 
                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
-                                        // ── MÉTRICAS ESPECÍFICAS (NOR vs CA) ──
+                                        // ── APPARATUS-SPECIFIC METRICS (NOR vs CA) ──
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
                                             visible: (recordingRoot.aparato === "nor" || recordingRoot.aparato === "")
@@ -1815,7 +1821,7 @@ Item {
                                                 }
                                             }
 
-                                            // Discriminação (DI) — oculto em modo 1 objeto
+                                            // Discrimination index (DI) — hidden in single-object mode
                                             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; visible: pairStr.length > 1 }
 
                                             Rectangle {
@@ -1846,7 +1852,7 @@ Item {
                                             }
                                         }
 
-                                        // ── MÉTRICAS ESQUIVA INIBITÓRIA (EI) ────
+                                        // ── INHIBITORY AVOIDANCE METRICS (EI) ──────
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
                                             visible: recordingRoot.aparato === "esquiva_inibitoria" && !recordingRoot.ccMode
@@ -1878,7 +1884,7 @@ Item {
                                             }
                                         }
 
-                                        // ── MÉTRICAS CAMPO ABERTO (CA) ──────────
+                                        // ── OPEN FIELD METRICS (CA) ─────────────────
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
                                             visible: recordingRoot.aparato === "campo_aberto"
@@ -1912,7 +1918,7 @@ Item {
 
                                         Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border }
 
-                                        // ── Velocidade e Distância (body) ─────
+                                        // ── Velocity and Distance (body) ──────
                                         RowLayout {
                                             Layout.fillWidth: true; spacing: 6
 
@@ -1938,7 +1944,7 @@ Item {
                                                 }
                                             }
 
-                                            // Distância acumulada
+                                            // Accumulated distance
                                             Rectangle {
                                                 Layout.fillWidth: true; height: 26; radius: 4
                                                 color: ThemeManager.surfaceDim; border.color: ThemeManager.border; border.width: 1

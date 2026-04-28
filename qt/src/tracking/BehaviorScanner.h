@@ -1,56 +1,70 @@
 #pragma once
-#include <vector>
-#include <deque>
-#include <cmath>
-#include <numeric>
+
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <deque>
+#include <numeric>
+#include <vector>
 
+/// A 2D keypoint detected by the pose model with a likelihood score.
 struct PosePoint {
-    float x = -1.0f;
-    float y = -1.0f;
-    float p = 0.0f;
+    float x = -1.0f;  ///< Pixel X in crop space (360-wide). Negative default = undetected.
+    float y = -1.0f;  ///< Pixel Y in crop space (240-high).
+    float p = 0.0f;   ///< Likelihood score [0, 1].
 };
 
+/// A circular object zone in normalised [0, 1] arena coordinates.
 struct Zone {
-    float x = 0.0f;      // center X (0-1 normalized)
-    float y = 0.0f;      // center Y (0-1 normalized)
-    float r = 0.0f;      // radius as fraction of arena size
+    float x = 0.0f;  ///< Centre X (0=left, 1=right).
+    float y = 0.0f;  ///< Centre Y (0=top, 1=bottom).
+    float r = 0.0f;  ///< Radius as a fraction of arena width.
 };
 
-// ── Registro por frame para análise B-SOiD pós-sessão ─────────────────────
-// Armazena as 21 features e o label da regra nativa para cada frame processado.
-// Gravado em CSV ao final da sessão para input do BSoidAnalyzer.
+/// Per-frame snapshot stored for post-session B-SOiD analysis.
 struct FrameRecord {
-    int   frameIdx = 0;
+    int frameIdx = 0;
     std::array<float, 21> features = {};
-    int   ruleLabel = 0;          // resultado de classifySimple()
+    int ruleLabel = 0;  ///< Result of BehaviorScanner::classifySimple().
 };
 
+/// Extracts movement features from successive pose keypoints and classifies
+/// the current behaviour using a priority-ordered rule chain.
 class BehaviorScanner {
 public:
-    BehaviorScanner(int fps = 30);
+    explicit BehaviorScanner(int fps = 30);
     ~BehaviorScanner() = default;
 
+    /// Process one frame. Returns true when both nose and body have valid likelihoods.
     bool pushFrame(const PosePoint& nose, const PosePoint& body);
+
+    /// Current 21-element feature vector. Valid after the first pushFrame() call.
     std::vector<float> getFeatures() const;
+
+    /// Reset rolling history and frame counters. Does NOT clear B-SOiD history.
     void reset();
 
+    /// Override the zone list used for sniffing detection.
     void setZones(const std::vector<Zone>& zones);
-    void setFloorPolygon(const std::vector<std::pair<float,float>>& poly); // {x,y} norm 0-1
-    void setCropSize(int w, int h);
-    void setVelocity(float velocity);  // m/s do corpo para classifySimple
 
-    // ── Histórico B-SOiD ──────────────────────────────────────────────────
+    /// Override the floor polygon (normalised 0–1) used for rearing detection.
+    void setFloorPolygon(const std::vector<std::pair<float, float>>& poly);
+
+    void setCropSize(int width, int height);
+
+    /// Receive the current body velocity in m/s from the QML layer.
+    void setVelocity(float velocity);
+
+    // ── B-SOiD history ────────────────────────────────────────────────────────
     void clearHistory();
     const std::vector<FrameRecord>& frameHistory() const { return _frameHistory; }
 
+    // Scale factors: crop space (360×240 output) → training space (330×240).
     static constexpr size_t FEATURE_COUNT = 21;
-
-    static constexpr float TRAINING_W = 330.0f;
-    static constexpr float TRAINING_H = 240.0f;
-    static constexpr float CROP_W     = 360.0f;
-    static constexpr float CROP_H     = 240.0f;
+    static constexpr float  TRAINING_W    = 330.0f;
+    static constexpr float  TRAINING_H    = 240.0f;
+    static constexpr float  CROP_W        = 360.0f;
+    static constexpr float  CROP_H        = 240.0f;
 
     static constexpr int BEHAVIOR_WALKING  = 0;
     static constexpr int BEHAVIOR_SNIFFING = 1;
@@ -58,30 +72,40 @@ public:
     static constexpr int BEHAVIOR_RESTING  = 3;
     static constexpr int BEHAVIOR_REARING  = 4;
 
+    /// Rule-based classifier. Call after pushFrame().
     int classifySimple() const;
 
 private:
     int _fps;
-    int _cropW = 360;
-    int _cropH = 240;
-    int _frameCount = 0;          // contador de frames para FrameRecord::frameIdx
+    int _cropW      = 360;
+    int _cropH      = 240;
+    int _frameCount = 0;
 
     std::deque<float> _movementsSumHist;
     std::deque<float> _noseProbHist;
     std::deque<float> _bodyProbHist;
 
-    std::vector<float>       _currentFeatures;
-    std::vector<Zone>        _zones;
-    std::vector<std::pair<float,float>> _floorPoly; // polígono do chão em coords norm 0-1
-    std::vector<FrameRecord> _frameHistory;          // buffer B-SOiD (cresce por sessão)
+    std::vector<float>                   _currentFeatures;
+    std::vector<Zone>                    _zones;
+    std::vector<std::pair<float, float>> _floorPoly;
+    std::vector<FrameRecord>             _frameHistory;
 
     PosePoint _prevNose;
     PosePoint _prevBody;
-    float _velocity = 0.0f;  // m/s (velocidade do corpo)
+    float     _velocity = 0.0f;
 
-    float getMean(const std::deque<float>& d, size_t window) const;
-    float getSum(const std::deque<float>& d, size_t window) const;
+    /// Rolling mean of the last *window* entries in *history*.
+    float getMean(const std::deque<float>& history, size_t window) const;
+
+    /// Rolling sum of the last *window* entries in *history*.
+    float getSum(const std::deque<float>& history, size_t window) const;
+
+    /// Count of keypoints whose likelihood fell below *threshold* in the last *window* frames.
     float getLowProbFraction(float threshold, size_t window) const;
-    bool isNearObject(float x, float y) const;
-    bool isInsideFloor(float normX, float normY) const; // ray-cast no polígono do chão
+
+    /// True when the given crop-space point is within 1.5× of any configured zone radius.
+    bool isNearObject(float cropX, float cropY) const;
+
+    /// Ray-casting point-in-polygon test mirroring the QML isPointInPoly helper.
+    bool isInsideFloor(float normX, float normY) const;
 };

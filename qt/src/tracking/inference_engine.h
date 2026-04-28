@@ -1,22 +1,26 @@
 #pragma once
-#include <QThread>
-#include <QMutex>
-#include <QWaitCondition>
+
 #include <QImage>
+#include <QMutex>
 #include <QString>
+#include <QThread>
+#include <QWaitCondition>
+
 #include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
+
 // Header-only C++ wrapper around the ONNX Runtime C API.
-// Located in onnxruntime-win-x64-1.24.4/include/ (or onnxruntime-win-x64-gpu-1.24.4 for CUDA).
-// Requires MSVC 14.4+ (VS 2022). Windows 10+ required.
+// Located in onnxruntime-win-x64-1.24.4/include/ (or the GPU variant for CUDA).
+// Requires MSVC 14.4+ (VS 2022) and Windows 10+.
 #include "onnxruntime_cxx_api.h"
 #include "BehaviorScanner.h"
 
-// Runs ONNX inference on video frames in a dedicated thread.
-// Receives QImage frames via enqueueFrame() (thread-safe, single-slot queue —
-// always processes the most recent frame).
+/// Runs ONNX pose and behaviour inference on video frames in a dedicated thread.
+///
+/// Frames are delivered via enqueueFrame() — thread-safe, single-slot queue that
+/// always retains the most recent frame and discards any pending predecessor.
 class InferenceEngine : public QThread
 {
     Q_OBJECT
@@ -24,54 +28,61 @@ public:
     explicit InferenceEngine(QObject* parent = nullptr);
     ~InferenceEngine() override;
 
-    // Call before start(). Stores model path for loading inside run().
+    /// Store the pose model path for loading at thread start. Call before start().
     void loadModel(const QString& modelPath);
-    void loadBehaviorModel(const QString& behaviorModelPath);
-    void setZones(int campo, const std::vector<Zone>& zones);
-    void setFloorPolygon(int campo, const std::vector<std::pair<float,float>>& poly);
-    void setVelocity(int campo, float velocity);  // m/s para comportamento
 
-    // EI: quando true, campo 0 recebe o frame inteiro redimensionado (720x480 → 360x240)
-    // em vez do quadrante superior-esquerdo. Deve ser chamado antes de start().
+    /// Store the behaviour model directory. Call before start().
+    void loadBehaviorModel(const QString& behaviorModelDir);
+
+    void setZones(int fieldIndex, const std::vector<Zone>& zones);
+    void setFloorPolygon(int fieldIndex, const std::vector<std::pair<float, float>>& poly);
+
+    /// Receive the current body velocity (m/s) for rule-based classification.
+    void setVelocity(int fieldIndex, float velocity);
+
+    /// EI mode: process the full frame as field 0 instead of the top-left quadrant.
+    /// Must be called before start().
     void setFullFrameMode(bool enabled);
 
-    // Thread-safe. Replaces any pending frame with the new one.
-    void enqueueFrame(const QImage& frame, int videoW, int videoH);
+    /// Thread-safe. Replaces any pending frame with the new one (single-slot queue).
+    void enqueueFrame(const QImage& frame, int videoWidth, int videoHeight);
 
-    // Ask the thread to exit cleanly.
+    /// Signal the worker thread to exit cleanly on its next iteration.
     void requestStop();
 
-    // B-SOiD: acesso ao histórico de frames de cada scanner (leitura após stopAnalysis)
-    const std::vector<FrameRecord>& getScannerHistory(int campo) const;
-    void clearScannerHistory(int campo);
+    /// B-SOiD: read per-field frame history after stopAnalysis().
+    const std::vector<FrameRecord>& getScannerHistory(int fieldIndex) const;
+    void clearScannerHistory(int fieldIndex);
 
 signals:
-    // Emitted (from tracker thread, use QueuedConnection) when model is ready.
+    /// Emitted (queued) when all ONNX sessions are loaded and ready.
     void modelReady();
-    // Nose and body detections — mosaico pixel coordinates.
-    void trackResult(int campo, float x, float y, float p);
-    void bodyResult (int campo, float x, float y, float p);
-    void behaviorResult(int campo, int labelId);
-    void errorMsg(QString msg);
-    void infoMsg(QString msg);  // GPU/CPU mode report, general status
+    /// Nose keypoint — mosaico pixel coordinates.
+    void trackResult(int fieldIndex, float x, float y, float likelihood);
+    /// Body keypoint — mosaico pixel coordinates.
+    void bodyResult(int fieldIndex, float x, float y, float likelihood);
+    void behaviorResult(int fieldIndex, int labelId);
+    void errorMsg(QString message);
+    void infoMsg(QString message);
 
 protected:
     void run() override;
 
 private:
-    struct Job {
+    struct PendingJob {
         QImage frame;
-        int    videoW = 0;
-        int    videoH = 0;
+        int    videoWidth  = 0;
+        int    videoHeight = 0;
     };
 
     bool createSession();
-    bool tryCreateSessions(Ort::SessionOptions& opts);
-    void processJob(const Job& job);
-    void inferCrop(const QImage& crop, int campo, int ox, int oy,
+    bool tryCreateSessions(Ort::SessionOptions& sessionOptions);
+    void processJob(const PendingJob& job);
+    void inferCrop(const QImage& crop, int fieldIndex,
+                   int cropOffsetX, int cropOffsetY,
                    float scaleX, float scaleY);
 
-    // Model constants (DLC ResNet-50 export)
+    // DLC ResNet-50 model constants.
     static constexpr float STRIDE     = 8.0f;
     static constexpr float LOCREF_STD = 7.2801f;
     static constexpr int   MODEL_W    = 360;
@@ -79,34 +90,32 @@ private:
     static constexpr int   HEAT_ROWS  = 30;
     static constexpr int   HEAT_COLS  = 46;
 
-    // One behavior session per behavior class (binary classifiers — one .onnx each).
+    // Binary behaviour classifiers — one ONNX session per class, shared across all fields.
     struct BehaviorSessionInfo {
         std::unique_ptr<Ort::Session> session;
         std::string inputName;
         std::string probOutputName;
-        int behaviorIndex;
+        int         behaviorIndex = 0;
     };
 
-    Ort::Env                      m_env;
-    // One session per campo for pose — allows 3 concurrent inferences
-    std::unique_ptr<Ort::Session> m_sessions[3];
-    // One session per behavior class (shared across all campi)
-    std::vector<BehaviorSessionInfo> m_behaviorSessions;
+    Ort::Env                         m_env;
+    std::unique_ptr<Ort::Session>    m_sessions[3];       // one per field — concurrent inference
+    std::vector<BehaviorSessionInfo> m_behaviorSessions;  // shared across all fields
 
-    std::string                   m_inputName;
-    std::vector<std::string>      m_outputNames;
+    std::string              m_inputName;
+    std::vector<std::string> m_outputNames;
 
-    bool                          m_hasLocref = false;
-    bool                          m_behaviorEnabled = false;
-    std::atomic<bool>             m_fullFrame{false};  // EI: frame completo vs. quadrante
+    bool              m_hasLocrefOutput = false;
+    bool              m_behaviorEnabled = false;
+    std::atomic<bool> m_fullFrame{false};
 
     QString        m_modelPath;
-    QString        m_bModelDir;  // directory containing individual behavior .onnx files
+    QString        m_behaviorModelDir;
     QMutex         m_mutex;
     QWaitCondition m_cond;
-    bool           m_hasPending = false;
-    bool           m_stop       = false;
-    Job            m_pending;
+    bool           m_pendingAvailable = false;
+    bool           m_stopRequested    = false;
+    PendingJob     m_pendingJob;
 
     BehaviorScanner m_scanners[3];
 };

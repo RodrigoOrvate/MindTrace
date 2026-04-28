@@ -1,5 +1,5 @@
 ﻿// qml/ca/CASetup.qml
-// Passo 3 do fluxo CA: nome do experimento, diretório, opções e criação.
+// CA flow step 3: experiment name, directory, options and creation.
 
 import QtQuick
 import QtQuick.Controls
@@ -19,7 +19,7 @@ Item {
     property var    contextPatterns: []
     property string selectedPath: ""
 
-    // name, cols, includeDrug, responsavel, dayNames, savePath
+    // name, cols, includeDrug, responsável, dayNames, savePath
     signal experimentReady(string name, var cols, bool includeDrug, string responsibleUsername, var dayNames, string savePath)
     signal backRequested()
     property string responsibleUsername: ""
@@ -74,7 +74,7 @@ Item {
 
     function doCreate() {
         var cols = [
-            LanguageManager.tr3("Diretorio do Video", "Video Directory", "Directorio del Video"),
+            LanguageManager.tr3("Diretório do Video", "Video Directory", "Directorio del Video"),
             LanguageManager.tr3("Animal", "Animal", "Animal"),
             LanguageManager.tr3("Campo", "Field", "Campo"),
             LanguageManager.tr3("Dia", "Day", "Dia"),
@@ -125,7 +125,7 @@ Item {
             ColumnLayout {
                 spacing: 2
                 Text {
-                    text: LanguageManager.tr3("Configuracao do Experimento", "Experiment Setup", "Configuracion del Experimento")
+                    text: LanguageManager.tr3("Configuração do Experimento", "Experiment Setup", "Configuracion del Experimento")
                     color: ThemeManager.textPrimary
                     Behavior on color { ColorAnimation { duration: 150 } }
                     font.pixelSize: 22; font.weight: Font.Bold
@@ -145,13 +145,13 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Formulário ───────────────────────────────────────────────────
+        // ── Form ─────────────────────────────────────────────────────────
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
             spacing: 24
 
-            // Nome + Diretório
+            // Name + Directory
             RowLayout {
                 Layout.fillWidth: true; spacing: 16
 
@@ -340,7 +340,7 @@ Item {
                             }
                         }
                         Text {
-                            text: "Recomendado: informe um responsavel sempre que houver usuario disponivel."
+                            text: "Recomendado: informe um responsável sempre que houver usuário disponível."
                             color: "#d8c26a"; font.pixelSize: 11
                             wrapMode: Text.Wrap
                         }
@@ -350,7 +350,7 @@ Item {
                     text: root.responsibleUnknown
                           ? "Responsavel sera salvo como \"desconhecido\"."
                           : (ExperimentManager.researcherUsers.length === 0
-                             ? "Nenhum pesquisador disponivel. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuarios nao-admin ativos."
+                             ? "Nenhum pesquisador disponível. Verifique MINDTRACE_SYNC_URL/MINDTRACE_SYNC_SECRET e usuários não-admin ativos."
                              : "Responsavel registrado no metadata e sincronizado no historico.")
                     color: ThemeManager.textTertiary; font.pixelSize: 11
                 }
@@ -358,7 +358,7 @@ Item {
 
             Rectangle { Layout.fillWidth: true; height: 1; color: ThemeManager.border; Behavior on color { ColorAnimation { duration: 200 } } }
 
-            // ── Informação de layout ──────────────────────────────────────
+            // ── Layout information ────────────────────────────────────
             Rectangle {
                 Layout.fillWidth: true; height: 48; radius: 10
                 color: ThemeManager.surfaceDim
@@ -378,7 +378,7 @@ Item {
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
                         Text {
-                    text: LanguageManager.tr3("Duracao: 5 min por campo  ·  Metricas: distancia e velocidade", "Duration: 5 min per field  ·  Metrics: distance and speed", "Duracion: 5 min por campo  ·  Metricas: distancia y velocidad")
+                    text: LanguageManager.tr3("Duração: 5 min por campo  ·  Metricas: distância e velocidade", "Duration: 5 min per field  ·  Metrics: distance and speed", "Duracion: 5 min por campo  ·  Metricas: distância y velocidad")
                             color: ThemeManager.textTertiary; font.pixelSize: 11
                         }
                     }
@@ -500,7 +500,7 @@ Item {
 
         Item { Layout.minimumHeight: 24 }
 
-        // ── Rodapé ────────────────────────────────────────────────────────
+        // ── Footer ────────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 

@@ -4,8 +4,7 @@
 #include <QObject>
 #include <QStringList>
 
-// ── Structs de dados ──────────────────────────────────────────────────────────
-
+/// Static arena descriptor loaded from arenas.json.
 struct ArenaInfo {
     QString     id;
     QString     name;
@@ -14,6 +13,7 @@ struct ArenaInfo {
     QStringList contexts;   // e.g. {"Padrão"} ou {"Contextual"}
 };
 
+/// Object-pair descriptor used for NOR experiment configuration.
 struct PairInfo {
     QString     id;
     QString     name;
@@ -22,8 +22,7 @@ struct PairInfo {
     QStringList objects;    // IDs dos eventos, e.g. {"OBJA","OBJB"}
 };
 
-// ── ArenaListModel ────────────────────────────────────────────────────────────
-// Lista de arenas (filtrada pelo contexto ativo).
+/// List of arenas filtered by the active context.
 class ArenaListModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -47,8 +46,7 @@ private:
     QList<ArenaInfo> m_arenas;
 };
 
-// ── PairListModel ─────────────────────────────────────────────────────────────
-// Lista completa de pares de objetos (sem filtragem — todos os pares disponíveis).
+/// Complete list of object pairs — no filtering, all pairs available.
 class PairListModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -78,8 +76,7 @@ private:
     QList<PairInfo> m_pairs;
 };
 
-// ── ArenaModel ────────────────────────────────────────────────────────────────
-// Singleton QML. Carrega arenas.json (embutido no .qrc) e expõe os modelos.
+/// Singleton QML object. Loads arenas.json (embedded in .qrc) and exposes the list models.
 class ArenaModel : public QObject
 {
     Q_OBJECT

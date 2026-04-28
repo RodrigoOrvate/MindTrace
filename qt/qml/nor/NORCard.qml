@@ -1,4 +1,4 @@
-// qml/NORCard.qml
+﻿// qml/NORCard.qml
 import QtQuick
 import QtQuick.Layouts
 import "../core"
@@ -17,7 +17,7 @@ Item {
     width: 230
     height: 290
 
-    // Sombra dinâmica — apagada quando locked
+    // Dynamic shadow — hidden when locked
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true
@@ -130,7 +130,7 @@ Item {
         }
     }
 
-    // Área de interação — desativada quando locked
+    // Interaction area — disabled when locked
     MouseArea {
         anchors.fill: parent
         enabled: !cardRoot.locked

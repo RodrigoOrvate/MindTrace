@@ -1,9 +1,9 @@
 ﻿// qml/ca/CAArenaSelection.qml
-// Passo 2 do fluxo CA: seleÃ§Ã£o do layout de campos e contexto.
+// CA flow step 2: select field layout and context.
 //
 // Regras de layout:
-// 2 campos â†’ PadrÃ£o ou Contextual
-// 3 campos â†’ Sem contexto (fixo)
+// 2 fields -> Standard or Contextual
+// 3 fields -> No context (fixed)
 
 import QtQuick
 import QtQuick.Controls
@@ -21,15 +21,15 @@ Item {
         { key: "horizontal", label: LanguageManager.tr3("Listras horizontais", "Horizontal stripes", "Franjas horizontales") },
         { key: "vertical",   label: LanguageManager.tr3("Listras verticais", "Vertical stripes", "Franjas verticales") },
         { key: "dots",       label: LanguageManager.tr3("Bolinhas", "Dots", "Puntos") },
-        { key: "triangles",  label: LanguageManager.tr3("Triangulos", "Triangles", "Triangulos") },
+        { key: "triangles",  label: LanguageManager.tr3("Triângulos", "Triangles", "Triângulos") },
         { key: "squares",    label: LanguageManager.tr3("Quadrados", "Squares", "Cuadrados") }
     ]
-    property string selectedContext:   "PadrÃ£o"
+    property string selectedContext:   "Padrão"
 
     readonly property string selectedArenaId:
         "ca_" + selectedNumCampos + "campos"
 
-    // 1 e 3 campos nÃ£o permitem escolha de contexto
+    // 1 and 3 fields do not allow context selection
     readonly property bool contextForced: selectedNumCampos !== 2
 
     signal selectionConfirmed(int numCampos, string context, string arenaId, var contextPatterns)
@@ -39,7 +39,7 @@ Item {
         for (var i = 0; i < patternOptions.length; i++) {
             if (patternOptions[i].key === key) return patternOptions[i].label
         }
-        return LanguageManager.tr3("Padrao", "Default", "Predeterminado")
+        return LanguageManager.tr3("Padrão", "Default", "Predeterminado")
     }
     function ensurePatternDefaults() {
         var defaults = ["horizontal", "vertical", "dots"]
@@ -62,7 +62,10 @@ Item {
         if (contextForced) selectedContext = "Padrão"
         ensurePatternDefaults()
     }
-    onSelectedNumCamposChanged: ensurePatternDefaults()
+    onSelectedNumCamposChanged: {
+        if (selectedNumCampos === 2) selectedContext = "Padrão"
+        ensurePatternDefaults()
+    }
     Component.onCompleted: ensurePatternDefaults()
 
     Rectangle { anchors.fill: parent; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } } }
@@ -72,7 +75,7 @@ Item {
         anchors.margins: 40
         spacing: 0
 
-        // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Header ───────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
@@ -101,13 +104,13 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // â”€â”€ Corpo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Body ─────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 32
 
-            // â”€â”€ Preview dinÃ¢mico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Dynamic preview ──────────────────────────────────────────
             Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: parent.height
@@ -127,7 +130,7 @@ Item {
                     Behavior on width  { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                     Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-                    // Grid view â€” 2 ou 3 campos
+                    // Grid view — 2 or 3 fields
                     Item {
                         id: grid
                         anchors { fill: parent; margins: 8 }
@@ -303,7 +306,7 @@ Item {
                             }
                         }
 
-                        // CÃ©lula inferior-dir: sempre inativa
+                        // Bottom-right cell: always inactive
                         Rectangle {
                             x: grid.cellW + 6; y: grid.cellH + 6
                             width: grid.cellW; height: grid.cellH
@@ -316,7 +319,7 @@ Item {
                         }
                     }
 
-                    // Vista retangular â€” 1 campo (estilo EI adaptado)
+                    // Rectangular view — 1 field (EI-style adapted)
                     Item {
                         anchors { fill: parent; margins: 8 }
                         opacity: root.selectedNumCampos === 1 ? 1 : 0
@@ -359,13 +362,13 @@ Item {
                 }
             }
 
-            // â”€â”€ Painel de opÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Options panel ────────────────────────────────────────────
             ColumnLayout {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 280
                 spacing: 24
 
-                // â”€â”€ NÃºmero de campos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Number of fields ──────────────────────────────────────
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -413,7 +416,7 @@ Item {
                     }
                 }
 
-                // â”€â”€ Contexto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // ── Context ──────────────────────────────────────────────
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -438,7 +441,7 @@ Item {
 
                     Repeater {
                         model: [
-                            { ctx: "PadrÃ£o",     label: LanguageManager.tr3("Sem Contexto", "No Context", "Sin Contexto"),  desc: LanguageManager.tr3("Paredes uniformes - arena neutra.", "Uniform walls - neutral arena.", "Paredes uniformes - arena neutra.") },
+                            { ctx: "Padrão",     label: LanguageManager.tr3("Sem Contexto", "No Context", "Sin Contexto"),  desc: LanguageManager.tr3("Paredes uniformes - arena neutra.", "Uniform walls - neutral arena.", "Paredes uniformes - arena neutra.") },
                             { ctx: "Contextual", label: LanguageManager.tr3("Com Contexto", "With Context", "Con Contexto"),  desc: LanguageManager.tr3("Paredes coloridas - pistas visuais distintas.", "Colored walls - distinct visual cues.", "Paredes coloreadas - pistas visuales distintas.") }
                         ]
                         delegate: Rectangle {
@@ -481,7 +484,7 @@ Item {
 
         Item { Layout.fillHeight: true; Layout.minimumHeight: 16 }
 
-        // â”€â”€ RodapÃ© â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Footer ───────────────────────────────────────────────────────
         RowLayout {
             Layout.alignment: Qt.AlignHCenter; spacing: 24
 
