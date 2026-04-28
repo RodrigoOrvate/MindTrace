@@ -76,3 +76,4 @@ Scripts ativos em `qt\scripts\`:
   - `CMake: Delete Cache and Reconfigure`
 - DLL faltando ao abrir o exe:
   - Rode `qt\scripts\build.bat` uma vez (sem `--deps-only`)
+
