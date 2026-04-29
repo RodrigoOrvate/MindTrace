@@ -253,7 +253,7 @@ MindTrace/
 
 O Animal Lifecycle é uma plataforma complementar ao MindTrace para cadastro de animais, histórico e timeline de experimentos. Está sendo migrada para um repositório próprio.
 
-> **Repositório:** [github.com/RodrigoOrvate/animal-lifecycle-platform](https://github.com/RodrigoOrvate/animal-lifecycle-platform) *(em breve)*
+> **Repositório:** [github.com/RodrigoOrvate/animal-lifecycle-platform](https://github.com/RodrigoOrvate/animal-lifecycle-platform)
 
 **Integração com o MindTrace:**
 - O experimento é criado no MindTrace com o campo `responsavel`
