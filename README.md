@@ -6,6 +6,18 @@ Sistema de tracking comportamental de ratos para paradigmas **NOR**, **Campo Abe
 
 ---
 
+## 📚 Documentação (Centralizada em `/docs`)
+
+**Novo no projeto? Comece aqui:**
+
+| Link | Público |
+|------|---------|
+| **[docs/QUICK_START.md](docs/QUICK_START.md)** | 📍 Escolha seu caminho em 2 minutos |
+| **[docs/GLOSSÁRIO.md](docs/GLOSSÁRIO.md)** | 📚 Termos técnicos explicados |
+| **[README.md (abaixo)](https://github.com/RodrigoOrvate/MindTrace)** | 🔧 Documentação técnica |
+
+---
+
 ## Escolha como deseja usar o MindTrace
 
 | Quero usar o programa | Quero modificar o código |
