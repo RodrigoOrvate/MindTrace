@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <array>
+#include <cmath>
 #include <thread>
 
 // OrtDmlApi binary layout for ONNX Runtime 1.24.4.
@@ -57,6 +59,51 @@ static GpuVendor detectGpuVendor()
     }
     dxgiFactory->Release();
     return vendor;
+}
+
+static std::vector<int> detectActiveMosaicQuadrants(const QImage& frame, int brightnessThreshold = 45)
+{
+    std::vector<int> active;
+    if (frame.isNull() || frame.width() < 2 || frame.height() < 2) return active;
+
+    const int halfW = frame.width() / 2;
+    const int halfH = frame.height() / 2;
+    if (halfW <= 0 || halfH <= 0) return active;
+
+    const std::array<QRect, 4> rois = {{
+        QRect(0,     0,     halfW, halfH),  // 0: top-left
+        QRect(halfW, 0,     halfW, halfH),  // 1: top-right
+        QRect(0,     halfH, halfW, halfH),  // 2: bottom-left
+        QRect(halfW, halfH, halfW, halfH),  // 3: bottom-right
+    }};
+
+    for (int idx = 0; idx < static_cast<int>(rois.size()); ++idx) {
+        const QRect roi = rois[idx].intersected(frame.rect());
+        if (roi.isEmpty()) continue;
+
+        const int sampleStep = 12;
+        int darkCount = 0;
+        int sampleCount = 0;
+        for (int y = roi.top(); y <= roi.bottom(); y += sampleStep) {
+            for (int x = roi.left(); x <= roi.right(); x += sampleStep) {
+                const QRgb px = frame.pixel(x, y);
+                const int luma = (299 * qRed(px) + 587 * qGreen(px) + 114 * qBlue(px)) / 1000;
+                if (luma <= brightnessThreshold) ++darkCount;
+                ++sampleCount;
+            }
+        }
+
+        if (sampleCount <= 0) continue;
+        const double darkRatio = static_cast<double>(darkCount) / static_cast<double>(sampleCount);
+        if (darkRatio < 0.60) {
+            active.push_back(idx);
+        } else {
+            qDebug() << "[InferenceEngine] skip quadrant" << idx
+                     << "(majority black, darkRatio=" << darkRatio << ")";
+        }
+    }
+
+    return active;
 }
 
 // Returns true if CUDA EP was successfully registered in *sessionOptions*.
@@ -197,6 +244,20 @@ void InferenceEngine::clearScannerHistory(int fieldIndex)
 {
     if (fieldIndex >= 0 && fieldIndex < 3)
         m_scanners[fieldIndex].clearHistory();
+}
+
+void InferenceEngine::setManualQuadrantMapping(const std::vector<int>& mapping)
+{
+    QMutexLocker lock(&m_mutex);
+    m_manualQuadrants = mapping;
+    m_manualQuadrantEnabled = true;
+}
+
+void InferenceEngine::clearManualQuadrantMapping()
+{
+    QMutexLocker lock(&m_mutex);
+    m_manualQuadrants.clear();
+    m_manualQuadrantEnabled = false;
 }
 
 // ── Session creation ───────────────────────────────────────────────────────────
@@ -373,6 +434,7 @@ void InferenceEngine::run()
     // Reset scanners so stale movement history from the previous session does
     // not contaminate the first frames of the new one.
     for (auto& scanner : m_scanners) scanner.reset();
+    m_lastActiveQuadrants = {0, 1, 2};
 
     if (!createSession()) return;
     emit modelReady();
@@ -416,14 +478,34 @@ void InferenceEngine::processJob(const PendingJob& job)
     const float scaleX = static_cast<float>(halfW) / MODEL_W;
     const float scaleY = static_cast<float>(halfH) / MODEL_H;
 
-    // Fields: top-left (0), top-right (1), bottom-left (2).
-    const int offsets[3][2] = {{0, 0}, {halfW, 0}, {0, halfH}};
+    // Dynamic mapping: field N uses the N-th active quadrant (skip black quadrants).
+    std::vector<int> activeQuadrants;
+    bool manualMode = false;
+    {
+        QMutexLocker lock(&m_mutex);
+        if (m_manualQuadrantEnabled) {
+            activeQuadrants = m_manualQuadrants;
+            manualMode = true;
+        }
+    }
+
+    if (!manualMode) {
+        activeQuadrants = detectActiveMosaicQuadrants(job.frame);
+        if (!activeQuadrants.empty())
+            m_lastActiveQuadrants = activeQuadrants;
+        else
+            activeQuadrants = m_lastActiveQuadrants;
+    }
+    const int offsets[4][2] = {{0, 0}, {halfW, 0}, {0, halfH}, {halfW, halfH}};
 
     std::vector<std::thread> workerThreads;
     workerThreads.reserve(3);
     for (int fieldIndex = 0; fieldIndex < 3; ++fieldIndex) {
-        const int cropOffsetX = offsets[fieldIndex][0];
-        const int cropOffsetY = offsets[fieldIndex][1];
+        if (fieldIndex >= static_cast<int>(activeQuadrants.size()))
+            break;
+        const int quadrantIndex = activeQuadrants[fieldIndex];
+        const int cropOffsetX = offsets[quadrantIndex][0];
+        const int cropOffsetY = offsets[quadrantIndex][1];
         workerThreads.emplace_back([this, &job, fieldIndex,
                                     cropOffsetX, cropOffsetY,
                                     halfW, halfH, scaleX, scaleY]() {

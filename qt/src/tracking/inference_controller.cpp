@@ -1,4 +1,4 @@
-﻿#include "inference_controller.h"
+#include "inference_controller.h"
 
 #include <QCameraFormat>
 #include <QCoreApplication>
@@ -23,6 +23,60 @@
 
 #include <algorithm>
 #include <climits>
+#include <array>
+#include <cmath>
+#include <vector>
+
+static QVariantList detectActiveQuadrants(const QImage& image, int brightnessThreshold = 45)
+{
+    QVariantList active;
+    if (image.isNull() || image.width() < 2 || image.height() < 2) {
+        return active;
+    }
+
+    const int halfW = image.width() / 2;
+    const int halfH = image.height() / 2;
+    if (halfW <= 0 || halfH <= 0) {
+        return active;
+    }
+
+    const std::array<QRect, 4> rois = {{
+        QRect(0,     0,     halfW, halfH),   // 0: top-left
+        QRect(halfW, 0,     halfW, halfH),   // 1: top-right
+        QRect(0,     halfH, halfW, halfH),   // 2: bottom-left
+        QRect(halfW, halfH, halfW, halfH),   // 3: bottom-right
+    }};
+
+    for (int quadrantIdx = 0; quadrantIdx < static_cast<int>(rois.size()); ++quadrantIdx) {
+        const QRect roi = rois[quadrantIdx].intersected(image.rect());
+        if (roi.isEmpty()) continue;
+
+        const int sampleStep = 12;
+        int darkCount = 0;
+        int sampleCount = 0;
+
+        for (int y = roi.top(); y <= roi.bottom(); y += sampleStep) {
+            for (int x = roi.left(); x <= roi.right(); x += sampleStep) {
+                const QRgb px = image.pixel(x, y);
+                const int luma = (299 * qRed(px) + 587 * qGreen(px) + 114 * qBlue(px)) / 1000;
+                if (luma <= brightnessThreshold) ++darkCount;
+                ++sampleCount;
+            }
+        }
+
+        if (sampleCount <= 0) continue;
+        const double darkRatio = static_cast<double>(darkCount) / static_cast<double>(sampleCount);
+        // Simple rule requested: skip when most of the quadrant is black.
+        if (darkRatio < 0.60) {
+            active << quadrantIdx;
+        } else {
+            qDebug() << "[InferenceController] skip quadrant" << quadrantIdx
+                     << "(majority black, darkRatio=" << darkRatio << ")";
+        }
+    }
+
+    return active;
+}
 
 // Returns the first .onnx file found in *dir* (top-level only, no subdirectories).
 // Allows loading the pose model regardless of its filename.
@@ -149,11 +203,44 @@ InferenceController::~InferenceController()
 // â”€â”€ Properties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 bool InferenceController::isAnalyzing() const { return m_isAnalyzing; }
+QVariantList InferenceController::activeQuadrantIndices() const { return m_activeQuadrantIndices; }
+
+void InferenceController::updateActiveQuadrantsFromFrame(const QVideoFrame& frame)
+{
+    if (m_fullFrameMode || m_manualQuadrantEnabled) return;
+    const QImage image = frame.toImage();
+    if (image.isNull()) return;
+    const QVariantList detected = detectActiveQuadrants(image);
+    if (detected.isEmpty()) return; // Keep the last valid mapping.
+    if (detected != m_activeQuadrantIndices) {
+        m_activeQuadrantIndices = detected;
+        qDebug() << "[InferenceController] activeQuadrantIndices (preview) =" << m_activeQuadrantIndices;
+        emit activeQuadrantIndicesChanged();
+    }
+}
 
 QString InferenceController::defaultModelDir() const
 {
     return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
            + "/MindTrace_Data/DLC_Model";
+}
+
+void InferenceController::setManualQuadrantMapping(const QVariantList& mapping)
+{
+    m_manualQuadrantEnabled = true;
+    m_activeQuadrantIndices = mapping;
+    std::vector<int> stdMapping;
+    for (const auto& v : mapping) {
+        stdMapping.push_back(v.toInt());
+    }
+    m_engine->setManualQuadrantMapping(stdMapping);
+    emit activeQuadrantIndicesChanged();
+}
+
+void InferenceController::clearManualQuadrantMapping()
+{
+    m_manualQuadrantEnabled = false;
+    m_engine->clearManualQuadrantMapping();
 }
 
 void InferenceController::setAnalyzing(bool analyzing)
@@ -164,6 +251,20 @@ void InferenceController::setAnalyzing(bool analyzing)
 void InferenceController::processImageFrame(QImage img)
 {
     if (img.isNull()) return;
+
+    if (!m_fullFrameMode && !m_manualQuadrantEnabled) {
+        const QVariantList detected = detectActiveQuadrants(img);
+        if (detected.isEmpty()) {
+            // Ignore transient dark/invalid frames and preserve current mapping.
+        } else
+        if (detected != m_activeQuadrantIndices) {
+            m_activeQuadrantIndices = detected;
+            qDebug() << "[InferenceController] activeQuadrantIndices (analysis) =" << m_activeQuadrantIndices;
+            QMetaObject::invokeMethod(this, [this]() {
+                emit activeQuadrantIndicesChanged();
+            }, Qt::QueuedConnection);
+        }
+    }
 
     // Count live frames even before modelReady so the DirectShow watchdog
     // detects camera signal correctly (avoids false "Sem sinal").
@@ -261,6 +362,7 @@ void InferenceController::setVelocity(int fieldIndex, float velocity)
 
 void InferenceController::setFullFrameMode(bool enabled)
 {
+    m_fullFrameMode = enabled;
     m_engine->setFullFrameMode(enabled);
 }
 
@@ -1297,4 +1399,3 @@ void InferenceController::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         setAnalyzing(false);
     }
 }
-

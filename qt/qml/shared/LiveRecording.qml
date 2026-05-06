@@ -620,8 +620,8 @@ Item {
     function accumulateExploration() {
         if (recordingRoot.aparato === "nor" && (!zones || zones.length < 6)) return
 
-        var ox    = [0,   0.5, 0  ]
-        var oy    = [0,   0,   0.5]
+        var ox    = [fieldGridOffsetX(0), fieldGridOffsetX(1), fieldGridOffsetX(2)]
+        var oy    = [fieldGridOffsetY(0), fieldGridOffsetY(1), fieldGridOffsetY(2)]
         var cellW = 0.5
         var cellH = 0.5
         var now   = Date.now()
@@ -863,29 +863,43 @@ Item {
     // Coordenada local do rat dentro do quadrante/frame (0..1)
     // For EI (fullFrameMode), normX already covers [0,1] the full frame — no *2.
     // For mosaic (NOR/CA/CC), each field is half the frame: apply offset/scale.
+    function fieldQuadrant(campo) {
+        if (!inference || !inference.activeQuadrantIndices || inference.activeQuadrantIndices.length <= campo) {
+            return campo // fallback legacy: 0,1,2
+        }
+        return Number(inference.activeQuadrantIndices[campo])
+    }
+    function fieldGridOffsetX(campo) {
+        var q = fieldQuadrant(campo)
+        return (q % 2) * 0.5
+    }
+    function fieldGridOffsetY(campo) {
+        var q = fieldQuadrant(campo)
+        return (q >= 2 ? 1 : 0) * 0.5
+    }
     function ratLocalX(campo) {
         var nx = ratNormX[campo]
         if (nx < 0) return -1
         if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return nx
-        return campo === 1 ? (nx - 0.5) * 2 : nx * 2
+        return (nx - fieldGridOffsetX(campo)) * 2
     }
     function ratLocalY(campo) {
         var ny = ratNormY[campo]
         if (ny < 0) return -1
         if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return ny
-        return campo === 2 ? (ny - 0.5) * 2 : ny * 2
+        return (ny - fieldGridOffsetY(campo)) * 2
     }
     function bodyLocalX(campo) {
         var bx = bodyNormX[campo]
         if (bx < 0) return -1
         if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return bx
-        return campo === 1 ? (bx - 0.5) * 2 : bx * 2
+        return (bx - fieldGridOffsetX(campo)) * 2
     }
     function bodyLocalY(campo) {
         var by = bodyNormY[campo]
         if (by < 0) return -1
         if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) return by
-        return campo === 2 ? (by - 0.5) * 2 : by * 2
+        return (by - fieldGridOffsetY(campo)) * 2
     }
 
     function pairForCampo(i) { return i === 0 ? pair1 : (i === 1 ? pair2 : pair3) }
@@ -1035,16 +1049,25 @@ Item {
                                     anchors.fill: parent
                                     sourceItem: framePreviewMaster
                                     sourceRect: {
-                                        var _vo = framePreviewMaster
-                                        if (!_vo || _vo.width === 0)
-                                            return Qt.rect(0, 0, 0, 0)
-                                        var cr = _vo.contentRect
-                                        if (recordingRoot.aparato === "esquiva_inibitoria") return cr
-                                        var cw = cr.width / 2
+                                        var _fp = framePreviewMaster
+                                        if (!_fp || _fp.width === 0) return Qt.rect(0, 0, 0, 0)
+
+                                        var cr = _fp.contentRect
+                                        var cw = cr.width  / 2
                                         var ch = cr.height / 2
-                                        if (campoCell.ci === 0) return Qt.rect(cr.x,      cr.y,      cw, ch)
-                                        if (campoCell.ci === 1) return Qt.rect(cr.x + cw, cr.y,      cw, ch)
-                                        return                         Qt.rect(cr.x,      cr.y + ch, cw, ch)
+                                        var cx = cr.x
+                                        var cy = cr.y
+
+                                        // Usa o mapeamento dinâmico: pula quadrantes pretos
+                                        var q = campoCell.ci
+                                        if (inference
+                                                && inference.activeQuadrantIndices
+                                                && inference.activeQuadrantIndices.length > campoCell.ci) {
+                                            q = Number(inference.activeQuadrantIndices[campoCell.ci])
+                                        }
+                                        var qx = q % 2
+                                        var qy = q >= 2 ? 1 : 0
+                                        return Qt.rect(cx + qx * cw, cy + qy * ch, cw, ch)
                                     }
                                     opacity: 0.85
                                 }

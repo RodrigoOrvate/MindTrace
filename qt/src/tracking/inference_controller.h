@@ -10,6 +10,7 @@
 #include <QStringList>
 #include <QVideoFrame>
 #include <QVideoSink>
+#include <QVariantList>
 
 #include <memory>
 
@@ -24,6 +25,7 @@ class InferenceController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool isAnalyzing READ isAnalyzing NOTIFY analyzingChanged)
+    Q_PROPERTY(QVariantList activeQuadrantIndices READ activeQuadrantIndices NOTIFY activeQuadrantIndicesChanged)
 
 public:
     explicit InferenceController(QObject* parent = nullptr);
@@ -71,6 +73,11 @@ public:
     Q_INVOKABLE void   setPlaybackRate(double rate);
     Q_INVOKABLE qint64 position() const;
     Q_INVOKABLE void   seekTo(qint64 ms);
+    Q_INVOKABLE QVariantList activeQuadrantIndices() const;
+    Q_INVOKABLE void updateActiveQuadrantsFromFrame(const QVideoFrame& frame);
+
+    Q_INVOKABLE void setManualQuadrantMapping(const QVariantList& mapping);
+    Q_INVOKABLE void clearManualQuadrantMapping();
 
     /// Export a CSV with 21 features + ruleLabel per frame for B-SOiD analysis.
     Q_INVOKABLE bool exportBehaviorFeatures(const QString& csvPath, int fieldIndex);
@@ -102,6 +109,7 @@ signals:
     void fpsReceived  (double fps);
     void errorOccurred(QString errorMsg);
     void infoReceived (QString message);
+    void activeQuadrantIndicesChanged();
 
 private slots:
     void onVideoFrameChanged(const QVideoFrame& frame);
@@ -129,10 +137,13 @@ private:
     bool   m_isAnalyzing          = false;
     bool   m_isPreviewOnly        = false;
     bool   m_modelReady           = false;
+    bool   m_fullFrameMode        = false;
     int    m_videoW               = 0;
     int    m_videoH               = 0;
     qint64 m_liveFpsWindowStartMs = 0;
     int    m_liveFpsFrameCount    = 0;
     qint64 m_liveTotalFrameCount  = 0;
     bool   m_loggedLiveNullFrame  = false;
+    QVariantList m_activeQuadrantIndices{0, 1, 2};
+    bool   m_manualQuadrantEnabled = false;
 };

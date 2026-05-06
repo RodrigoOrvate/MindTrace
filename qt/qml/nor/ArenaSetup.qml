@@ -1,4 +1,4 @@
-﻿// qml/ArenaSetup.qml
+// qml/ArenaSetup.qml
 // 2x2 mosaic — draggable zones via Shift+Left (real-time drag).
 // Dev Mode: shows zone diameter; Shift+Scroll resizes.
 // Offline video: one VideoOutput in the corner + ShaderEffectSource per field (no hardware overlay bug).
@@ -348,8 +348,16 @@ Item {
         target: framePreview.videoSink
         enabled: root.analysisMode === "ao_vivo"
         function onVideoFrameChanged(frame) {
-            if (!frame || root.livePreviewFrozen || !arenaCamera.active)
+            if (!frame || root.livePreviewFrozen)
                 return
+            // Qt camera preview uses arenaCamera.active; DirectShow preview mirrors
+            // frames through InferenceController::setLivePreviewOutput and keeps
+            // arenaCamera inactive.
+            if (!arenaCamera.active && !root._isDirectShowPreview)
+                return
+            // Keep dynamic field->quadrant mapping updated even when preview
+            // is fed directly by QML Camera/CaptureSession (without analysis).
+            arenaPreviewInference.updateActiveQuadrantsFromFrame(frame)
             root.livePreviewFrameCount += 1
         }
     }
@@ -1244,6 +1252,62 @@ Item {
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 font.pixelSize: 11; font.weight: Font.Bold
                             }
+                            ComboBox {
+                                id: quadCombo
+                                visible: root.videoPath !== "" || (root.analysisMode === "ao_vivo" && root.cameraId !== "")
+                                model: ["Topo Esq", "Topo Dir", "Baixo Esq", "Baixo Dir"]
+                                implicitHeight: 22
+                                currentIndex: {
+                                    if (arenaPreviewInference && arenaPreviewInference.activeQuadrantIndices && arenaPreviewInference.activeQuadrantIndices.length > campoCell.campoIndex) {
+                                        return arenaPreviewInference.activeQuadrantIndices[campoCell.campoIndex];
+                                    }
+                                    return campoCell.campoIndex;
+                                }
+                                onActivated: function(index) {
+                                    var currentMap = [];
+                                    if (arenaPreviewInference.activeQuadrantIndices) {
+                                        for (var i = 0; i < arenaPreviewInference.activeQuadrantIndices.length; i++) {
+                                            currentMap.push(arenaPreviewInference.activeQuadrantIndices[i]);
+                                        }
+                                    }
+                                    while (currentMap.length < 3) currentMap.push(currentMap.length);
+                                    currentMap[campoCell.campoIndex] = index;
+                                    arenaPreviewInference.setManualQuadrantMapping(currentMap);
+                                }
+                                
+                                background: Rectangle {
+                                    color: ThemeManager.surfaceAlt
+                                    border.color: ThemeManager.border
+                                    border.width: 1
+                                    radius: 4
+                                }
+                                contentItem: Text {
+                                    text: quadCombo.currentText
+                                    color: ThemeManager.textPrimary
+                                    font.pixelSize: 10
+                                    verticalAlignment: Text.AlignVCenter
+                                    horizontalAlignment: Text.AlignLeft
+                                    leftPadding: 6
+                                }
+                                popup.background: Rectangle {
+                                    color: ThemeManager.surface
+                                    border.color: ThemeManager.border
+                                    radius: 4
+                                }
+                                delegate: ItemDelegate {
+                                    width: quadCombo.width
+                                    height: 24
+                                    contentItem: Text {
+                                        text: modelData
+                                        color: ThemeManager.textPrimary
+                                        font.pixelSize: 10
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        color: parent.hovered ? ThemeManager.surfaceAlt : "transparent"
+                                    }
+                                }
+                            }
                             Rectangle {
                                 visible: !root.caMode && campoCell.campoPair !== ""
                                 radius: 3; color: ThemeManager.background; Behavior on color { ColorAnimation { duration: 200 } }
@@ -1290,10 +1354,15 @@ Item {
                                         var cx = cr.x
                                         var cy = cr.y
 
-                                        // Divide the video square equally
-                                        if (campoCell.campoIndex === 0) return Qt.rect(cx,      cy,      cw, ch) // Topo-Esq (Campo 1)
-                                        if (campoCell.campoIndex === 1) return Qt.rect(cx + cw, cy,      cw, ch) // Topo-Dir (Campo 2)
-                                        return Qt.rect(cx,      cy + ch, cw, ch) // Baixo-Esq (Campo 3)
+                                        var q = campoCell.campoIndex
+                                        if (arenaPreviewInference
+                                                && arenaPreviewInference.activeQuadrantIndices
+                                                && arenaPreviewInference.activeQuadrantIndices.length > campoCell.campoIndex) {
+                                            q = Number(arenaPreviewInference.activeQuadrantIndices[campoCell.campoIndex])
+                                        }
+                                        var qx = q % 2
+                                        var qy = q >= 2 ? 1 : 0
+                                        return Qt.rect(cx + qx * cw, cy + qy * ch, cw, ch)
                                     }
                                     opacity: 0.9
                                 }

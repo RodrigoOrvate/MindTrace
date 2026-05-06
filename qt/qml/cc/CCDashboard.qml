@@ -39,6 +39,7 @@ Item {
     }
 
     property string pendingDeleteName: ""
+    property string pendingDeleteContext: ""
 
     function _isCurrentSelectionStillInModel() {
         if (!workArea.selectedName || !workArea.selectedPath)
@@ -74,14 +75,44 @@ Item {
         workArea.analysisMode = "offline"
         workArea.saveDirectory = ""
         workArea.cameraId = ""
+        workArea.activeNumCampos = root.numCampos
+        workArea.contextPatterns = root.contextPatterns
+        workArea.dayNames = []
+        workArea.colCount = 0
+
+        // Force clear of visual state from arena/recording widgets.
+        try {
+            if (tabArenaSetup) {
+                tabArenaSetup.analysisMode = "offline"
+                tabArenaSetup.cameraId = ""
+                tabArenaSetup.videoPath = ""
+            }
+        } catch (e4) {}
+        try {
+            if (eiArenaSetupCC) {
+                eiArenaSetupCC.analysisMode = "offline"
+                eiArenaSetupCC.cameraId = ""
+                eiArenaSetupCC.videoPath = ""
+            }
+        } catch (e5) {}
+        try {
+            if (liveRecordingTab) {
+                liveRecordingTab.videoPath = ""
+                liveRecordingTab.cameraId = ""
+            }
+        } catch (e6) {}
+
         workStack.currentIndex = 0
         innerTabs.currentIndex = 0
         experimentList.currentIndex = -1
     }
 
     function _syncSelectionWithModel() {
-        if (!workArea.selectedName && !workArea.selectedPath)
+        if (!workArea.selectedName && !workArea.selectedPath) {
+            if (workStack.currentIndex !== 0)
+                _resetSelectionState()
             return
+        }
         if (!_isCurrentSelectionStillInModel())
             _resetSelectionState()
     }
@@ -1248,7 +1279,8 @@ Item {
         }
 
         function onExperimentDeleted(name) {
-            successToast.show(LanguageManager.tr3("Experiment \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" deleted.", "\" deleted.", "\" eliminado."))
+            successToast.show(LanguageManager.tr3("Experimento \"", "Experiment \"", "Experimento \"") + name + LanguageManager.tr3("\" excluído.", "\" deleted.", "\" eliminado."))
+            root._resetSelectionState()
             root._syncSelectionWithModel()
         }
 
@@ -1409,6 +1441,7 @@ Item {
                                     onClicked: {
                                         ExperimentManager.setActiveContext(model.context)
                                         root.pendingDeleteName = model.name
+                                        root.pendingDeleteContext = model.context || root.context || ""
                                         deleteStep1Popup.open()
                                     }
                                 }
@@ -1454,6 +1487,7 @@ Item {
                 property bool   includeDrug:      true
                 property bool   hasObjectZones:   true
                 property string analysisMode:     "offline"
+                property string saveDirectory:    ""
                 property string cameraId:         ""
                 property int    activeNumCampos:  root.numCampos
                 property int    sessionMinutes:   5
@@ -3341,9 +3375,8 @@ Item {
                 Keys.onReturnPressed: {
                     if (text === root.pendingDeleteName) {
                         deleteStep2Popup.close()
-                        if (workArea.selectedName === root.pendingDeleteName)
-                            root._resetSelectionState()
-                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                        root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName, root.pendingDeleteContext)
                     }
                 }
             }
@@ -3355,9 +3388,8 @@ Item {
                     enabled: deleteNameField.text === root.pendingDeleteName
                     onClicked: {
                         deleteStep2Popup.close()
-                        if (workArea.selectedName === root.pendingDeleteName)
-                            root._resetSelectionState()
-                        ExperimentManager.deleteExperiment(root.pendingDeleteName)
+                        root._resetSelectionState()
+                        ExperimentManager.deleteExperiment(root.pendingDeleteName, root.pendingDeleteContext)
                     }
                     background: Rectangle {
                         radius: 7; color: parent.enabled ? (parent.hovered ? ThemeManager.accentHover : ThemeManager.accent) : ThemeManager.surfaceDim

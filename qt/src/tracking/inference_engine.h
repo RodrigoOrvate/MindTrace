@@ -47,6 +47,10 @@ public:
     /// Thread-safe. Replaces any pending frame with the new one (single-slot queue).
     void enqueueFrame(const QImage& frame, int videoWidth, int videoHeight);
 
+    /// Manually set which quadrants map to which field.
+    void setManualQuadrantMapping(const std::vector<int>& mapping);
+    void clearManualQuadrantMapping();
+
     /// Signal the worker thread to exit cleanly on its next iteration.
     void requestStop();
 
@@ -118,4 +122,7 @@ private:
     PendingJob     m_pendingJob;
 
     BehaviorScanner m_scanners[3];
+    std::vector<int> m_lastActiveQuadrants{0, 1, 2};
+    std::vector<int> m_manualQuadrants;
+    bool             m_manualQuadrantEnabled = false;
 };
