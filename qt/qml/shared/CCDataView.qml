@@ -40,6 +40,16 @@ Item {
         return (idx >= 0 && tableModel) ? (tableModel.data(tableModel.index(row, idx), Qt.DisplayRole) || "") : ""
     }
     function hasTreatment() { return colOfAny(["Tratamento", "Treatment", "Tratamiento"]) >= 0 }
+    property int pendingDeleteRow: -1
+
+    function deleteRow(row) {
+        if (!tableModel || row < 0) return
+        tableModel.removeRow(row)
+        if (tableModel.saveCsv())
+            deleteFeedback.show(LanguageManager.tr3("Linha excluida.", "Row deleted.", "Fila eliminada."))
+        else
+            deleteFeedback.show(LanguageManager.tr3("Linha removida da tela, mas o CSV nao foi salvo.", "Row removed from the screen, but the CSV was not saved.", "Fila removida de la pantalla, pero el CSV no fue guardado."))
+    }
 
     Connections {
         target: tableModel
@@ -87,6 +97,8 @@ Item {
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Contexto", "Context", "Contexto"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
                     Rectangle { visible: hasTreatment(); Layout.fillWidth: true; Layout.minimumWidth: 90; height: 40; color: accentColor
                         Text { anchors.centerIn: parent; text: LanguageManager.tr3("Tratamento", "Treatment", "Tratamiento"); color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
+                    Rectangle { Layout.preferredWidth: 56; height: 40; color: accentColor
+                        Text { anchors.centerIn: parent; text: ""; color: "white"; font.weight: Font.Bold; font.pixelSize: 11 } }
                     Item { visible: !hasTreatment(); Layout.fillWidth: true }
                 }
 
@@ -129,6 +141,35 @@ Item {
                             Text { anchors.centerIn: parent; text: cellAny(dataRow.index, ["Tratamento", "Treatment", "Tratamiento"])
                                 color: ThemeManager.textSecondary; font.pixelSize: 11; elide: Text.ElideRight
                                 Behavior on color { ColorAnimation { duration: 150 } } } }
+                        Rectangle {
+                            Layout.preferredWidth: 56; height: 36; color: dataRow.rowBg
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 26; height: 24; radius: 5
+                                color: deleteMa.containsMouse ? Qt.rgba(0.9, 0.12, 0.18, 0.22) : Qt.rgba(0.9, 0.12, 0.18, 0.08)
+                                border.color: deleteMa.containsMouse ? "#ef4444" : Qt.rgba(0.9, 0.12, 0.18, 0.35)
+                                border.width: 1
+                                Behavior on color { ColorAnimation { duration: 100 } }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "×"
+                                    color: "#fca5a5"
+                                    font.pixelSize: 16
+                                    font.weight: Font.Bold
+                                }
+                                MouseArea {
+                                    id: deleteMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.pendingDeleteRow = dataRow.index
+                                        deleteConfirm.open()
+                                    }
+                                }
+                            }
+                        }
                         Item { visible: !hasTreatment(); Layout.fillWidth: true }
                     }
                 }
@@ -140,6 +181,82 @@ Item {
             Text { text: LanguageManager.tr3("Use \"Exportar\" para ver duracao, distância total e velocidade media.", "Use \"Export\" to view duration, total distance, and average speed.", "Use \"Exportar\" para ver duracion, distância total y velocidad media.")
                 color: ThemeManager.textTertiary; font.pixelSize: 10
                 Behavior on color { ColorAnimation { duration: 150 } } } }
+    }
+
+    Popup {
+        id: deleteConfirm
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: 360
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: 12
+            color: ThemeManager.surface
+            border.color: "#ef4444"
+            border.width: 1
+            Behavior on color { ColorAnimation { duration: 150 } }
+        }
+
+        ColumnLayout {
+            anchors { fill: parent; margins: 18 }
+            spacing: 12
+
+            Text {
+                text: LanguageManager.tr3("Excluir linha", "Delete row", "Eliminar fila")
+                color: ThemeManager.textPrimary
+                font.pixelSize: 15
+                font.weight: Font.Bold
+            }
+            Text {
+                Layout.fillWidth: true
+                text: LanguageManager.tr3("Esta acao remove a linha da tabela e salva o CSV do experimento.", "This removes the row from the table and saves the experiment CSV.", "Esto elimina la fila de la tabla y guarda el CSV del experimento.")
+                color: ThemeManager.textSecondary
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                GhostButton {
+                    text: LanguageManager.tr3("Cancelar", "Cancel", "Cancelar")
+                    onClicked: deleteConfirm.close()
+                }
+                Button {
+                    text: LanguageManager.tr3("Excluir", "Delete", "Eliminar")
+                    onClicked: {
+                        deleteConfirm.close()
+                        root.deleteRow(root.pendingDeleteRow)
+                        root.pendingDeleteRow = -1
+                    }
+                    background: Rectangle {
+                        radius: 7
+                        color: parent.hovered ? "#dc2626" : "#991b1b"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: "white"
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    leftPadding: 14; rightPadding: 14; topPadding: 7; bottomPadding: 7
+                }
+            }
+        }
+    }
+
+    Toast {
+        id: deleteFeedback
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 18
+        successMode: true
     }
     Item { id: placeholder; property var model: null; property var workArea: null }
 }

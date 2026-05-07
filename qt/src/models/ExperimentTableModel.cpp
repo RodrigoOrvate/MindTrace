@@ -215,9 +215,12 @@ bool ExperimentTableModel::saveCsv() const
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
 
+    file.write("\xEF\xBB\xBF");
     QTextStream out(&file);
     out << m_headers.join(QLatin1Char(',')) << '\n';
-    for (const QStringList &row : m_loadedRows)
+
+    const QList<QStringList> allRows = m_loadedRows + m_pendingRows;
+    for (const QStringList &row : allRows)
         out << row.join(QLatin1Char(',')) << '\n';
 
     return true;

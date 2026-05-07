@@ -172,6 +172,8 @@ Item {
     property var currentBehaviorString: ["", "", ""]
     property var behaviorCounts: [{}, {}, {}]
     property var _lastBehaviorId: [-1, -1, -1]
+    readonly property double minBoutDurationSec: 0.5
+    readonly property double maxBoutBridgeGapSec: 0.6
 
     // Public API for B-SOiD (inference is an internal ID, not accessible from outside)
     function exportBehaviorFeatures(csvPath, campo) {
@@ -200,6 +202,113 @@ Item {
     }
     function savePdfReport(path, imagePaths, title, captions) {
         return inference.savePdfReport(path, imagePaths, title, captions)
+    }
+
+    function filteredBehaviorCounts(campo) {
+        return _computeBehaviorBoutCounts(inference.getBehaviorFrames(campo), dlcFps)
+    }
+
+    function filteredBehaviorCountsFromCache(experimentPath, campo) {
+        return _computeBehaviorBoutCounts(inference.getBehaviorFramesFromCache(experimentPath, campo), dlcFps)
+    }
+
+    function filteredBehaviorCountsForAllCampos() {
+        var out = []
+        for (var c = 0; c < 3; c++)
+            out.push(filteredBehaviorCounts(c))
+        return out
+    }
+
+    function _computeBehaviorBoutCounts(frames, fps) {
+        var countsByName = ({})
+        for (var nameIdx = 0; nameIdx < behaviorNames.length; nameIdx++)
+            countsByName[behaviorNames[nameIdx]] = 0
+        if (!frames || frames.length === 0)
+            return countsByName
+
+        var labels = []
+        for (var i = 0; i < frames.length; i++) {
+            var lbl = frames[i].ruleLabel
+            labels.push(lbl >= 0 && lbl < behaviorNames.length ? lbl : null)
+        }
+
+        var mergedLabels = _mergeShortBehaviorInterruptions(labels, _bridgeBehaviorGapFrames(fps))
+        var countsById = _countBehaviorBoutRuns(mergedLabels, _minBehaviorBoutFrames(fps))
+        for (var j = 0; j < behaviorNames.length; j++)
+            countsByName[behaviorNames[j]] = countsById[j] || 0
+        return countsByName
+    }
+
+    function _minBehaviorBoutFrames(fps) {
+        var safeFps = fps > 0 ? fps : 30.0
+        return Math.max(1, Math.ceil(minBoutDurationSec * safeFps))
+    }
+
+    function _bridgeBehaviorGapFrames(fps) {
+        var safeFps = fps > 0 ? fps : 30.0
+        return Math.max(1, Math.ceil(maxBoutBridgeGapSec * safeFps))
+    }
+
+    function _mergeShortBehaviorInterruptions(labels, maxGapFrames) {
+        if (!labels || labels.length < 3) return labels || []
+        var out = labels.slice()
+        var segments = []
+        var cur = out[0]
+        var start = 0
+
+        for (var i = 1; i < out.length; i++) {
+            if (out[i] !== cur) {
+                segments.push({ label: cur, start: start, end: i - 1 })
+                cur = out[i]
+                start = i
+            }
+        }
+        segments.push({ label: cur, start: start, end: out.length - 1 })
+
+        for (var s = 1; s < segments.length - 1; s++) {
+            var prev = segments[s - 1]
+            var gap = segments[s]
+            var next = segments[s + 1]
+            var gapFrames = gap.end - gap.start + 1
+            if (prev.label !== null && prev.label !== undefined
+                    && prev.label === next.label
+                    && gap.label !== prev.label
+                    && gapFrames <= maxGapFrames) {
+                for (var f = gap.start; f <= gap.end; f++)
+                    out[f] = prev.label
+            }
+        }
+        return out
+    }
+
+    function _countBehaviorBoutRuns(labels, minFrames) {
+        var counts = ({})
+        var current = null
+        var frames = 0
+
+        function flush() {
+            if (current !== null && frames >= minFrames)
+                counts[current] = (counts[current] || 0) + 1
+        }
+
+        for (var i = 0; i < labels.length; i++) {
+            var lbl = labels[i]
+            if (lbl === null || lbl === undefined || lbl === "") {
+                flush()
+                current = null
+                frames = 0
+                continue
+            }
+            if (lbl !== current) {
+                flush()
+                current = lbl
+                frames = 1
+            } else {
+                frames++
+            }
+        }
+        flush()
+        return counts
     }
 
     // Log
@@ -524,6 +633,9 @@ Item {
         explorationBouts = [[], [], [], [], [], []]
         _inZone          = [false, false, false, false, false, false]
         _entryTime       = [0,     0,     0,     0,     0,     0    ]
+        behaviorCounts   = [{}, {}, {}]
+        currentBehaviorString = ["", "", ""]
+        _lastBehaviorId  = [-1, -1, -1]
         ratNormX         = [-1, -1, -1]
         ratNormY         = [-1, -1, -1]
         ratLikelihood    = [0,  0,  0 ]

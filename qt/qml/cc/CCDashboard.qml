@@ -129,6 +129,8 @@ Item {
     property int    bsoidCampo:     0    // field selected for analysis (0=F1, 1=F2, 2=F3)
     property int    _boutCampo:    0    // field selected for bout review
     property bool   showBoutReview: false
+    readonly property double minBoutDurationSec: 0.5
+    readonly property double maxBoutBridgeGapSec: 0.6
 
     // ── Stats and alignment: Rules vs B-SOiD ───────────────────────────────
     property var    behaviorStats:      []   // [{name, bouts, color}]
@@ -415,6 +417,78 @@ Item {
         return bName
     }
 
+    function _minBoutFrames(fps) {
+        var safeFps = fps > 0 ? fps : 30.0
+        return Math.max(1, Math.ceil(minBoutDurationSec * safeFps))
+    }
+
+    function _bridgeGapFrames(fps) {
+        var safeFps = fps > 0 ? fps : 30.0
+        return Math.max(1, Math.ceil(maxBoutBridgeGapSec * safeFps))
+    }
+
+    function _mergeShortInterruptions(labels, maxGapFrames) {
+        if (!labels || labels.length < 3) return labels || []
+        var out = labels.slice()
+        var segments = []
+        var cur = out[0]
+        var start = 0
+
+        for (var i = 1; i < out.length; i++) {
+            if (out[i] !== cur) {
+                segments.push({ label: cur, start: start, end: i - 1 })
+                cur = out[i]
+                start = i
+            }
+        }
+        segments.push({ label: cur, start: start, end: out.length - 1 })
+
+        for (var s = 1; s < segments.length - 1; s++) {
+            var prev = segments[s - 1]
+            var gap = segments[s]
+            var next = segments[s + 1]
+            var gapFrames = gap.end - gap.start + 1
+            if (prev.label !== null && prev.label !== undefined
+                    && prev.label === next.label
+                    && gap.label !== prev.label
+                    && gapFrames <= maxGapFrames) {
+                for (var f = gap.start; f <= gap.end; f++)
+                    out[f] = prev.label
+            }
+        }
+        return out
+    }
+
+    function _countBoutRuns(labels, minFrames) {
+        var counts = ({})
+        var current = null
+        var frames = 0
+
+        function flush() {
+            if (current !== null && frames >= minFrames)
+                counts[current] = (counts[current] || 0) + 1
+        }
+
+        for (var i = 0; i < labels.length; i++) {
+            var lbl = labels[i]
+            if (lbl === null || lbl === undefined || lbl === "") {
+                flush()
+                current = null
+                frames = 0
+                continue
+            }
+            if (lbl !== current) {
+                flush()
+                current = lbl
+                frames = 1
+            } else {
+                frames++
+            }
+        }
+        flush()
+        return counts
+    }
+
     function rebuildFinalLabelStats() {
         if (!bsoidDone || !bsoidMappingRaw || bsoidMappingRaw.length === 0) {
             bsoidFinalLabelStats = []
@@ -428,32 +502,35 @@ Item {
         }
 
         var byName = ({})
-        var prev = ""
+        var labelRuns = []
         for (var i = 0; i < maxLen; i++) {
             var b = bsoidMappingRaw[i]
             var r = bsoidMappingRaw[i + cut]
-            if (!b || !r) continue
+            if (!b || !r) {
+                labelRuns.push(null)
+                continue
+            }
             var nm = finalLabelByMode(b.clusterId, r.ruleLabel)
             if (!byName[nm]) {
                 byName[nm] = {
                     frames: 0,
-                    bouts: 0,
                     trustedFrames: 0
                 }
             }
             byName[nm].frames++
-            if (nm !== prev) byName[nm].bouts++
             if (isClusterTrusted(b.clusterId)) byName[nm].trustedFrames++
-            prev = nm
+            labelRuns.push(nm)
         }
 
+        var mergedRuns = _mergeShortInterruptions(labelRuns, _bridgeGapFrames(bsoidFps))
+        var boutCounts = _countBoutRuns(mergedRuns, _minBoutFrames(bsoidFps))
         var out = []
         for (var k in byName) {
             out.push({
                 name: k,
                 frames: byName[k].frames,
                 pct: 100.0 * byName[k].frames / maxLen,
-                bouts: byName[k].bouts,
+                bouts: boutCounts[k] || 0,
                 trusted: byName[k].frames > 0 ? (100.0 * byName[k].trustedFrames / byName[k].frames) : 0.0
             })
         }
@@ -605,18 +682,16 @@ Item {
 
     function computeBehaviorStats(fps) {
         var mapping = bsoidMappingRaw
-        var bouts   = [0,0,0,0,0]
-        var prev    = -1
+        var labels = []
         for (var i = 0; i < mapping.length; i++) {
             var lbl = mapping[i].ruleLabel
-            if (lbl >= 0 && lbl < 5) {
-                if (lbl !== prev) bouts[lbl]++
-            }
-            prev = (lbl >= 0 && lbl < 5) ? lbl : prev
+            labels.push(lbl >= 0 && lbl < 5 ? lbl : null)
         }
+        var mergedLabels = _mergeShortInterruptions(labels, _bridgeGapFrames(fps))
+        var bouts = _countBoutRuns(mergedLabels, _minBoutFrames(fps))
         var result = []
         for (var j = 0; j < 5; j++) {
-            result.push({ name: behaviorName(j), bouts: bouts[j], color: ruleColor(j) })
+            result.push({ name: behaviorName(j), bouts: bouts[j] || 0, color: ruleColor(j) })
         }
         return result
     }
@@ -629,28 +704,24 @@ Item {
         for (var i = 0; i < eff.length; i++)
             keep[eff[i].clusterId] = true
 
-        var bouts = [0,0,0,0,0]
-        var prev = -1
+        var labels = []
         var cut = Math.max(0, bsoidBestLagFrames || 0)
         var maxLen = Math.max(0, bsoidMappingRaw.length - cut)
         for (var j = 0; j < maxLen; j++) {
             var b = bsoidMappingRaw[j]
             if (!b || b.clusterId === undefined || !keep[b.clusterId]) {
-                prev = -1
+                labels.push(null)
                 continue
             }
             var rid = (bsoidClusterTopRule[b.clusterId] !== undefined) ? bsoidClusterTopRule[b.clusterId] : -1
-            if (rid >= 0 && rid < 5) {
-                if (rid !== prev) bouts[rid]++
-                prev = rid
-            } else {
-                prev = -1
-            }
+            labels.push(rid >= 0 && rid < 5 ? rid : null)
         }
 
+        var mergedLabels = _mergeShortInterruptions(labels, _bridgeGapFrames(bsoidFps))
+        var bouts = _countBoutRuns(mergedLabels, _minBoutFrames(bsoidFps))
         var out = []
         for (var k = 0; k < 5; k++)
-            out.push({ name: behaviorName(k), bouts: bouts[k], color: ruleColor(k) })
+            out.push({ name: behaviorName(k), bouts: bouts[k] || 0, color: ruleColor(k) })
         return out
     }
 
@@ -1079,7 +1150,7 @@ Item {
         }
 
         var byName = ({})
-        var prevName = ""
+        var nameRuns = []
         var cut = Math.max(0, bsoidBestLagFrames || 0)
         var maxLen = Math.max(0, bsoidMappingRaw.length - cut)
         var countedFrames = 0
@@ -1087,13 +1158,15 @@ Item {
             var recB = bsoidMappingRaw[j]
             var recR = bsoidMappingRaw[j + cut]
             var cid = recB.clusterId
-            if (!allowedClusters[cid]) continue
+            if (!allowedClusters[cid]) {
+                nameRuns.push(null)
+                continue
+            }
             var rule = recR.ruleLabel
             var nm = clusterToName[cid] !== undefined ? clusterToName[cid] : ("Group " + (cid + 1))
             if (!byName[nm]) {
                 byName[nm] = {
                     frames: 0,
-                    bouts: 0,
                     clusters: ({}),
                     ruleCounts: ({})
                 }
@@ -1101,8 +1174,7 @@ Item {
             byName[nm].frames++
             countedFrames++
             byName[nm].clusters[cid] = true
-            if (prevName !== nm) byName[nm].bouts++
-            prevName = nm
+            nameRuns.push(nm)
 
             if (rule >= 0 && rule <= 4) {
                 var rn = behaviorName(rule)
@@ -1112,6 +1184,8 @@ Item {
 
         var namedSummary = []
         var totalFrames = countedFrames
+        var mergedNameRuns = _mergeShortInterruptions(nameRuns, _bridgeGapFrames(bsoidFps))
+        var boutCounts = _countBoutRuns(mergedNameRuns, _minBoutFrames(bsoidFps))
         for (var key in byName) {
             var rs = byName[key].ruleCounts
             var topRule = "Unknown"
@@ -1127,7 +1201,7 @@ Item {
                 clusters: clusterIds,
                 frames: byName[key].frames,
                 percentage: totalFrames > 0 ? (100.0 * byName[key].frames / totalFrames) : 0.0,
-                bouts: byName[key].bouts,
+                bouts: boutCounts[key] || 0,
                 dominantRule: topRule
             })
         }
@@ -1732,7 +1806,7 @@ Item {
                                     ccResultDialog.totalDistance  = liveRecordingTab.totalDistance
                                     ccResultDialog.avgVelocity    = liveRecordingTab.avgVelocityMeans
                                     ccResultDialog.perMinuteData  = liveRecordingTab.perMinuteData
-                                    ccResultDialog.behaviorCounts = liveRecordingTab.behaviorCounts
+                                    ccResultDialog.behaviorCounts = liveRecordingTab.filteredBehaviorCountsForAllCampos()
                                     ccResultDialog.contextPatterns = workArea.contextPatterns
                                     ccResultDialog.includeDrug    = workArea.includeDrug
                                     ccResultDialog.experimentName = workArea.selectedName

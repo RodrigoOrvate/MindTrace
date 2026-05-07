@@ -80,8 +80,12 @@ private:
     int _cropW      = 360;
     int _cropH      = 240;
     int _frameCount = 0;
+    mutable int  _rearingCandidateFrames = 0;
+    mutable int  _rearingMissFrames      = 0;
+    mutable bool _rearingActive          = false;
 
     std::deque<float> _movementsSumHist;
+    std::deque<float> _noseBodyDistHist;
     std::deque<float> _noseProbHist;
     std::deque<float> _bodyProbHist;
 
@@ -108,4 +112,10 @@ private:
 
     /// Ray-casting point-in-polygon test mirroring the QML isPointInPoly helper.
     bool isInsideFloor(float normX, float normY) const;
+
+    /// Minimum normalized distance from a point to the configured floor polygon edge.
+    float distanceToFloorEdge(float normX, float normY) const;
+
+    /// Debounce rearing so isolated pose/floor-boundary noise does not create bouts.
+    bool updateRearingState(bool candidate) const;
 };

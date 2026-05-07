@@ -18,6 +18,8 @@ Rectangle {
     property int    campo:          0
     property string experimentPath: ""
     property string sessionLabel:   ""      // ex: "session_20260421_143000"
+    readonly property double minBoutDurationSec: 0.5
+    readonly property double maxBoutBridgeGapSec: 0.6
 
     color: "transparent"
 
@@ -59,16 +61,29 @@ Rectangle {
         if (!frames || frames.length === 0) return []
         var bouts = []
         var boutId = 0
+        var safeFps = fps > 0 ? fps : 30.0
+        var minFrames = Math.max(1, Math.ceil(minBoutDurationSec * safeFps))
+        var bridgeFrames = Math.max(1, Math.ceil(maxBoutBridgeGapSec * safeFps))
+        var labels = []
+        for (var labelIdx = 0; labelIdx < frames.length; labelIdx++)
+            labels.push(frames[labelIdx].ruleLabel)
+        var mergedLabels = _mergeShortInterruptions(labels, bridgeFrames)
         var firstFrame = frames[0]
-        var current = { label: firstFrame.ruleLabel, startFrame: firstFrame.frameIdx,
+        var current = { label: mergedLabels[0], startFrame: firstFrame.frameIdx,
                         endFrame: firstFrame.frameIdx, movNoseSum: firstFrame.movNose,
                         movBodySum: firstFrame.movBody, movMeanSum: firstFrame.movMean, count: 1 }
 
+        function appendIfLongEnough(cur) {
+            if (cur.count < minFrames) return
+            bouts.push(_makeBout(boutId++, cur))
+        }
+
         for (var frameIdx = 1; frameIdx < frames.length; frameIdx++) {
             var frame = frames[frameIdx]
-            if (frame.ruleLabel !== current.label) {
-                bouts.push(_makeBout(boutId++, current))
-                current = { label: frame.ruleLabel, startFrame: frame.frameIdx,
+            var label = mergedLabels[frameIdx]
+            if (label !== current.label) {
+                appendIfLongEnough(current)
+                current = { label: label, startFrame: frame.frameIdx,
                             endFrame: frame.frameIdx, movNoseSum: frame.movNose,
                             movBodySum: frame.movBody, movMeanSum: frame.movMean, count: 1 }
             } else {
@@ -79,8 +94,40 @@ Rectangle {
                 current.count++
             }
         }
-        bouts.push(_makeBout(boutId, current))
+        appendIfLongEnough(current)
         return bouts
+    }
+
+    function _mergeShortInterruptions(labels, maxGapFrames) {
+        if (!labels || labels.length < 3) return labels || []
+        var out = labels.slice()
+        var segments = []
+        var cur = out[0]
+        var start = 0
+
+        for (var i = 1; i < out.length; i++) {
+            if (out[i] !== cur) {
+                segments.push({ label: cur, start: start, end: i - 1 })
+                cur = out[i]
+                start = i
+            }
+        }
+        segments.push({ label: cur, start: start, end: out.length - 1 })
+
+        for (var s = 1; s < segments.length - 1; s++) {
+            var prev = segments[s - 1]
+            var gap = segments[s]
+            var next = segments[s + 1]
+            var gapFrames = gap.end - gap.start + 1
+            if (prev.label !== null && prev.label !== undefined
+                    && prev.label === next.label
+                    && gap.label !== prev.label
+                    && gapFrames <= maxGapFrames) {
+                for (var f = gap.start; f <= gap.end; f++)
+                    out[f] = prev.label
+            }
+        }
+        return out
     }
 
     function _makeBout(id, cur) {
@@ -289,6 +336,8 @@ Rectangle {
             session:     sessionLabel,
             campo:       campo,
             fps:         fps,
+            min_bout_duration_s: minBoutDurationSec,
+            max_bout_bridge_gap_s: maxBoutBridgeGapSec,
             exported_at: new Date().toISOString(),
             bouts:       bouts
         }, null, 2)

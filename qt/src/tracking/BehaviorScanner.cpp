@@ -10,11 +10,15 @@ BehaviorScanner::BehaviorScanner(int fps) : _fps(fps)
 void BehaviorScanner::reset()
 {
     _movementsSumHist.clear();
+    _noseBodyDistHist.clear();
     _noseProbHist.clear();
     _bodyProbHist.clear();
     _prevNose   = PosePoint{};
     _prevBody   = PosePoint{};
     _frameCount = 0;
+    _rearingCandidateFrames = 0;
+    _rearingMissFrames      = 0;
+    _rearingActive          = false;
     std::fill(_currentFeatures.begin(), _currentFeatures.end(), 0.0f);
 }
 
@@ -91,6 +95,35 @@ bool BehaviorScanner::isInsideFloor(float normX, float normY) const
     return inside;
 }
 
+float BehaviorScanner::distanceToFloorEdge(float normX, float normY) const
+{
+    if (_floorPoly.size() < 2) return 0.0f;
+
+    float minDistSq = 1.0e9f;
+    const int vertexCount = static_cast<int>(_floorPoly.size());
+    for (int i = 0, j = vertexCount - 1; i < vertexCount; j = i++) {
+        const float ax = _floorPoly[j].first;
+        const float ay = _floorPoly[j].second;
+        const float bx = _floorPoly[i].first;
+        const float by = _floorPoly[i].second;
+        const float abx = bx - ax;
+        const float aby = by - ay;
+        const float apx = normX - ax;
+        const float apy = normY - ay;
+        const float abLenSq = abx * abx + aby * aby;
+        float t = 0.0f;
+        if (abLenSq > 1.0e-8f)
+            t = std::clamp((apx * abx + apy * aby) / abLenSq, 0.0f, 1.0f);
+
+        const float closestX = ax + t * abx;
+        const float closestY = ay + t * aby;
+        const float dx = normX - closestX;
+        const float dy = normY - closestY;
+        minDistSq = std::min(minDistSq, dx * dx + dy * dy);
+    }
+    return std::sqrt(minDistSq);
+}
+
 void BehaviorScanner::setCropSize(int width, int height)
 {
     _cropW = width;
@@ -118,6 +151,30 @@ bool BehaviorScanner::isNearObject(float cropX, float cropY) const
     return false;
 }
 
+bool BehaviorScanner::updateRearingState(bool candidate) const
+{
+    const int enterFrames = std::max(3, static_cast<int>(std::round(static_cast<float>(_fps) * 0.12f)));
+    const int exitFrames  = std::max(5, static_cast<int>(std::round(static_cast<float>(_fps) * 0.25f)));
+
+    if (candidate) {
+        ++_rearingCandidateFrames;
+        _rearingMissFrames = 0;
+        if (_rearingActive || _rearingCandidateFrames >= enterFrames)
+            _rearingActive = true;
+    } else {
+        _rearingCandidateFrames = 0;
+        if (_rearingActive) {
+            ++_rearingMissFrames;
+            if (_rearingMissFrames > exitFrames) {
+                _rearingActive     = false;
+                _rearingMissFrames = 0;
+            }
+        }
+    }
+
+    return _rearingActive;
+}
+
 bool BehaviorScanner::pushFrame(const PosePoint& nose, const PosePoint& body)
 {
     constexpr float SCALE_X = TRAINING_W / CROP_W;
@@ -141,15 +198,23 @@ bool BehaviorScanner::pushFrame(const PosePoint& nose, const PosePoint& body)
     _prevBody = body;
 
     const float movSum = movNose + movBody;
+    float noseBodyDist = 0.0f;
+    if (nose.p > 0.0f && body.p > 0.0f) {
+        const float deltaX = (nose.x - body.x) * SCALE_X;
+        const float deltaY = (nose.y - body.y) * SCALE_Y;
+        noseBodyDist = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+    }
 
     constexpr size_t MAX_WINDOW = 450;  // up to 15 s at 30 fps
     if (_movementsSumHist.size() >= MAX_WINDOW) _movementsSumHist.pop_front();
+    if (_noseBodyDistHist.size() >= MAX_WINDOW) _noseBodyDistHist.pop_front();
 
     const size_t probWindow = static_cast<size_t>(_fps);
     if (_noseProbHist.size() >= probWindow) _noseProbHist.pop_front();
     if (_bodyProbHist.size() >= probWindow) _bodyProbHist.pop_front();
 
     _movementsSumHist.push_back(movSum / 2.0f);
+    _noseBodyDistHist.push_back(noseBodyDist);
     _noseProbHist.push_back(nose.p);
     _bodyProbHist.push_back(body.p);
 
@@ -212,6 +277,8 @@ int BehaviorScanner::classifySimple() const
     const float movNose    = _currentFeatures[0];
     const float movBody    = _currentFeatures[1];
     const float roll2sMean = _currentFeatures[6];
+    const float noseBodyDist = _noseBodyDistHist.empty() ? 0.0f : _noseBodyDistHist.back();
+    const float noseBodyMean2s = getMean(_noseBodyDistHist, 2 * static_cast<size_t>(_fps));
 
     const float noseX        = _prevNose.x;
     const float noseY        = _prevNose.y;
@@ -222,18 +289,43 @@ int BehaviorScanner::classifySimple() const
     const bool  hasZones     = !_zones.empty();
 
     // Priority 1: Sniffing — nose inside an object zone (overrides velocity).
-    if (hasZones && hasValidNose && isNearObject(noseX, noseY))
+    if (hasZones && hasValidNose && isNearObject(noseX, noseY)) {
+        updateRearingState(false);
         return BEHAVIOR_SNIFFING;
+    }
 
-    // Priority 2: Rearing — nose outside floor polygon, body still inside.
+    // Priority 2: Rearing — nose clearly outside floor polygon, body still inside.
+    // A nose barely crossing the arena edge often means arena geometry/tracking noise,
+    // not wall-supported rearing. Require the nose to be away from the floor edge.
+    bool rearingCandidate = false;
     if (hasValidPose && _floorPoly.size() >= 3) {
         const float normNoseX = noseX / static_cast<float>(_cropW);
         const float normNoseY = noseY / static_cast<float>(_cropH);
         const float normBodyX = bodyX / static_cast<float>(_cropW);
         const float normBodyY = bodyY / static_cast<float>(_cropH);
-        if (!isInsideFloor(normNoseX, normNoseY) && isInsideFloor(normBodyX, normBodyY))
-            return BEHAVIOR_REARING;
+        const bool noseOutsideFloor = !isInsideFloor(normNoseX, normNoseY);
+        const bool bodyInsideFloor  = isInsideFloor(normBodyX, normBodyY);
+        const float noseEdgeDist    = distanceToFloorEdge(normNoseX, normNoseY);
+        const float bodyEdgeDist    = distanceToFloorEdge(normBodyX, normBodyY);
+        rearingCandidate = noseOutsideFloor
+                         && bodyInsideFloor
+                         && noseEdgeDist >= 0.02f
+                         && bodyEdgeDist <= 0.25f
+                         && _velocity < 0.15f;
     }
+    const bool verticalRearingCandidate =
+        hasValidPose
+        && _noseBodyDistHist.size() >= static_cast<size_t>(_fps)
+        && noseBodyMean2s > 1.0f
+        && noseBodyDist < noseBodyMean2s * 0.75f
+        && _velocity < 0.08f
+        && movBody < 1.2f
+        && movNose < 4.0f
+        && _prevNose.p >= 0.4f
+        && _prevBody.p >= 0.4f;
+    rearingCandidate = rearingCandidate || verticalRearingCandidate;
+    if (updateRearingState(rearingCandidate))
+        return BEHAVIOR_REARING;
 
     // Priority 3: Resting — body velocity below threshold.
     if (_velocity < 0.05f)
