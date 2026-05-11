@@ -135,6 +135,7 @@ Item {
 
     property var currentVelocity: [0.0, 0.0, 0.0]   // m/s per field (last 100ms window)
     property var totalDistance:   [0.0, 0.0, 0.0]   // metros acumulados por campo
+    property double stationaryVelocityThresholdMS: 0.05  // abaixo disso trata jitter como parado
 
     // True average velocity = total distance / elapsed time per field
     readonly property var avgVelocityMeans: {
@@ -909,10 +910,15 @@ Item {
                 // dt in video time: wall-clock * playbackRate
                 var dt   = (now2 - prevT) / 1000.0 * rate
 
-                // Filter impossible jumps (> 10 m/s video = model glitch or GPU skip)
-                if (dt > 0 && dist / dt < 10.0) {
-                    newVel[ci]   = dist / dt
-                    newDist[ci] += dist
+                // Filter impossible jumps and tiny body-point jitter while the animal is still.
+                var velocity = dt > 0 ? dist / dt : 0.0
+                if (dt > 0 && velocity < 10.0) {
+                    if (velocity >= stationaryVelocityThresholdMS) {
+                        newVel[ci]   = velocity
+                        newDist[ci] += dist
+                    } else {
+                        newVel[ci] = 0.0
+                    }
                 }
             }
 
@@ -1165,12 +1171,19 @@ Item {
                                         if (!_fp || _fp.width === 0) return Qt.rect(0, 0, 0, 0)
 
                                         var cr = _fp.contentRect
+
+                                        // Full frame mode: show entire frame for single field (EI or numCampos === 1)
+                                        if (recordingRoot.aparato === "esquiva_inibitoria" || recordingRoot.numCampos === 1) {
+                                            return Qt.rect(cr.x, cr.y, cr.width, cr.height)
+                                        }
+
+                                        // Mosaic mode: 2x2 grid, show quadrant for this campo
                                         var cw = cr.width  / 2
                                         var ch = cr.height / 2
                                         var cx = cr.x
                                         var cy = cr.y
 
-                                        // Usa o mapeamento dinâmico: pula quadrantes pretos
+                                        // Dynamic mapping: skip black quadrants
                                         var q = campoCell.ci
                                         if (inference
                                                 && inference.activeQuadrantIndices
