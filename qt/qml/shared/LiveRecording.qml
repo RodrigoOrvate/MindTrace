@@ -1855,21 +1855,22 @@ Item {
                     }
 
                     ScrollView {
+                        id: metricsScrollView
                         Layout.fillWidth: true; Layout.fillHeight: true
                         clip: true
                         ScrollBar.vertical.policy: ScrollBar.AsNeeded
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
                         ColumnLayout {
-                            width: 370 - 14 * 2 - 8
+                            width: metricsScrollView.availableWidth
                             spacing: 6
 
                             Repeater {
                                 model: recordingRoot.numCampos
                                 delegate: Rectangle {
                                     id: campoCard
-                                    width: parent.width
-                                    height: cardInner.implicitHeight + 16
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: cardInner.implicitHeight + 16
                                     radius: 6; color: ThemeManager.surfaceDim
                                     border.color: recordingRoot.fieldFinished[index] ? ThemeManager.success : ThemeManager.border
                                     border.width: 1
