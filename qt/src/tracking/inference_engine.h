@@ -3,10 +3,12 @@
 #include <QImage>
 #include <QMutex>
 #include <QString>
+#include <QStringList>
 #include <QThread>
 #include <QWaitCondition>
 
 #include <atomic>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +56,19 @@ public:
     /// Signal the worker thread to exit cleanly on its next iteration.
     void requestStop();
 
+    /// Begin streaming per-frame nose/body coordinates to a CSV in the
+    /// experiment folder. One file per field, named
+    /// "raw_tracking_campo<field+1>.csv". Safe to call multiple times —
+    /// previous writers are flushed and closed first.
+    void beginRawTracking(const QString& experimentDir);
+
+    /// Flush and close all per-field CSV writers created by beginRawTracking().
+    /// Safe to call when no writer is active.
+    void endRawTracking();
+
+    /// Set animal names (one per field) to label trajectory/heatmap plot titles.
+    void setTrackingAnimalNames(const QStringList& names);
+
     /// B-SOiD: read per-field frame history after stopAnalysis().
     const std::vector<FrameRecord>& getScannerHistory(int fieldIndex) const;
     void clearScannerHistory(int fieldIndex);
@@ -85,6 +100,7 @@ private:
     void inferCrop(const QImage& crop, int fieldIndex,
                    int cropOffsetX, int cropOffsetY,
                    float scaleX, float scaleY);
+    void generateTrackingMaps(const QString& experimentDir);
 
     // DLC ResNet-50 model constants.
     static constexpr float STRIDE     = 8.0f;
@@ -125,4 +141,16 @@ private:
     std::vector<int> m_lastActiveQuadrants{0, 1, 2};
     std::vector<int> m_manualQuadrants;
     bool             m_manualQuadrantEnabled = false;
+
+    // Per-field CSV writers for raw per-frame coordinates (nose + body).
+    // One file per field, written from the inference thread on every processed
+    // frame so that the experiment folder contains a complete trajectory log
+    // suitable for trajectory plots and heatmaps.
+    struct RawTrackingWriter {
+        std::ofstream file;
+        qint64        frameCounter = 0;
+    };
+    RawTrackingWriter m_rawWriters[3];
+    QString     m_rawTrackingDir;
+    QStringList m_trackingAnimalNames;  // one entry per field for plot titles
 };

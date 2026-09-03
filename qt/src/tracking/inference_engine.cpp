@@ -7,12 +7,17 @@
 #include <dxgi.h>
 
 #include <QDebug>
+#include <QDir>
 #include <QFile>
+#include <QPainter>
+#include <QTextStream>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <atomic>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <thread>
 
 // OrtDmlApi binary layout for ONNX Runtime 1.24.4.
@@ -260,7 +265,569 @@ void InferenceEngine::clearManualQuadrantMapping()
     m_manualQuadrantEnabled = false;
 }
 
+void InferenceEngine::beginRawTracking(const QString& experimentDir)
+{
+    // All raw tracking output lives under <experimentDir>/tracking/
+    const QString trackingDir = experimentDir + "/tracking";
+    m_rawTrackingDir = trackingDir;
+    qDebug() << "[InferenceEngine] beginRawTracking path:" << trackingDir;
+    for (auto& w : m_rawWriters) {
+        if (w.file.is_open()) {
+            w.file.flush();
+            w.file.close();
+        }
+    }
+
+    if (experimentDir.isEmpty()) return;
+
+    // Ensure the tracking directory exists
+    QDir().mkpath(trackingDir);
+
+    for (int i = 0; i < 3; ++i) {
+        const QString filePath = trackingDir + "/raw_tracking_campo" + QString::number(i + 1) + ".csv";
+        m_rawWriters[i].file.open(std::filesystem::path(filePath.toStdWString()),
+                      std::ios::out | std::ios::trunc);
+        if (m_rawWriters[i].file.is_open()) {
+            // UTF-8 BOM so Excel opens the file correctly
+            m_rawWriters[i].file << "\xEF\xBB\xBF";
+            m_rawWriters[i].file
+                << "Frame,FieldIndex,CropOffsetX,CropOffsetY,ScaleX,ScaleY,"
+                << "VideoW,VideoH,MosaicNoseX,MosaicNoseY,NoseLikelihood,"
+                << "MosaicBodyX,MosaicBodyY,BodyLikelihood\n";
+            m_rawWriters[i].frameCounter = 0;
+            qDebug() << "[InferenceEngine] raw tracking writer opened:" << filePath;
+        } else {
+            qWarning() << "[InferenceEngine] could not open raw tracking writer:" << filePath;
+        }
+    }
+}
+
+void InferenceEngine::endRawTracking()
+{
+    for (auto& w : m_rawWriters) {
+        if (w.file.is_open()) {
+            w.file.flush();
+            w.file.close();
+        }
+        w.frameCounter = 0;
+    }
+    if (!m_rawTrackingDir.isEmpty())
+        generateTrackingMaps(m_rawTrackingDir);
+    m_rawTrackingDir.clear();
+}
+
+void InferenceEngine::setTrackingAnimalNames(const QStringList& names)
+{
+    QMutexLocker lock(&m_mutex);
+    m_trackingAnimalNames = names;
+}
+
+void InferenceEngine::generateTrackingMaps(const QString& experimentDir)
+{
+    struct TrackingPoint {
+        double noseX = -1.0;
+        double noseY = -1.0;
+        double bodyX = -1.0;
+        double bodyY = -1.0;
+        double noseLikelihood = 0.0;
+        double bodyLikelihood = 0.0;
+    };
+
+    // Jet colormap: maps t in [0,1] to RGB  (matches matplotlib 'jet')
+    const auto jetColor = [](double t) -> QColor {
+        if (t < 0.0) t = 0.0; else if (t > 1.0) t = 1.0;
+        double r, g, b;
+        if      (t < 0.125) { r = 0.0;           g = 0.0;               b = 0.5 + t * 4.0; }
+        else if (t < 0.375) { r = 0.0;           g = (t-0.125)*4.0;     b = 1.0; }
+        else if (t < 0.625) { r = (t-0.375)*4.0; g = 1.0;               b = 1.0-(t-0.375)*4.0; }
+        else if (t < 0.875) { r = 1.0;           g = 1.0-(t-0.625)*4.0; b = 0.0; }
+        else                { r = 1.0-(t-0.875)*4.0; g = 0.0;           b = 0.0; }
+        return QColor::fromRgbF(r, g, b);
+    };
+
+    // Purples colormap: light lavender to dark purple  (mimics matplotlib Purples)
+    const auto purpleColor = [](double t) -> QColor {
+        if (t < 0.0) t = 0.0; else if (t > 1.0) t = 1.0;
+        const int r = static_cast<int>(242.0 + t * (63.0  - 242.0));
+        const int g = static_cast<int>(240.0 + t * (0.0   - 240.0));
+        const int b = static_cast<int>(247.0 + t * (125.0 - 247.0));
+        return QColor(r, g, b);
+    };
+
+    QStringList animalNames;
+    {
+        QMutexLocker lock(&m_mutex);
+        animalNames = m_trackingAnimalNames;
+    }
+
+    for (int fieldIndex = 0; fieldIndex < 3; ++fieldIndex) {
+        QFile input(experimentDir + "/raw_tracking_campo" + QString::number(fieldIndex + 1) + ".csv");
+        if (!input.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        QTextStream stream(&input);
+        stream.readLine();   // skip header
+        std::vector<TrackingPoint> points;
+        int cropWidth  = 720;
+        int cropHeight = 480;
+        while (!stream.atEnd()) {
+            const QStringList cols = stream.readLine().trimmed().split(',');
+            if (cols.size() < 14) continue;
+            bool ok1, ok2, ok3, ok4;
+            const double offsetX = cols.at(2).toDouble(&ok1);
+            const double offsetY = cols.at(3).toDouble(&ok2);
+            const double scaleX  = cols.at(4).toDouble(&ok3);
+            const double scaleY  = cols.at(5).toDouble(&ok4);
+            if (!ok1 || !ok2 || !ok3 || !ok4 || scaleX <= 0 || scaleY <= 0) continue;
+            cropWidth  = static_cast<int>(std::lround(scaleX * MODEL_W));
+            cropHeight = static_cast<int>(std::lround(scaleY * MODEL_H));
+            if (cropWidth  < 1) cropWidth  = 1;
+            if (cropHeight < 1) cropHeight = 1;
+
+            TrackingPoint pt;
+            bool v;
+            pt.noseX = cols.at(8).toDouble(&v)  - offsetX; if (!v) continue;
+            pt.noseY = cols.at(9).toDouble(&v)  - offsetY; if (!v) continue;
+            pt.noseLikelihood = cols.at(10).toDouble(&v);   if (!v) continue;
+            pt.bodyX = cols.at(11).toDouble(&v) - offsetX; if (!v) continue;
+            pt.bodyY = cols.at(12).toDouble(&v) - offsetY; if (!v) continue;
+            pt.bodyLikelihood = cols.at(13).toDouble(&v);   if (!v) continue;
+            points.push_back(pt);
+        }
+        input.close();
+
+        if (points.empty()) continue;
+
+        // ── Filtering and Smoothing ─────────────────────────────────────────
+        auto calcPercentile = [](std::vector<double> v, double p) -> double {
+            if (v.empty()) return 0.0;
+            if (v.size() == 1) return v.front();
+            std::sort(v.begin(), v.end());
+            double index = p * (v.size() - 1);
+            size_t lower = static_cast<size_t>(index);
+            size_t upper = lower + 1;
+            double weight = index - lower;
+            if (upper >= v.size()) return v.back();
+            return v[lower] * (1.0 - weight) + v[upper] * weight;
+        };
+
+        // 1. IQR Filter
+        std::vector<double> rawXs, rawYs;
+        for (const auto& pt : points) {
+            if (pt.bodyLikelihood >= 0.5) {
+                rawXs.push_back(pt.bodyX);
+                rawYs.push_back(pt.bodyY);
+            }
+        }
+
+        if (rawXs.size() >= 5) {
+            double q1_x = calcPercentile(rawXs, 0.25);
+            double q3_x = calcPercentile(rawXs, 0.75);
+            double q1_y = calcPercentile(rawYs, 0.25);
+            double q3_y = calcPercentile(rawYs, 0.75);
+
+            double dispersao = ((q3_x - q1_x) + (q3_y - q1_y)) / 2.0;
+            double limite_iqr = 1.5;
+            if (dispersao > 150) limite_iqr = 0.4;
+            else if (dispersao > 120) limite_iqr = 0.6;
+            else if (dispersao > 90) limite_iqr = 0.8;
+            else if (dispersao > 60) limite_iqr = 1.0;
+            else if (dispersao > 30) limite_iqr = 1.2;
+
+            double iqr_x = q3_x - q1_x;
+            if (iqr_x < 10.0) iqr_x = 10.0;
+            double iqr_y = q3_y - q1_y;
+            if (iqr_y < 10.0) iqr_y = 10.0;
+            double min_x = q1_x - limite_iqr * iqr_x;
+            double max_x = q3_x + limite_iqr * iqr_x;
+            double min_y = q1_y - limite_iqr * iqr_y;
+            double max_y = q3_y + limite_iqr * iqr_y;
+
+            for (auto& pt : points) {
+                if (pt.bodyLikelihood >= 0.5) {
+                    if (pt.bodyX < min_x || pt.bodyX > max_x || pt.bodyY < min_y || pt.bodyY > max_y) {
+                        pt.bodyLikelihood = 0.0;
+                    }
+                }
+            }
+        }
+
+        // 2. Jump Filter
+        std::vector<double> dists;
+        double last_x = -1, last_y = -1;
+        for (const auto& pt : points) {
+            if (pt.bodyLikelihood >= 0.5) {
+                if (last_x >= 0) {
+                    dists.push_back(std::hypot(pt.bodyX - last_x, pt.bodyY - last_y));
+                }
+                last_x = pt.bodyX;
+                last_y = pt.bodyY;
+            }
+        }
+
+        if (dists.size() >= 5) {
+            double mean_dist = 0.0;
+            for (double d : dists) mean_dist += d;
+            mean_dist /= dists.size();
+
+            double p95 = calcPercentile(dists, 0.95);
+            double p99 = calcPercentile(dists, 0.99);
+            double limite_salto = p95 * 1.5;
+            if (p99 > limite_salto) limite_salto = p99;
+            if (mean_dist * 3.0 > limite_salto) limite_salto = mean_dist * 3.0;
+            if (12.0 > limite_salto) limite_salto = 12.0;
+
+            // Re-eval valid points for mobility check
+            std::vector<double> mobXs, mobYs;
+            for (const auto& pt : points) {
+                if (pt.bodyLikelihood >= 0.5) {
+                    mobXs.push_back(pt.bodyX);
+                    mobYs.push_back(pt.bodyY);
+                }
+            }
+            
+            if (mobXs.size() >= 5) {
+                double span_x = calcPercentile(mobXs, 0.95) - calcPercentile(mobXs, 0.05);
+                double span_y = calcPercentile(mobYs, 0.95) - calcPercentile(mobYs, 0.05);
+                bool baixa_mobilidade = (p95 < 3.0) || (span_x < 20.0 && span_y < 20.0);
+
+                if (!baixa_mobilidade) {
+                    std::vector<double> point_dists(points.size(), 0.0);
+                    last_x = -1;
+                    last_y = -1;
+                    for (size_t i = 0; i < points.size(); ++i) {
+                        if (points[i].bodyLikelihood >= 0.5) {
+                            if (last_x >= 0) {
+                                point_dists[i] = std::hypot(points[i].bodyX - last_x, points[i].bodyY - last_y);
+                            }
+                            last_x = points[i].bodyX;
+                            last_y = points[i].bodyY;
+                        }
+                    }
+
+                    for (size_t i = 0; i < points.size(); ++i) {
+                        if (points[i].bodyLikelihood >= 0.5) {
+                            if (point_dists[i] > limite_salto) {
+                                points[i].bodyLikelihood = 0.0; // Filter out jump
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Savitzky-Golay Filter (Window=11, Poly=3)
+        std::vector<size_t> valid_idxs;
+        std::vector<double> valid_xs, valid_ys;
+        for (size_t k = 0; k < points.size(); ++k) {
+            if (points[k].bodyLikelihood >= 0.5) {
+                valid_idxs.push_back(k);
+                valid_xs.push_back(points[k].bodyX);
+                valid_ys.push_back(points[k].bodyY);
+            }
+        }
+
+        const int w = 11;
+        if (valid_idxs.size() >= static_cast<size_t>(w)) {
+            std::vector<double> smoothed_xs = valid_xs;
+            std::vector<double> smoothed_ys = valid_ys;
+            const double coeffs[11] = {-36, 9, 44, 69, 84, 89, 84, 69, 44, 9, -36};
+            const double norm = 429.0;
+            const int half_w = 5;
+
+            for (size_t k = half_w; k < valid_xs.size() - half_w; ++k) {
+                double sum_x = 0, sum_y = 0;
+                for (int j = -half_w; j <= half_w; ++j) {
+                    sum_x += valid_xs[k + j] * coeffs[j + half_w];
+                    sum_y += valid_ys[k + j] * coeffs[j + half_w];
+                }
+                smoothed_xs[k] = sum_x / norm;
+                smoothed_ys[k] = sum_y / norm;
+            }
+
+            for (size_t k = 0; k < valid_idxs.size(); ++k) {
+                points[valid_idxs[k]].bodyX = smoothed_xs[k];
+                points[valid_idxs[k]].bodyY = smoothed_ys[k];
+            }
+        }
+
+        // ── Dynamic Scaling (fit to 60x60 cm plot) ──────────────────────────
+        double minX = 1e9, maxX = -1e9;
+        double minY = 1e9, maxY = -1e9;
+        for(const auto& pt: points) {
+            if (pt.bodyLikelihood < 0.5) continue;
+            if (pt.bodyX < minX) minX = pt.bodyX;
+            if (pt.bodyX > maxX) maxX = pt.bodyX;
+            if (pt.bodyY < minY) minY = pt.bodyY;
+            if (pt.bodyY > maxY) maxY = pt.bodyY;
+        }
+        if (minX > maxX) { minX = 0; maxX = cropWidth; }
+        if (minY > maxY) { minY = 0; maxY = cropHeight; }
+        
+        // Add 2% padding
+        double padX = (maxX - minX) * 0.02;
+        double padY = (maxY - minY) * 0.02;
+        minX -= padX; maxX += padX;
+        minY -= padY; maxY += padY;
+        if (maxX - minX < 1) maxX = minX + 1;
+        if (maxY - minY < 1) maxY = minY + 1;
+
+        // ── Layout constants ────────────────────────────────────────────────
+        const int plotLeft    = 100;
+        const int plotTop     = 68;
+        const int plotSize    = 720;
+        const int colorbarLeft = plotLeft + plotSize + 35;
+        const int colorbarW   = 22;
+        const int colorbarH   = plotSize;
+        const int imageWidth  = colorbarLeft + 100;
+        const int imageHeight = plotTop + plotSize + 90;
+
+        // Map body coords (dynamic bounding box) → image pixels.
+        const auto plotPoint = [&](double x, double y) {
+            return QPointF(plotLeft + (x - minX) * plotSize / (maxX - minX),
+                           plotTop  + plotSize - (y - minY) * plotSize / (maxY - minY));
+        };
+
+        // Labels
+        const QString animalLabel = (fieldIndex < animalNames.size() && !animalNames.at(fieldIndex).isEmpty())
+                                    ? animalNames.at(fieldIndex)
+                                    : QStringLiteral("Animal %1").arg(fieldIndex + 1);
+        const QString campoLabel  = QStringLiteral("Campo %1").arg(fieldIndex + 1);
+
+        // Sanitize animal name for filenames
+        QString safeAnimalName = animalLabel;
+        safeAnimalName.replace(" ", "_");
+        safeAnimalName.replace(QRegularExpression("[^a-zA-Z0-9_-]"), "");
+
+        // ── Directory Structure ──────────────────────────────────────────────
+        const QString trajPngDir = experimentDir + "/tracking/trajectory/png";
+        const QString trajSvgDir = experimentDir + "/tracking/trajectory/svg";
+        const QString heatPngDir = experimentDir + "/tracking/heatmap/png";
+        const QString heatSvgDir = experimentDir + "/tracking/heatmap/svg";
+        
+        QDir().mkpath(trajPngDir);
+        QDir().mkpath(trajSvgDir);
+        QDir().mkpath(heatPngDir);
+        QDir().mkpath(heatSvgDir);
+        
+        const QString baseTrajPng = trajPngDir + QStringLiteral("/tracking_trajectory_campo%1_%2.png").arg(fieldIndex + 1).arg(safeAnimalName);
+        const QString baseTrajSvg = trajSvgDir + QStringLiteral("/tracking_trajectory_campo%1_%2.svg").arg(fieldIndex + 1).arg(safeAnimalName);
+        const QString baseHeatPng = heatPngDir + QStringLiteral("/tracking_heatmap_campo%1_%2.png").arg(fieldIndex + 1).arg(safeAnimalName);
+        const QString baseHeatSvg = heatSvgDir + QStringLiteral("/tracking_heatmap_campo%1_%2.svg").arg(fieldIndex + 1).arg(safeAnimalName);
+
+        // ── Shared grid helper ──────────────────────────────────────────────
+        const auto drawGrid = [&](QPainter& p, bool darkMode) {
+            const QColor borderCol  = darkMode ? QColor(200,200,200)       : QColor("#333333");
+            const QColor gridCol    = darkMode ? QColor(255,255,255,55)    : QColor(180,180,180,180);
+            const QColor tickCol    = darkMode ? Qt::white                 : Qt::black;
+            p.setPen(QPen(borderCol, 1.5));
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(plotLeft, plotTop, plotSize, plotSize);
+            p.setPen(QPen(gridCol, 1, Qt::DotLine));
+            for (int s = 1; s < 6; ++s) {
+                p.drawLine(plotLeft + s * plotSize / 6, plotTop,
+                           plotLeft + s * plotSize / 6, plotTop + plotSize);
+                p.drawLine(plotLeft, plotTop + s * plotSize / 6,
+                           plotLeft + plotSize, plotTop + s * plotSize / 6);
+            }
+            p.setPen(tickCol);
+            p.setFont(QFont("Segoe UI", 10));
+            for (int s = 0; s <= 6; ++s) {
+                const int xPx = plotLeft + s * plotSize / 6;
+                const int yPx = plotTop  + (6 - s) * plotSize / 6;
+                p.drawText(xPx - 10, plotTop + plotSize + 18, QString::number(s * 10));
+                p.drawText(plotLeft - 38, yPx + 4,            QString::number(s * 10));
+            }
+            p.setFont(QFont("Segoe UI", 11));
+            p.drawText(plotLeft + plotSize/2 - 22, plotTop + plotSize + 44, "X (cm)");
+            p.save();
+            p.translate(32, plotTop + plotSize/2 + 22);
+            p.rotate(-90);
+            p.drawText(0, 0, "Y (cm)");
+            p.restore();
+        };
+
+        // ── 1. TRAJECTORY PLOT (Purples colormap) ──────────────────────────
+        {
+            QImage img(imageWidth, imageHeight, QImage::Format_ARGB32);
+            img.fill(Qt::white);
+            QPainter tp(&img);
+            tp.setRenderHint(QPainter::Antialiasing);
+
+            drawGrid(tp, false);
+
+            const size_t nPts = points.size();
+            for (size_t i = 1; i < nPts; ++i) {
+                const auto& prev = points[i - 1];
+                const auto& curr = points[i];
+                if (prev.bodyLikelihood < 0.5 || curr.bodyLikelihood < 0.5) continue;
+                const double t = static_cast<double>(i) / static_cast<double>(nPts > 1 ? nPts - 1 : 1);
+                tp.setPen(QPen(purpleColor(t), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                tp.drawLine(plotPoint(prev.bodyX, prev.bodyY), plotPoint(curr.bodyX, curr.bodyY));
+            }
+
+            // Title (two lines)
+            tp.setPen(Qt::black);
+            tp.setFont(QFont("Segoe UI", 18, QFont::Bold));
+            tp.drawText(QRect(plotLeft, 6, plotSize, 30),
+                        Qt::AlignHCenter | Qt::AlignVCenter,
+                        "Trajetória — " + campoLabel);
+            tp.setFont(QFont("Segoe UI", 11));
+            tp.drawText(QRect(plotLeft, 35, plotSize, 22),
+                        Qt::AlignHCenter | Qt::AlignVCenter,
+                        "Animal: " + animalLabel);
+
+            // Colorbar: light (início) at bottom → dark (fim) at top
+            tp.setPen(Qt::NoPen);
+            for (int cs = 0; cs < colorbarH; ++cs) {
+                const double t = 1.0 - static_cast<double>(cs) / static_cast<double>(colorbarH - 1);
+                tp.setBrush(purpleColor(t));
+                tp.drawRect(colorbarLeft, plotTop + cs, colorbarW, 2);
+            }
+            tp.setPen(Qt::black);
+            tp.setFont(QFont("Segoe UI", 9));
+            tp.drawText(colorbarLeft, plotTop - 3, "Fim");
+            tp.drawText(colorbarLeft, plotTop + colorbarH + 11, "Início");
+            tp.save();
+            tp.translate(colorbarLeft + colorbarW + 14, plotTop + colorbarH / 2 + 22);
+            tp.rotate(-90);
+            tp.drawText(0, 0, "Tempo");
+            tp.restore();
+
+            tp.end();
+            img.save(baseTrajPng);
+        }
+
+        // ── 2. HEATMAP PLOT (visitation frequency, Jet colormap) ───────────
+        const int heatBins = 60;
+        std::vector<int> visitCount(heatBins * heatBins, 0);
+        int maxCount = 0;
+        for (const auto& pt : points) {
+            if (pt.bodyLikelihood < 0.5) continue;
+            const int bx = static_cast<int>((pt.bodyX - minX) / (maxX - minX) * heatBins);
+            const int by = static_cast<int>((pt.bodyY - minY) / (maxY - minY) * heatBins);
+            const int safeBx = (bx < 0) ? 0 : ((bx >= heatBins) ? heatBins - 1 : bx);
+            const int safeBy = (by < 0) ? 0 : ((by >= heatBins) ? heatBins - 1 : by);
+            const int idx = safeBy * heatBins + safeBx;
+            if (++visitCount[idx] > maxCount) maxCount = visitCount[idx];
+        }
+        if (maxCount < 1) maxCount = 1;
+
+        {
+            QImage img(imageWidth, imageHeight, QImage::Format_ARGB32);
+            img.fill(QColor("#050510"));
+            QPainter hp(&img);
+            hp.setRenderHint(QPainter::Antialiasing, false);
+
+            // Dark background for the plot area (unvisited = near-black)
+            hp.setPen(Qt::NoPen);
+            hp.setBrush(QColor(8, 8, 28));
+            hp.drawRect(plotLeft, plotTop, plotSize, plotSize);
+
+            // Heatmap cells (log scale for better visual contrast)
+            const int cellSize = plotSize / heatBins;
+            for (int by = 0; by < heatBins; ++by) {
+                for (int bx = 0; bx < heatBins; ++bx) {
+                    const int cnt = visitCount[by * heatBins + bx];
+                    if (cnt == 0) continue;
+                    const double t = std::log1p(static_cast<double>(cnt)) /
+                                     std::log1p(static_cast<double>(maxCount));
+                    hp.setBrush(jetColor(t));
+                    hp.drawRect(plotLeft + bx * cellSize,
+                                plotTop  + plotSize - (by + 1) * cellSize,
+                                cellSize + 1, cellSize + 1);
+                }
+            }
+
+            hp.setRenderHint(QPainter::Antialiasing);
+
+            drawGrid(hp, true);
+
+            // Title
+            hp.setPen(Qt::white);
+            hp.setFont(QFont("Segoe UI", 18, QFont::Bold));
+            hp.drawText(QRect(plotLeft, 6, plotSize, 30),
+                        Qt::AlignHCenter | Qt::AlignVCenter,
+                        "Mapa de Calor — " + campoLabel);
+            hp.setFont(QFont("Segoe UI", 11));
+            hp.drawText(QRect(plotLeft, 35, plotSize, 22),
+                        Qt::AlignHCenter | Qt::AlignVCenter,
+                        "Animal: " + animalLabel);
+
+            // Colorbar (jet: top=red=high, bottom=blue=low)
+            hp.setPen(Qt::NoPen);
+            for (int cs = 0; cs < colorbarH; ++cs) {
+                const double t = 1.0 - static_cast<double>(cs) / static_cast<double>(colorbarH - 1);
+                hp.setBrush(jetColor(t));
+                hp.drawRect(colorbarLeft, plotTop + cs, colorbarW, 2);
+            }
+            hp.setPen(Qt::white);
+            hp.setFont(QFont("Segoe UI", 9));
+            hp.drawText(colorbarLeft, plotTop - 3, "Alto");
+            hp.drawText(colorbarLeft, plotTop + colorbarH + 11, "Baixo");
+            hp.save();
+            hp.translate(colorbarLeft + colorbarW + 14, plotTop + colorbarH / 2 + 32);
+            hp.rotate(-90);
+            hp.drawText(0, 0, "Frequência");
+            hp.restore();
+
+            hp.end();
+            img.save(baseHeatPng);
+        }
+
+        // ── 3. SVG OUTPUTS (Trajectory and Heatmap) ────────────────────────
+        {
+            // ViewBox perfectly wraps the dynamic bounding box
+            const double vbW = maxX - minX;
+            const double vbH = maxY - minY;
+            const QString svgStart = QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"%1 %2 %3 %4\" width=\"100%\" height=\"100%\">\n<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%4\" fill=\"#101024\"/>\n")
+                                         .arg(minX).arg(minY).arg(vbW).arg(vbH);
+            const QString svgEnd = QStringLiteral("</svg>\n");
+
+            // --- Trajectory SVG ---
+            QFile svgTraj(baseTrajSvg);
+            if (svgTraj.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&svgTraj);
+                out << svgStart;
+                QStringList pts;
+                for (const auto& pt : points) {
+                    if (pt.bodyLikelihood >= 0.5)
+                        pts << QString::number(pt.bodyX, 'f', 1) + "," + QString::number(pt.bodyY, 'f', 1);
+                }
+                if (!pts.isEmpty())
+                    out << "<polyline points=\"" << pts.join(' ') << "\" fill=\"none\" stroke=\"#b07bff\" stroke-width=\"2\"/>\n";
+                out << svgEnd;
+            }
+
+            // --- Heatmap SVG ---
+            QFile svgHeat(baseHeatSvg);
+            if (svgHeat.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&svgHeat);
+                out << svgStart;
+                
+                const double binW = vbW / heatBins;
+                const double binH = vbH / heatBins;
+                
+                for (int by = 0; by < heatBins; ++by) {
+                    for (int bx = 0; bx < heatBins; ++bx) {
+                        const int cnt = visitCount[by * heatBins + bx];
+                        if (cnt == 0) continue;
+                        const double t = std::log1p(static_cast<double>(cnt)) /
+                                         std::log1p(static_cast<double>(maxCount));
+                        QColor c = jetColor(t);
+                        out << "<rect x=\"" << (minX + bx * binW) << "\" y=\"" << (minY + by * binH) 
+                            << "\" width=\"" << binW << "\" height=\"" << binH 
+                            << "\" fill=\"" << c.name() << "\"/>\n";
+                    }
+                }
+                out << svgEnd;
+            }
+        }
+    }
+}
+
 // ── Session creation ───────────────────────────────────────────────────────────
+
 
 bool InferenceEngine::tryCreateSessions(Ort::SessionOptions& sessionOptions)
 {
@@ -611,6 +1178,32 @@ void InferenceEngine::inferCrop(const QImage& crop, int fieldIndex,
                 bodyPoint = {cropX, cropY, peakScore};
             emit bodyResult(fieldIndex, mosaicX, mosaicY, peakScore);
         }
+    }
+
+    // --- Write raw coordinates to per-field CSV ---
+    // Logged unconditionally (before the behaviour-validity check below) so
+    // every processed frame gets a row with a contiguous frame index, which
+    // downstream trajectory/heatmap generation relies on. Previously this
+    // block sat after the `validPose` early-return and was skipped for every
+    // frame where the behaviour scanner's warm-up window hadn't filled yet.
+    auto& writer = m_rawWriters[fieldIndex];
+    if (writer.file.is_open()) {
+        writer.frameCounter++;
+        // Columns: Frame, FieldIndex, CropOffsetX, CropOffsetY, ScaleX, ScaleY,
+        //          VideoW, VideoH, MosaicNoseX, MosaicNoseY, NoseLikelihood,
+        //          MosaicBodyX, MosaicBodyY, BodyLikelihood
+        writer.file << writer.frameCounter << ','
+                    << fieldIndex << ','
+                    << cropOffsetX << ',' << cropOffsetY << ','
+                    << scaleX << ',' << scaleY << ','
+                    << static_cast<int>(scaleX * MODEL_W * 2) << ','
+                    << static_cast<int>(scaleY * MODEL_H * 2) << ','
+                    << static_cast<int>(nosePoint.x * scaleX + cropOffsetX) << ','
+                    << static_cast<int>(nosePoint.y * scaleY + cropOffsetY) << ','
+                    << nosePoint.p << ','
+                    << static_cast<int>(bodyPoint.x * scaleX + cropOffsetX) << ','
+                    << static_cast<int>(bodyPoint.y * scaleY + cropOffsetY) << ','
+                    << bodyPoint.p << '\n';
     }
 
     // Rule-based behaviour classification (no ONNX behaviour models active).

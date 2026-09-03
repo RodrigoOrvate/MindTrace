@@ -99,6 +99,17 @@ public:
                                    const QString& title,
                                    const QStringList& captions = QStringList());
 
+    /// Begin writing per-frame raw coordinates (nose + body) to CSVs in the
+    /// experiment folder. One file per field: raw_tracking_campo<1-3>.csv.
+    Q_INVOKABLE void beginRawTracking(const QString& experimentDir);
+
+    /// Flush and close all raw tracking CSV writers.
+    Q_INVOKABLE void endRawTracking();
+
+    /// Set per-field animal names used to label trajectory/heatmap plot titles.
+    /// Call before or after beginRawTracking(); names are applied when plots are generated.
+    Q_INVOKABLE void setTrackingAnimalNames(const QStringList& names);
+
 signals:
     void analyzingChanged();
     void readyReceived();

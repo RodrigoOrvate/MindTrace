@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../core"
@@ -11,6 +11,7 @@ Item {
 
     // Properties injected by the dashboard
     property string videoPath: ""
+    property string experimentPath: ""
     property string saveDirectory: ""
     property string liveOutputName: ""
     property string cameraId: ""             // camera description for live mode
@@ -23,6 +24,7 @@ Item {
     property var    contextPatterns: []
     property int    numCampos:    3           // 1, 2 ou 3 campos ativos
     property bool   ccMode:       false      // CC: shows only distance/speed/behavior
+    property var    animalNames:  ["", "", ""]  // per-field animal names for plot titles
 
     property var zones
     property var arenaPoints
@@ -665,6 +667,9 @@ Item {
         logView.positionViewAtEnd()
         // EI and 1-field use full frame (720x480); others use quadrants
         inference.setFullFrameMode(aparato === "esquiva_inibitoria" || numCampos === 1)
+        console.log("[LiveRecording] raw tracking experiment path=", recordingRoot.experimentPath)
+        inference.setTrackingAnimalNames(recordingRoot.animalNames)
+        inference.beginRawTracking(recordingRoot.experimentPath)
         if (recordingRoot.isOffline) {
             console.log("[LiveRecording] Starting OFFLINE analysis. playbackRate=", recordingRoot.playbackRate)
             // Offline mode: MediaPlayer plays video file

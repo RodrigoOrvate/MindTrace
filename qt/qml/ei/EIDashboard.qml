@@ -454,6 +454,7 @@ Item {
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    tabArenaSetup.videoPath
+                                experimentPath: workArea.selectedPath
                                 analysisMode: workArea.analysisMode
                                 context: root.context
                                 saveDirectory: workArea.saveDirectory

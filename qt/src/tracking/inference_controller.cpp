@@ -537,6 +537,33 @@ QString InferenceController::readTextFile(const QString& filePath) const
     return textStream.readAll();
 }
 
+void InferenceController::beginRawTracking(const QString& experimentDir)
+{
+    // QML file dialogs / folder pickers hand back "file:///C:/..." URLs, not
+    // native paths. Strip the scheme the same way behaviorCachePath() does,
+    // otherwise QDir::mkpath()/ofstream::open() silently fail to create the
+    // folder/files below.
+    QString cleanPath = experimentDir.trimmed();
+    if (cleanPath.startsWith("file:///")) cleanPath = cleanPath.mid(8);
+
+    qDebug() << "[InferenceController] beginRawTracking path:" << cleanPath;
+    if (m_engine) {
+        m_engine->beginRawTracking(cleanPath);
+    } else {
+        qWarning() << "[InferenceController] beginRawTracking: engine unavailable";
+    }
+}
+
+void InferenceController::endRawTracking()
+{
+    if (m_engine) m_engine->endRawTracking();
+}
+
+void InferenceController::setTrackingAnimalNames(const QStringList& names)
+{
+    if (m_engine) m_engine->setTrackingAnimalNames(names);
+}
+
 bool InferenceController::savePdfReport(const QString& pdfPath,
                                         const QStringList& imagePaths,
                                         const QString& title,
@@ -1298,6 +1325,7 @@ void InferenceController::startLiveAnalysis(const QString& cameraName,
 
 void InferenceController::stopAnalysis()
 {
+    if (m_engine) m_engine->endRawTracking();
     if (m_isLiveMode) {
         if (m_isDirectShowMode && m_dshowCapture) {
             m_dshowCapture->stop();

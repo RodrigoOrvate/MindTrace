@@ -500,6 +500,7 @@ Item {
                             LiveRecording {
                                 id: liveRecordingTab
                                 videoPath:    workArea.activeNumCampos === 1 ? eiArenaSetupCA.videoPath : tabArenaSetup.videoPath
+                                experimentPath: workArea.selectedPath
                                 analysisMode: workArea.analysisMode
                                 context: root.context
                                 contextPatterns: workArea.contextPatterns
