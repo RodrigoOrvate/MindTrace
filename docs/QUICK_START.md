@@ -38,25 +38,31 @@ MindTrace em 2 minutos. Você quer usar ou modificar?
 
 ⏱️ **Tempo:** 5 minutos (instalação) + 2 minutos (aprender a usar)
 
+> ⚠️ **Ainda não há instalador publicado.** Enquanto a primeira versão não sai em [Releases](https://github.com/RodrigoOrvate/MindTrace/releases), siga a **Rota 2** para compilar ou peça o instalador a quem mantém o projeto.
+
 ### Passo 1 — Baixar o instalador
 
-Vá em [Releases](https://github.com/RodrigoOrvate/MindTrace/releases) e baixe `MindTrace_Setup.exe`.
+Vá em [Releases](https://github.com/RodrigoOrvate/MindTrace/releases) e baixe `MindTrace_Setup_<versão>.exe` (ex.: `MindTrace_Setup_1.0.0.exe`).
 
 ### Passo 2 — Instalar
 
-Dê duplo clique e siga as instruções:
-1. Aceite o contrato
-2. Escolha pasta (padrão é `C:\Program Files\MindTrace`)
+Dê duplo clique (precisa de permissão de administrador) e siga as instruções:
+1. Escolha a pasta (padrão é `C:\Program Files\MindTrace`)
+2. Se quiser, marque **Criar atalho na Área de Trabalho**
 3. Clique em **Instalar**
-4. Pronto! Ícone aparece na Área de Trabalho
+4. Pronto! O MindTrace fica no Menu Iniciar (e abre ao final, se **Iniciar MindTrace agora** estiver marcado)
+
+**Opcional:**
+- **Python 3** com **"Add Python to PATH"** — para a exportação sair em `.xlsx` formatado (sem ele, sai só o `.csv`)
+- **`ffmpeg.exe`** na pasta do MindTrace ou no PATH — para extrair clipes de vídeo por cluster no Comportamento Complexo
 
 ### Passo 3 — Preparar o modelo ONNX
 
 O modelo (IA de pose) já vem incluído. Nenhuma ação necessária.
 
 **Se quiser trocar o modelo:**
-- Copie seu arquivo `.onnx` para `C:\Program Files\MindTrace\`
-- App carrega automaticamente
+- Substitua o `.onnx` em `C:\Program Files\MindTrace\` pelo novo (deixe só um `.onnx` na pasta)
+- App carrega automaticamente, qualquer que seja o nome
 
 ### Passo 4 — Usar!
 
@@ -66,14 +72,20 @@ Abra MindTrace e escolha seu paradigma:
 - **Comportamento Complexo** — Complex Behavior
 - **Esquiva Inibitória** — Inhibitory Avoidance
 
+Veja o passo a passo em [🎮 Usando MindTrace](#-usando-mindtrace-tutorial-básico).
+
 ### Passo 5 — Sincronizar com Backend (opcional)
 
-Se tem um **Backend da Animal Lifecycle** rodando:
+Se tem o **backend do [Animal Lifecycle](https://github.com/RodrigoOrvate/animal-lifecycle-platform)** rodando **no mesmo computador**:
 
-1. Settings → Backend URL
-2. Digite: `http://192.168.1.10:8000` (substitua pelo IP real)
-3. Settings → SYNC_SECRET (copie do admin)
-4. Ao finalizar experimento, dados sincronizam automaticamente ✨
+1. Defina as variáveis de ambiente do Windows (não há campos na tela de Configurações):
+   - `MINDTRACE_SYNC_ENABLED=1`
+   - `MINDTRACE_SYNC_SECRET=` o mesmo valor de `SYNC_SECRET` do `backend/.env` (peça ao admin)
+   - `MINDTRACE_SYNC_URL` só se o backend não estiver em `http://127.0.0.1:8000` — o MindTrace só aceita `127.0.0.1` ou `localhost`
+2. Abra o MindTrace de novo para ele ler as variáveis
+3. Cada sessão salva é enviada ao backend ✨
+
+Detalhes em [README → Ativar a sincronização](../README.md#ativar-a-sincronização-no-mindtrace).
 
 ---
 
@@ -97,25 +109,28 @@ Veja [README.md → Instalação para Desenvolvimento](../README.md#instalação
 - CMake 3.25+
 - VSCode (recomendado)
 
-### Passo 3 — Colocar modelo ONNX
+### Passo 3 — Modelo ONNX
 
-Copie arquivo `.onnx` para `qt/` (raiz do repositório clonado).
+Nada a fazer: o modelo (`qt/Network-MemoryLab-v2.onnx`) já vem no repositório e o `build.bat` o copia para `build/Release/`.
 
 ### Passo 4 — Compilar
 
 ```bash
 cd qt/scripts
 # Dê duplo clique em build.bat
+# (ou: build.bat --gpu DML  /  build.bat --gpu CUDA)
 ```
 
-Na primeira vez demora 5-10 min (tudo é compilado).
-Depois é rápido (só o que mudou).
+Na primeira vez ele baixa o ONNX Runtime (escolha **DML** para AMD/Intel/CPU ou **CUDA** para NVIDIA) e compila tudo — demora 5-10 min.
+Depois é rápido (só o que mudou). Para abrir sem compilar: `run.bat`.
 
 ### Passo 5 — Modificar e testar
 
 Edite código em `qt/src/` ou `qt/qml/`, salve, compile novamente.
 
-Comit, push, pull request!
+Commit, push, pull request!
+
+Para gerar o instalador: [README → Gerar o instalador](../README.md#gerar-o-instalador).
 
 ---
 
@@ -123,42 +138,48 @@ Comit, push, pull request!
 
 ### Criar um experimento
 
-1. Abra MindTrace
-2. Escolha paradigma (ex: "NOR")
-3. Configure arena (tamanho, câmera)
-4. Clique em **Live Recording**
-5. Vídeo da câmera aparece ao vivo
-6. Pose do rato é detectada automaticamente ✨
-7. Ao terminar, clique **Stop** e **Save**
+1. Abra MindTrace e clique em **Criar**
+2. Escolha o paradigma (ex: "Reconhecimento de Objetos")
+3. Escolha o layout de campos / contexto e clique em **Próximo** (NOR, Campo Aberto e Comportamento Complexo)
+4. Dê um nome, preencha as opções do paradigma (ex: pares de objetos no NOR) e clique em **Criar Experimento**
+
+### Analisar um vídeo ou a câmera
+
+1. Na aba **Arena**, clique em **Carregar Vídeo** e escolha **Análise Offline** (vídeo gravado) ou **Análise Ao Vivo** (câmera)
+2. Ajuste as zonas sobre o vídeo — ative o **Dev** para arrastar os cantos das paredes, do chão e das zonas — e clique em **Salvar Configuração**
+3. Na aba **Gravação**, clique em **Iniciar** — a pose do rato é detectada automaticamente ✨
+4. Ao terminar (fim do vídeo ou **Parar**), informe dia e animal e clique em **Salvar Sessão**
 
 ### Visualizar resultados
 
-1. Dashboard aparece com:
-   - Timeline de comportamentos
-   - Clips de vídeo (extraídos automaticamente)
-   - Estatísticas (tempo em cada zona, etc.)
-
-2. Exportar para Excel:
-   ```bash
-   python scripts/formatar_mindtrace.py
-   ```
+1. A aba **Dados** mostra uma linha por sessão salva
+2. **Exportar** gera o `.csv` e, com Python instalado, o `.xlsx` formatado com as métricas (tempo em cada zona, distância, velocidade, etc.)
+3. No **Comportamento Complexo**, o dashboard também traz a timeline de comportamentos (regras + B-SOiD) e a extração de clipes por cluster (precisa do FFmpeg)
 
 ---
 
 ## ❓ Algo Deu Errado?
 
 ### "Modelo não carrega"
-- Verificar se arquivo `.onnx` está em `C:\Program Files\MindTrace\`
+- Verificar se há um arquivo `.onnx` na pasta do executável (`C:\Program Files\MindTrace\` ou `build\Release\`)
 - Extensão deve ser exatamente `.onnx` (não `.pth` ou outro)
+
+### "Tracking atrasado / não acompanha o rato"
+- Sem GPU a inferência roda na CPU e pode processar poucos quadros por segundo
+- O Log da aba **Gravação** mostra o modo em uso (ex.: "Modo GPU: DirectML ativo" ou "Modo CPU")
 
 ### "Câmera não funciona"
 - Verificar Configurações do Windows → Privacidade → Câmera
-- Marque MindTrace como permitido
+- Ative **Permitir que aplicativos da área de trabalho acessem sua câmera**
+
+### "Exportar não gera o .xlsx"
+- Instale o Python 3 marcando **"Add Python to PATH"** e exporte de novo
 
 ### "Sincronização não funciona"
-- Verificar se backend está rodando (curl http://192.168.1.10:8000/health)
-- Verificar SYNC_SECRET está correto (mesma senha do backend)
-- Ver logs em `C:\Program Files\MindTrace\mindtrace.log`
+- Verificar se `MINDTRACE_SYNC_ENABLED=1` está definida e se o MindTrace foi reaberto depois
+- Verificar se o backend está rodando no mesmo computador (`curl http://127.0.0.1:8000/health`)
+- Verificar se `MINDTRACE_SYNC_SECRET` é igual ao `SYNC_SECRET` do backend
+- Ver `mindtrace.log` na pasta do executável
 
 ---
 
@@ -166,7 +187,7 @@ Comit, push, pull request!
 
 - **[GLOSSÁRIO.md](GLOSSÁRIO.md)** — Termos técnicos explicados
 - **[README.md](../README.md)** — Documentação técnica completa
-- **[AGENTS.md](AGENTS.md)** — Código dos agentes (análise)
+- **[AGENTS.md](../AGENTS.md)** — Contexto técnico detalhado do código (arquitetura e pipeline)
 
 ---
 

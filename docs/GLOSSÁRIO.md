@@ -73,7 +73,7 @@ Uso de modelo de IA para fazer previsões. "Detectar pose" é uma inferência.
 ### ONNX
 Formato de arquivo de modelo de IA. Compatível com qualquer framework.
 
-**Arquivo:** `modelo.onnx` (contém a IA)
+**Arquivo:** `Network-MemoryLab-v2.onnx` (modelo de pose que vem com o MindTrace)
 
 ---
 
@@ -104,7 +104,7 @@ Tipo de experimento. MindTrace tem 4:
 - **EI** — Esquiva Inibitória
 
 ### Pose
-Posição do corpo do rato. MindTrace detecta: cabeça, corpo, 4 patas.
+Posição do corpo do rato. MindTrace detecta 2 pontos: focinho e centro do corpo.
 
 **Analogia:** Como um "esqueleto" em cima do rato.
 
