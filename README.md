@@ -4,6 +4,10 @@ Sistema de tracking comportamental de ratos para paradigmas **NOR**, **Campo Abe
 
 > **Sistema operacional:** Windows 10 ou 11 (64-bit) obrigatório
 
+<p align="center">
+  <img src="docs/mindtrace-preview.gif" alt="Prévia do MindTrace: criação de um experimento NOR, dashboard com as abas Arena, Gravação e Dados, e troca entre tema escuro e claro" width="900">
+</p>
+
 ---
 
 ## 📚 Documentação (Centralizada em `/docs`)
