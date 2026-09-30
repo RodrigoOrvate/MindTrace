@@ -6,6 +6,14 @@ Sistema de tracking comportamental de ratos para paradigmas **NOR**, **Campo Abe
 
 <p align="center">
   <img src="docs/mindtrace-preview.gif" alt="Prévia do MindTrace: criação de um experimento NOR, dashboard com as abas Arena, Gravação e Dados, e troca entre tema escuro e claro" width="900">
+  <br>
+  <sub>Interface: criação de um experimento NOR, abas Arena, Gravação e Dados, tema escuro e claro.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/mindtrace-tracking-ei.gif" alt="Tracking no MindTrace: vídeo de Esquiva Inibitória carregado, arena alinhada ao chão no Dev Mode e análise com focinho e corpo rastreados, tempo na plataforma e na grade" width="900">
+  <br>
+  <sub>Esquiva Inibitória: vídeo carregado, plataforma, grade e paredes alinhadas ao chão no Dev Mode e tracking de focinho e corpo com tempo em cada zona.</sub>
 </p>
 
 ---
