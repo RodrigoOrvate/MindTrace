@@ -327,4 +327,13 @@ A sincronização vem **desligada** e é configurada por variáveis de ambiente 
 
 Se `MINDTRACE_SYNC_SECRET` não estiver definida, o MindTrace procura a chave em `animal-lifecycle-platform\backend\.env`, subindo até 5 pastas a partir da pasta de trabalho e da pasta do executável. A lista de responsáveis e a busca de animais também usam essa chave (a busca de animais consulta sempre `http://localhost:8000`).
 
+---
 
+## Contato
+
+Dúvidas, sugestões ou interesse em usar o MindTrace no seu laboratório:
+
+**Rodrigo Orvate** — [rodrigo.orvate.092@ufrn.edu.br](mailto:rodrigo.orvate.092@ufrn.edu.br)  
+Laboratório de Estudos da Memória — Instituto do Cérebro, UFRN
+
+Problemas e bugs também podem ser relatados em [Issues](https://github.com/RodrigoOrvate/MindTrace/issues).
